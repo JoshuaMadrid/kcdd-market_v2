@@ -114,14 +114,15 @@ export const fetchUserProfile = async (userId: string) => {
 
 // Claim a request
 export const claimRequest = async (requestId: string, donorId: string) => {
-  // @ts-ignore - Supabase type inference issue
+  const updateData: Database['public']['Tables']['requests']['Update'] = {
+    status: 'claimed',
+    donor_id: donorId,
+    claimed_at: new Date().toISOString(),
+  }
+  
   const { data, error } = await supabase
     .from('requests')
-    .update({
-      status: 'claimed',
-      donor_id: donorId,
-      claimed_at: new Date().toISOString(),
-    })
+    .update(updateData)
     .eq('id', requestId)
     .select()
     .single()

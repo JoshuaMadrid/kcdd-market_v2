@@ -16,6 +16,7 @@ import { createPaymentIntent, toStripeAmount } from '@/lib/stripe'
 import { supabase } from '@/lib/supabase'
 import { formatCurrency } from '@/lib/utils'
 import { routes } from '@/config'
+import type { Database } from '@/types/database'
 
 export function CheckoutPage() {
   const { requestId } = useParams<{ requestId: string }>()
@@ -92,14 +93,15 @@ export function CheckoutPage() {
 
       if (paymentIntent && paymentIntent.status === 'succeeded') {
         // Update request status
-        // @ts-ignore - Supabase type inference issue
+        const updateData: Database['public']['Tables']['requests']['Update'] = {
+          status: 'claimed',
+          donor_id: user?.id,
+          claimed_at: new Date().toISOString(),
+        }
+        
         await supabase
           .from('requests')
-          .update({
-            status: 'claimed',
-            donor_id: user?.id,
-            claimed_at: new Date().toISOString(),
-          })
+          .update(updateData)
           .eq('id', requestId)
 
         // Redirect to success page
