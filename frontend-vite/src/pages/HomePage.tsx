@@ -12,7 +12,7 @@ export function HomePage() {
       <div className="w-full max-w-none">
         <div className="flex items-center gap-5">
           {/* Left Decorative Grid */}
-          <div className="hidden lg:grid flex-1 h-[500px] grid-cols-6 grid-rows-7 gap-2.5">
+          <div className="hidden lg:grid flex-1 h-[650px] grid-cols-6 grid-rows-7 gap-2.5">
             <div className="col-start-5 col-span-2 row-start-2 row-span-3 bg-[hsl(var(--brand-primary))] rounded-[10px]" />
             <div className="col-start-3 col-span-2 row-start-1 row-span-3 bg-[hsl(var(--brand-primary))] rounded-[10px]" />
             <div className="col-start-3 col-span-2 row-start-4 row-span-3 bg-[hsl(var(--brand-primary))] rounded-[10px]" />
@@ -54,7 +54,7 @@ export function HomePage() {
           </div>
 
           {/* Right Decorative Grid */}
-          <div className="hidden lg:grid flex-1 h-[500px] grid-cols-6 grid-rows-7 gap-2.5">
+          <div className="hidden lg:grid flex-1 h-[650px] grid-cols-6 grid-rows-7 gap-2.5">
             <div className="col-start-1 col-span-2 row-start-4 row-span-3 bg-[hsl(var(--brand-primary))] rounded-[10px]" />
             <div className="col-start-3 col-span-2 row-start-5 row-span-3 bg-[hsl(var(--brand-primary))] rounded-[10px]" />
             <div className="col-start-3 col-span-2 row-start-2 row-span-3 bg-[hsl(var(--brand-primary))] rounded-[10px]" />
