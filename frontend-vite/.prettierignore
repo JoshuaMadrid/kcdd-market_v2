@@ -1,0 +1,31 @@
+# Dependencies
+node_modules
+package-lock.json
+
+# Build outputs
+dist
+build
+.next
+out
+
+# Cache
+.cache
+.vite
+.turbo
+
+# Environment files
+.env
+.env.local
+.env.production
+
+# Generated files
+*.generated.*
+database.ts
+
+# Misc
+.DS_Store
+*.log
+coverage
+.idea
+.vscode
+

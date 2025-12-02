@@ -1,0 +1,92 @@
+name: PR Checks - Merge Requirements
+
+on:
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  check-title:
+    name: Check PR Title Format
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate PR title
+        uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            docs
+            style
+            refactor
+            perf
+            test
+            chore
+            a11y
+          requireScope: false
+
+  auto-label:
+    name: Auto-label PR
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Label PR based on files changed
+        uses: actions/labeler@v5
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          configuration-path: .github/labeler.yml
+
+  size-label:
+    name: Add Size Label
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Add size label
+        uses: codelytv/pr-size-labeler@v1
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          xs_label: 'size/xs'
+          xs_max_size: 10
+          s_label: 'size/s'
+          s_max_size: 100
+          m_label: 'size/m'
+          m_max_size: 500
+          l_label: 'size/l'
+          l_max_size: 1000
+          xl_label: 'size/xl'
+
+  comment:
+    name: Add Helpful Comment
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    if: github.event.action == 'opened'
+    steps:
+      - name: Add comment with checklist
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## 🎉 Thanks for opening this PR!
+
+            Please ensure:
+            - ✅ All CI checks pass (formatting, linting, accessibility)
+            - ✅ PR template checklist is completed
+            - ✅ Accessibility tests pass (\`npm run test:a11y\`)
+            - ✅ Code is formatted (\`npm run format\`)
+
+            The PR will be reviewed once all checks pass. 🚀
+            `
+            })
+

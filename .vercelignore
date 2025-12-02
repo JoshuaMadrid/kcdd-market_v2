@@ -1,0 +1,30 @@
+# Vercel Ignore
+# Files to exclude from Vercel deployment
+
+# Archives
+archive/
+
+# Development
+node_modules/
+*.log
+.env.local
+.env.development
+
+# Old files
+frontend/
+
+# Documentation (optional - remove if you want docs deployed)
+*.md
+!README.md
+
+# Cache
+.cache/
+.vite/
+
+# Tests
+*.test.*
+*.spec.*
+
+# CI/CD (not needed in deployment)
+.github/
+
