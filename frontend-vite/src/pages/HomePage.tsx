@@ -10,6 +10,7 @@ import { StatsSection } from '@/components/home/StatsSection'
 import { ContentBlockSection } from '@/components/home/ContentBlockSection'
 import { homeFeatures } from '@/data/homeFeatures'
 import { homeContentBlock } from '@/data/homeContentBlock'
+import { homeStats } from '@/data/homeStats'
 
 export function HomePage() {
   return (
@@ -24,7 +25,7 @@ export function HomePage() {
       <FeaturesSection features={homeFeatures} />
 
       {/* Stats Section - Location: src/components/home/StatsSection.tsx */}
-      <StatsSection />
+      <StatsSection stats={homeStats} showContent={false} />
 
     </main>
   )

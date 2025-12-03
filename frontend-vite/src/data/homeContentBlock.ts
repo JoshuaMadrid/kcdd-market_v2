@@ -9,13 +9,12 @@ import { ContentBlockData } from '@/components/home/ContentBlockSection'
 
 export const homeContentBlock: ContentBlockData = {
   subtitle: 'Lorem ipsum dolor sit amet',
-  heading: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.',
-  description: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam.',
+  heading: 'How It Works',
+  description: 'Our simple three-step process makes it easy for donors to connect with community needs and for organizations to get the technology they require.',
   listItems: [
-    'Lorem ipsum dolor si',
-    'incididunt ut labor',
-    'qua. Ut enim ad mi',
-    'ut labore et dol'
+    'CBOs submit detailed technology equipment requests, explaining their needs and the impact they\'ll create.',
+    'Donors browse through requests and claim the ones that align with their interests and capacity to help.',
+    'We track the entire fulfillment process and measure the real impact on Kansas City communities.',
   ],
   buttons: [
     {
