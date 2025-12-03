@@ -9,16 +9,16 @@ import { FeaturesSection } from '@/components/home/FeaturesSection'
 import { StatsSection } from '@/components/home/StatsSection'
 import { ContentBlockSection } from '@/components/home/ContentBlockSection'
 import { homeFeatures } from '@/data/homeFeatures'
+import { homeContentBlock } from '@/data/homeContentBlock'
 
 export function HomePage() {
-
   return (
     <main className="w-full">
       {/* Hero Section - Location: src/components/home/HeroSection.tsx */}
       <HeroSection />
 
       {/* Content Block Section - Location: src/components/home/ContentBlockSection.tsx */}
-      <ContentBlockSection />
+      <ContentBlockSection data={homeContentBlock} imagePosition="left" />
       
       {/* Features Section - Location: src/components/home/FeaturesSection.tsx */}
       <FeaturesSection features={homeFeatures} />
