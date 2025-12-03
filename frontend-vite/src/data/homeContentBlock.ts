@@ -86,29 +86,14 @@ export const homeContentBlock: ContentBlockData = {
   description: 'Our simple three-step process makes it easy for donors to connect with community needs and for organizations to get the technology they require.',
   
   // Optional: Bullet point list (remove or set to [] to hide)
-  listItems: [
-    'CBOs submit detailed technology equipment requests, explaining their needs and the impact they\'ll create.',
-    'Donors browse through requests and claim the ones that align with their interests and capacity to help.',
-    'We track the entire fulfillment process and measure the real impact on Kansas City communities.',
-  ],
+  
   
   // Optional: Image URL (leave undefined to show placeholder)
   // imageUrl: '/images/community-impact.jpg',
   // imageAlt: 'Kansas City community members',
   
   // Optional: CTA buttons (remove or set to [] to hide)
-  buttons: [
-    {
-      label: 'Login',
-      href: '/auth/login',
-      variant: 'primary'
-    },
-    {
-      label: 'Login',
-      href: '/auth/login',
-      variant: 'secondary'
-    }
-  ],
+  
   
   // Optional: Section background color (default: '#103032')
   backgroundColor: '#103032',
