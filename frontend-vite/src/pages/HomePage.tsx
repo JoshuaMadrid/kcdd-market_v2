@@ -76,9 +76,8 @@ export function HomePage() {
             <div className="flex gap-4 items-center">
               <Link to={routes.requests}>
                 <Button
-                  variant="outline"
                   size="lg"
-                  className="rounded-full border-[hsl(var(--brand-primary))] text-[hsl(var(--brand-primary))] hover:bg-[hsl(var(--brand-primary))] hover:text-white h-10 px-4"
+                  className="rounded-full bg-[hsl(var(--brand-primary))] text-white border-2 border-[hsl(var(--brand-primary))] hover:bg-transparent hover:text-[hsl(var(--brand-primary))] focus-visible:ring-2 focus-visible:ring-[hsl(var(--brand-primary))] focus-visible:ring-offset-2 active:scale-95 transition-all duration-200 h-10 px-4"
                 >
                   Browse Requests
                 </Button>
@@ -86,7 +85,7 @@ export function HomePage() {
               <Link to={routes.about}>
                 <Button
                   size="lg"
-                  className="rounded-full bg-[hsl(var(--brand-primary))] text-white hover:bg-[hsl(var(--brand-primary))]/90 h-10 px-4"
+                  className="rounded-full bg-white text-[hsl(var(--brand-primary))] border-2 border-white hover:bg-transparent hover:text-white hover:border-white focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 active:scale-95 transition-all duration-200 h-10 px-4"
                 >
                   Learn More
                 </Button>
@@ -262,13 +261,12 @@ export function HomePage() {
             
             <div className="flex gap-4">
               <Button
-                className="bg-[#d25c2c] hover:bg-[#d25c2c]/90 text-white rounded-full h-10 px-4 shadow-sm"
+                className="bg-[#d25c2c] text-white border-2 border-[#d25c2c] hover:bg-transparent hover:text-[#d25c2c] focus-visible:ring-2 focus-visible:ring-[#d25c2c] focus-visible:ring-offset-2 active:scale-95 transition-all duration-200 rounded-full h-10 px-4"
               >
                 Login
               </Button>
               <Button
-                variant="outline"
-                className="bg-white hover:bg-white/90 text-[hsl(var(--brand-primary))] border-0 rounded-full h-10 px-4 shadow-sm"
+                className="bg-white text-[#103032] border-2 border-white hover:bg-transparent hover:text-white hover:border-white focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 active:scale-95 transition-all duration-200 rounded-full h-10 px-4"
               >
                 Login
               </Button>
