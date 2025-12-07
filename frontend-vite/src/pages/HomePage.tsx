@@ -8,9 +8,13 @@ import { HeroSection } from '@/components/home/HeroSection'
 import { FeaturesSection } from '@/components/home/FeaturesSection'
 import { StatsSection } from '@/components/home/StatsSection'
 import { ContentBlockSection } from '@/components/home/ContentBlockSection'
+import { SectionHeader } from '@/components/home/SectionHeader'
+import { BentoGridSection } from '@/components/home/BentoGridSection'
 import { homeFeatures } from '@/data/homeFeatures'
 import { homeContentBlock } from '@/data/homeContentBlock'
 import { homeStats, homeStatsContent } from '@/data/homeStats'
+import { homeSectionHeader } from '@/data/homeSectionHeader'
+import { homeBentoGrid } from '@/data/homeBentoGrid'
 
 export function HomePage() {
   return (
@@ -20,6 +24,12 @@ export function HomePage() {
 
       {/* Content Block Section - Location: src/components/home/ContentBlockSection.tsx */}
       <ContentBlockSection data={homeContentBlock} imagePosition="left" />
+
+      {/* Section Header - Location: src/components/home/SectionHeader.tsx */}
+      <SectionHeader data={homeSectionHeader} />
+
+      {/* Bento Grid Section - Location: src/components/home/BentoGridSection.tsx */}
+      <BentoGridSection cards={homeBentoGrid} />
       
       {/* Features Section - Location: src/components/home/FeaturesSection.tsx */}
       <FeaturesSection features={homeFeatures} />

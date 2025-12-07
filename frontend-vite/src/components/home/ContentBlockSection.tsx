@@ -195,7 +195,7 @@ export function ContentBlockSection({
     imageAlt = 'Feature image',
     buttons = [],
     backgroundColor = '#103032',
-    imageBackgroundColor = '#d25c2c'
+    imageBackgroundColor = '#DBF938'
   } = data
   // Image component
   const imageElement = (
