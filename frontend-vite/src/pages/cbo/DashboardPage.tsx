@@ -25,7 +25,7 @@ export function CBODashboard() {
       if (!user?.id) return
       
       try {
-        const status = await checkOnboardingStatus(user.id)
+        const status = await checkOnboardingStatus(user.id, 'cbo')
         setOnboardingComplete(status.onboarding_complete ?? false)
         
         // Auto-show modal if onboarding not complete

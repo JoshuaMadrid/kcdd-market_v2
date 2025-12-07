@@ -174,7 +174,7 @@ export const subscribeToNewsletter = async (email: string, source: string = 'foo
  */
 
 // Check if user has completed onboarding
-export const checkOnboardingStatus = async (userId: string) => {
+export const checkOnboardingStatus = async (userId: string, userType: 'donor' | 'cbo' = 'donor') => {
   const { data, error } = await supabase
     .from('user_profiles')
     .select('onboarding_complete, user_type')
@@ -182,9 +182,23 @@ export const checkOnboardingStatus = async (userId: string) => {
     .single()
 
   if (error) {
-    // If no profile exists, onboarding is not complete
+    // If no profile exists, create one and return incomplete status
     if (error.code === 'PGRST116') {
-      return { onboarding_complete: false, user_type: null }
+      // Create the user profile
+      const { error: insertError } = await supabase
+        .from('user_profiles')
+        .insert({
+          id: userId,
+          user_type: userType,
+          onboarding_complete: false,
+          wants_updates: false
+        })
+      
+      if (insertError) {
+        console.error('Error creating user profile:', insertError)
+      }
+      
+      return { onboarding_complete: false, user_type: userType }
     }
     throw error
   }
