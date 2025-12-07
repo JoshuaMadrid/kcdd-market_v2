@@ -98,7 +98,7 @@
  * @property {string} [imageAlt] - Alt text for image (default: "Feature image")
  * @property {ContentBlockButton[]} [buttons] - CTA buttons (0-3 recommended)
  * @property {string} [backgroundColor] - Section background (default: '#103032')
- * @property {string} [imageBackgroundColor] - Placeholder/accent (default: '#d25c2c')
+ * @property {string} [imageBackgroundColor] - Placeholder/accent (default: '#DBF938')
  * 
  * ========================================
  * CUSTOMIZATION GUIDE

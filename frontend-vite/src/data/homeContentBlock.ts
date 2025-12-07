@@ -65,7 +65,7 @@ import { ContentBlockData } from '@/components/home/ContentBlockSection'
  * @property {string} [imageBackgroundColor] - OPTIONAL
  *   Background color for image placeholder (when no imageUrl)
  *   Also used for primary button color
- *   Default: '#d25c2c' (coral/orange)
+ *   Default: '#DBF938' (lime/chartreuse)
  * 
  * USAGE IN HOMEPAGE:
  * import { homeContentBlock } from '@/data/homeContentBlock'
@@ -98,8 +98,8 @@ export const homeContentBlock: ContentBlockData = {
   // Optional: Section background color (default: '#103032')
   backgroundColor: '#103032',
   
-  // Optional: Placeholder/button accent color (default: '#d25c2c')
-  imageBackgroundColor: '#d25c2c'
+  // Optional: Placeholder/button accent color (default: '#DBF938')
+  imageBackgroundColor: '#DBF938'
 }
 
 /**

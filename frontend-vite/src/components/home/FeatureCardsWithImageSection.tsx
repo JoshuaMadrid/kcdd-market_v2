@@ -28,7 +28,7 @@
 
 import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
-import { CirclePlus } from 'lucide-react'
+import { PlusCircle } from 'lucide-react'
 
 export interface FeatureCardWithImageItem {
   icon?: React.ReactNode
@@ -59,7 +59,7 @@ function FeatureCard({ card }: { card: FeatureCardWithImageItem }) {
       <div className="flex flex-col gap-1.5 items-start max-w-[250px] w-full">
         {/* Icon */}
         <div className="bg-[#c4e5c1] flex items-center justify-center p-2.5 rounded-full">
-          {card.icon || <CirclePlus className="size-6 text-[#1b5858]" />}
+          {card.icon || <PlusCircle className="size-6 text-[#1b5858]" />}
         </div>
         
         {/* Title */}
@@ -126,7 +126,7 @@ export function FeatureCardsWithImageSection({ data }: FeatureCardsWithImageSect
                 <Button 
                   className="bg-[#1b5858] text-white rounded-full h-9 px-4 gap-2 hover:bg-[#1b5858]/90 shadow-sm shrink-0"
                 >
-                  <CirclePlus className="size-4" />
+                  <PlusCircle className="size-4" />
                   {buttonLabel}
                 </Button>
               </Link>
@@ -134,7 +134,7 @@ export function FeatureCardsWithImageSection({ data }: FeatureCardsWithImageSect
               <Button 
                 className="bg-[#1b5858] text-white rounded-full h-9 px-4 gap-2 hover:bg-[#1b5858]/90 shadow-sm shrink-0"
               >
-                <CirclePlus className="size-4" />
+                <PlusCircle className="size-4" />
                 {buttonLabel}
               </Button>
             )
