@@ -13,10 +13,12 @@
  * ========================================
  */
 
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Apple, Facebook, Twitter, Instagram, Linkedin } from 'lucide-react'
+import { Apple, Facebook, Twitter, Instagram, Linkedin, Loader2, CheckCircle } from 'lucide-react'
+import { subscribeToNewsletter } from '@/lib/supabase'
 
 export interface FooterLinkColumn {
   title: string
@@ -69,6 +71,38 @@ function SocialIcon({
 
 export function Footer({ data }: FooterProps) {
   const { linkColumns, newsletter, socialLinks, legalLinks, bottomSocialLinks } = data
+  
+  // Newsletter form state
+  const [email, setEmail] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+  const [isSuccess, setIsSuccess] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleNewsletterSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    // Basic email validation
+    if (!email || !email.includes('@')) {
+      setError('Please enter a valid email address')
+      return
+    }
+
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      await subscribeToNewsletter(email, 'footer')
+      setIsSuccess(true)
+      setEmail('')
+      // Reset success message after 5 seconds
+      setTimeout(() => setIsSuccess(false), 5000)
+    } catch (err) {
+      console.error('Newsletter subscription error:', err)
+      setError('Failed to subscribe. Please try again.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   return (
     <footer className="bg-[#103032] py-10 px-4">
@@ -104,24 +138,48 @@ export function Footer({ data }: FooterProps) {
               {newsletter.description}
             </p>
             
-            {/* Email Input */}
-            <div className="flex gap-2 items-end pt-4 pb-1.5">
+            {/* Email Input Form */}
+            <form onSubmit={handleNewsletterSubmit} className="flex gap-2 items-end pt-4 pb-1.5">
               <div className="flex-1 flex flex-col gap-2">
-                <label className="font-medium text-sm text-white leading-none">
+                <label htmlFor="newsletter-email" className="font-medium text-sm text-white leading-none">
                   EMAIL:
                 </label>
                 <Input
+                  id="newsletter-email"
                   type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   placeholder={newsletter.placeholder}
                   className="h-9 bg-white border-[#e5e5e5] rounded-lg shadow-sm"
+                  disabled={isLoading}
                 />
               </div>
               <Button 
-                className="h-9 px-4 rounded-full bg-[#f5f5f5] text-[#171717] hover:bg-white shadow-sm"
+                type="submit"
+                disabled={isLoading || isSuccess}
+                className="h-9 px-4 rounded-full bg-[#f5f5f5] text-[#171717] hover:bg-white shadow-sm disabled:opacity-70"
               >
-                {newsletter.buttonLabel}
+                {isLoading ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : isSuccess ? (
+                  <CheckCircle className="size-4 text-green-600" />
+                ) : (
+                  newsletter.buttonLabel
+                )}
               </Button>
-            </div>
+            </form>
+
+            {/* Success/Error Messages */}
+            {isSuccess && (
+              <p className="text-sm text-[#dbf938] font-medium">
+                Thanks for subscribing!
+              </p>
+            )}
+            {error && (
+              <p className="text-sm text-red-400 font-medium">
+                {error}
+              </p>
+            )}
 
             {/* Social Links (white) */}
             <div className="flex gap-2 items-center">

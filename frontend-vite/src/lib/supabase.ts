@@ -143,3 +143,176 @@ export const createRequest = async (request: any) => {
   return data
 }
 
+/**
+ * Newsletter subscription
+ * Saves email to newsletter_subscriptions table
+ */
+export const subscribeToNewsletter = async (email: string, source: string = 'footer') => {
+  const { data, error } = await supabase
+    .from('newsletter_subscriptions')
+    .upsert(
+      { 
+        email: email.toLowerCase().trim(),
+        source,
+        is_active: true,
+        subscribed_at: new Date().toISOString()
+      },
+      { 
+        onConflict: 'email',
+        ignoreDuplicates: false 
+      }
+    )
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+/**
+ * Onboarding Functions
+ */
+
+// Check if user has completed onboarding
+export const checkOnboardingStatus = async (userId: string) => {
+  const { data, error } = await supabase
+    .from('user_profiles')
+    .select('onboarding_complete, user_type')
+    .eq('id', userId)
+    .single()
+
+  if (error) {
+    // If no profile exists, onboarding is not complete
+    if (error.code === 'PGRST116') {
+      return { onboarding_complete: false, user_type: null }
+    }
+    throw error
+  }
+  return data
+}
+
+// Save organization onboarding data
+export const saveOrganizationOnboarding = async (
+  userId: string, 
+  data: {
+    name: string
+    website: string | null
+    ein: string | null
+    mission: string
+    email: string
+    logo?: File | null
+  }
+) => {
+  let logoUrl = null
+
+  // Upload logo if provided
+  if (data.logo) {
+    const fileExt = data.logo.name.split('.').pop()
+    const fileName = `${userId}-logo-${Date.now()}.${fileExt}`
+    
+    const { error: uploadError } = await supabase.storage
+      .from('organization-logos')
+      .upload(fileName, data.logo)
+
+    if (uploadError) {
+      console.error('Logo upload error:', uploadError)
+      // Continue without logo
+    } else {
+      const { data: urlData } = supabase.storage
+        .from('organization-logos')
+        .getPublicUrl(fileName)
+      logoUrl = urlData.publicUrl
+    }
+  }
+
+  // Upsert organization
+  const { data: orgData, error } = await supabase
+    .from('organizations')
+    .upsert(
+      {
+        user_id: userId,
+        name: data.name,
+        website: data.website,
+        ein: data.ein,
+        mission: data.mission,
+        email: data.email,
+        logo_url: logoUrl,
+        zipcode: '00000', // Default, can be updated later
+        updated_at: new Date().toISOString()
+      },
+      { onConflict: 'user_id' }
+    )
+    .select()
+    .single()
+
+  if (error) throw error
+  return orgData
+}
+
+// Mark onboarding as complete
+export const completeOnboarding = async (userId: string, wantsUpdates: boolean = false) => {
+  const { data, error } = await supabase
+    .from('user_profiles')
+    .update({
+      onboarding_complete: true,
+      wants_updates: wantsUpdates,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', userId)
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+// Get organization by user ID
+export const getOrganizationByUserId = async (userId: string) => {
+  const { data, error } = await supabase
+    .from('organizations')
+    .select('*')
+    .eq('user_id', userId)
+    .single()
+
+  if (error && error.code !== 'PGRST116') throw error
+  return data
+}
+
+// Save organization cause areas
+export const saveOrganizationCauseAreas = async (organizationId: string, causeAreas: string[]) => {
+  // First, get the cause area IDs from names
+  const { data: causeAreaRecords, error: fetchError } = await supabase
+    .from('cause_areas')
+    .select('id, name')
+    .in('name', causeAreas)
+
+  if (fetchError) throw fetchError
+
+  // If no matching cause areas found, create them or skip
+  if (!causeAreaRecords || causeAreaRecords.length === 0) {
+    console.warn('No matching cause areas found in database')
+    return []
+  }
+
+  // Create organization_cause_areas records
+  const records = causeAreaRecords.map(ca => ({
+    organization_id: organizationId,
+    cause_area_id: ca.id
+  }))
+
+  // Delete existing associations first (to handle updates)
+  await supabase
+    .from('organization_cause_areas')
+    .delete()
+    .eq('organization_id', organizationId)
+
+  // Insert new associations
+  const { data, error } = await supabase
+    .from('organization_cause_areas')
+    .insert(records)
+    .select()
+
+  if (error) throw error
+  return data
+}
+

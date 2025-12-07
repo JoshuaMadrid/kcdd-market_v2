@@ -82,6 +82,8 @@ export type Database = {
           phone: string | null
           is_vetted: boolean
           vetting_note: string | null
+          onboarding_complete: boolean
+          wants_updates: boolean
           created_at: string
           updated_at: string
         }
@@ -91,6 +93,8 @@ export type Database = {
           phone?: string | null
           is_vetted?: boolean
           vetting_note?: string | null
+          onboarding_complete?: boolean
+          wants_updates?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -100,6 +104,8 @@ export type Database = {
           phone?: string | null
           is_vetted?: boolean
           vetting_note?: string | null
+          onboarding_complete?: boolean
+          wants_updates?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -289,6 +295,49 @@ export type Database = {
           message?: string
           recipient_id?: string
           is_read?: boolean
+          created_at?: string
+        }
+      }
+      newsletter_subscriptions: {
+        Row: {
+          id: string
+          email: string
+          subscribed_at: string
+          is_active: boolean
+          source: string | null
+        }
+        Insert: {
+          id?: string
+          email: string
+          subscribed_at?: string
+          is_active?: boolean
+          source?: string | null
+        }
+        Update: {
+          id?: string
+          email?: string
+          subscribed_at?: string
+          is_active?: boolean
+          source?: string | null
+        }
+      }
+      organization_cause_areas: {
+        Row: {
+          id: string
+          organization_id: string
+          cause_area_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          cause_area_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          cause_area_id?: string
           created_at?: string
         }
       }
