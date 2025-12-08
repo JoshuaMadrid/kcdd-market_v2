@@ -210,7 +210,7 @@ export function OnboardingModal({ isOpen, onClose, onComplete, userType }: Onboa
       />
       
       {/* Modal */}
-      <div className="relative bg-[#103032] rounded-[10px] overflow-hidden flex max-w-[1114px] w-full mx-4 h-[645px]">
+      <div className="relative bg-[#103032] rounded-[10px] overflow-hidden flex max-w-[1114px] w-full mx-4 h-[720px]">
         {/* Left Panel - Decorative (changes color based on step) */}
         <div className={`hidden md:block w-[542px] shrink-0 ${leftPanelColor} rounded-tr-[20px] rounded-br-[20px]`} />
         
@@ -403,7 +403,7 @@ export function OnboardingModal({ isOpen, onClose, onComplete, userType }: Onboa
           )}
 
           {/* Footer Buttons */}
-          <div className="flex items-center justify-between gap-2.5 mt-6 pt-4">
+          <div className="flex items-center justify-between gap-2.5 mt-auto pt-6">
             {/* Skip Link (only on step 2) */}
             {currentStep === 2 && (
               <button
