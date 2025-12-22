@@ -10,7 +10,7 @@ import TextAlign from '@tiptap/extension-text-align'
 import Underline from '@tiptap/extension-underline'
 import Link from '@tiptap/extension-link'
 import Image from '@tiptap/extension-image'
-import { useEffect } from 'react'
+import { useEffect, useCallback } from 'react'
 import {
   Bold,
   Italic,
@@ -32,9 +32,18 @@ import {
   Redo,
   ChevronDown,
   ImageIcon,
+  Upload,
+  X,
+  AlertCircle,
 } from 'lucide-react'
 import { useState, useRef, useEffect as useEffectRef } from 'react'
 import { cn } from '@/lib/utils'
+
+// Image upload constants
+const MAX_FILE_SIZE = 2 * 1024 * 1024 // 2MB
+const MAX_WIDTH = 1200
+const MAX_HEIGHT = 1200
+const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
 
 interface RichTextEditorProps {
   value: string
@@ -71,6 +80,317 @@ function MenuButton({ onClick, isActive, children, title, darkMode }: MenuButton
     >
       {children}
     </button>
+  )
+}
+
+// Image Upload Modal Component
+interface ImageUploadModalProps {
+  isOpen: boolean
+  onClose: () => void
+  onImageInsert: (dataUrl: string) => void
+  darkMode?: boolean
+}
+
+function ImageUploadModal({ isOpen, onClose, onImageInsert, darkMode }: ImageUploadModalProps) {
+  const [isDragging, setIsDragging] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [preview, setPreview] = useState<string | null>(null)
+  const [isProcessing, setIsProcessing] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const resetState = useCallback(() => {
+    setError(null)
+    setPreview(null)
+    setIsProcessing(false)
+    setIsDragging(false)
+  }, [])
+
+  useEffect(() => {
+    if (!isOpen) {
+      resetState()
+    }
+  }, [isOpen, resetState])
+
+  const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const img = document.createElement('img')
+      const reader = new FileReader()
+
+      reader.onload = (e) => {
+        img.src = e.target?.result as string
+      }
+
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        let { width, height } = img
+
+        // Scale down if needed
+        if (width > MAX_WIDTH || height > MAX_HEIGHT) {
+          const ratio = Math.min(MAX_WIDTH / width, MAX_HEIGHT / height)
+          width = Math.round(width * ratio)
+          height = Math.round(height * ratio)
+        }
+
+        canvas.width = width
+        canvas.height = height
+
+        const ctx = canvas.getContext('2d')
+        if (!ctx) {
+          reject(new Error('Failed to get canvas context'))
+          return
+        }
+
+        ctx.drawImage(img, 0, 0, width, height)
+
+        // Compress to JPEG with quality 0.8
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.8)
+        resolve(dataUrl)
+      }
+
+      img.onerror = () => reject(new Error('Failed to load image'))
+      reader.onerror = () => reject(new Error('Failed to read file'))
+      reader.readAsDataURL(file)
+    })
+  }
+
+  const processFile = async (file: File) => {
+    setError(null)
+    setIsProcessing(true)
+
+    // Validate file type
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      setError('Please upload a JPEG, PNG, GIF, or WebP image')
+      setIsProcessing(false)
+      return
+    }
+
+    // Validate file size
+    if (file.size > MAX_FILE_SIZE) {
+      setError(`File too large. Max size is ${MAX_FILE_SIZE / 1024 / 1024}MB. Your file will be compressed.`)
+    }
+
+    try {
+      const dataUrl = await compressImage(file)
+      setPreview(dataUrl)
+    } catch (err) {
+      setError('Failed to process image')
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+
+    const file = e.dataTransfer.files[0]
+    if (file) {
+      processFile(file)
+    }
+  }, [])
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(true)
+  }, [])
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+  }, [])
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      processFile(file)
+    }
+  }
+
+  const handleInsert = () => {
+    if (preview) {
+      onImageInsert(preview)
+      onClose()
+    }
+  }
+
+  if (!isOpen) return null
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      {/* Backdrop */}
+      <div 
+        className="absolute inset-0 bg-black/50" 
+        onClick={onClose}
+      />
+      
+      {/* Modal */}
+      <div className={cn(
+        'relative w-full max-w-md mx-4 rounded-xl shadow-2xl',
+        darkMode ? 'bg-[#1b5858]' : 'bg-white'
+      )}>
+        {/* Header */}
+        <div className={cn(
+          'flex items-center justify-between p-4 border-b',
+          darkMode ? 'border-white/10' : 'border-gray-200'
+        )}>
+          <h3 className={cn(
+            'text-lg font-semibold',
+            darkMode ? 'text-white' : 'text-gray-900'
+          )}>
+            Upload Image
+          </h3>
+          <button
+            onClick={onClose}
+            className={cn(
+              'p-1 rounded-lg transition-colors',
+              darkMode ? 'hover:bg-white/10 text-white/70' : 'hover:bg-gray-100 text-gray-500'
+            )}
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="p-4">
+          {!preview ? (
+            <>
+              {/* Drop Zone */}
+              <div
+                onDrop={handleDrop}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onClick={() => fileInputRef.current?.click()}
+                className={cn(
+                  'border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-all',
+                  isDragging
+                    ? darkMode 
+                      ? 'border-white bg-white/10' 
+                      : 'border-blue-500 bg-blue-50'
+                    : darkMode
+                      ? 'border-white/30 hover:border-white/50 hover:bg-white/5'
+                      : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'
+                )}
+              >
+                <Upload className={cn(
+                  'h-10 w-10 mx-auto mb-3',
+                  darkMode ? 'text-white/50' : 'text-gray-400'
+                )} />
+                <p className={cn(
+                  'font-medium mb-1',
+                  darkMode ? 'text-white' : 'text-gray-700'
+                )}>
+                  {isDragging ? 'Drop image here' : 'Drag & drop an image'}
+                </p>
+                <p className={cn(
+                  'text-sm',
+                  darkMode ? 'text-white/60' : 'text-gray-500'
+                )}>
+                  or click to browse
+                </p>
+                <p className={cn(
+                  'text-xs mt-2',
+                  darkMode ? 'text-white/40' : 'text-gray-400'
+                )}>
+                  JPEG, PNG, GIF, WebP • Max 2MB • Will be resized to max {MAX_WIDTH}px
+                </p>
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept={ALLOWED_TYPES.join(',')}
+                onChange={handleFileSelect}
+                className="hidden"
+              />
+            </>
+          ) : (
+            /* Preview */
+            <div className="space-y-4">
+              <div className={cn(
+                'relative rounded-lg overflow-hidden border',
+                darkMode ? 'border-white/10' : 'border-gray-200'
+              )}>
+                <img 
+                  src={preview} 
+                  alt="Preview" 
+                  className="w-full max-h-64 object-contain bg-gray-100"
+                />
+                <button
+                  onClick={() => setPreview(null)}
+                  className="absolute top-2 right-2 p-1.5 bg-black/50 hover:bg-black/70 text-white rounded-full transition-colors"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <p className={cn(
+                'text-xs text-center',
+                darkMode ? 'text-white/60' : 'text-gray-500'
+              )}>
+                Image will be compressed and embedded in the editor
+              </p>
+            </div>
+          )}
+
+          {/* Error Message */}
+          {error && (
+            <div className={cn(
+              'flex items-center gap-2 mt-3 p-3 rounded-lg text-sm',
+              error.includes('compressed')
+                ? darkMode ? 'bg-yellow-500/20 text-yellow-200' : 'bg-yellow-50 text-yellow-700'
+                : darkMode ? 'bg-red-500/20 text-red-200' : 'bg-red-50 text-red-700'
+            )}>
+              <AlertCircle className="h-4 w-4 flex-shrink-0" />
+              {error}
+            </div>
+          )}
+
+          {/* Processing Indicator */}
+          {isProcessing && (
+            <div className={cn(
+              'flex items-center justify-center gap-2 mt-3',
+              darkMode ? 'text-white/70' : 'text-gray-600'
+            )}>
+              <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+              Processing image...
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className={cn(
+          'flex justify-end gap-2 p-4 border-t',
+          darkMode ? 'border-white/10' : 'border-gray-200'
+        )}>
+          <button
+            onClick={onClose}
+            className={cn(
+              'px-4 py-2 rounded-lg font-medium transition-colors',
+              darkMode 
+                ? 'text-white/70 hover:bg-white/10' 
+                : 'text-gray-700 hover:bg-gray-100'
+            )}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleInsert}
+            disabled={!preview || isProcessing}
+            className={cn(
+              'px-4 py-2 rounded-lg font-medium transition-colors',
+              preview && !isProcessing
+                ? 'bg-[#ea580c] hover:bg-[#dc4c06] text-white'
+                : darkMode
+                  ? 'bg-white/10 text-white/30 cursor-not-allowed'
+                  : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+            )}
+          >
+            Insert Image
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -189,6 +509,8 @@ function HeadingDropdown({ editor, darkMode }: { editor: Editor; darkMode?: bool
 }
 
 function MenuBar({ editor, darkMode }: { editor: Editor | null; darkMode?: boolean }) {
+  const [showImageModal, setShowImageModal] = useState(false)
+
   if (!editor) return null
 
   const addLink = () => {
@@ -198,11 +520,8 @@ function MenuBar({ editor, darkMode }: { editor: Editor | null; darkMode?: boole
     }
   }
 
-  const addImage = () => {
-    const url = window.prompt('Enter image URL:')
-    if (url) {
-      editor.chain().focus().setImage({ src: url }).run()
-    }
+  const handleImageInsert = (dataUrl: string) => {
+    editor.chain().focus().setImage({ src: dataUrl }).run()
   }
 
   return (
@@ -311,13 +630,21 @@ function MenuBar({ editor, darkMode }: { editor: Editor | null; darkMode?: boole
         <LinkIcon className="h-4 w-4" />
       </MenuButton>
       <MenuButton
-        onClick={addImage}
+        onClick={() => setShowImageModal(true)}
         isActive={editor.isActive('image')}
         title="Add Image"
         darkMode={darkMode}
       >
         <ImageIcon className="h-4 w-4" />
       </MenuButton>
+
+      {/* Image Upload Modal */}
+      <ImageUploadModal
+        isOpen={showImageModal}
+        onClose={() => setShowImageModal(false)}
+        onImageInsert={handleImageInsert}
+        darkMode={darkMode}
+      />
 
       <div className={cn('w-px h-5 mx-1', darkMode ? 'bg-white/20' : 'bg-gray-300')} />
 
