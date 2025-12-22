@@ -814,6 +814,7 @@ export interface CampaignData {
   contact_email: string
   image_url?: string
   logo_url?: string
+  phone?: string
   // Social media links
   facebook_url?: string
   twitter_url?: string
