@@ -15,6 +15,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { RichTextEditor } from '@/components/ui/rich-text-editor'
+import { Checkbox } from '@/components/ui/checkbox'
 import { 
   Share2, 
   Facebook, 
@@ -28,9 +29,11 @@ import {
   Loader2,
   Pencil,
   Save,
-  X
+  X,
+  Tag,
+  Plus
 } from 'lucide-react'
-import { supabase, updateCampaign } from '@/lib/supabase'
+import { supabase, updateCampaign, fetchCauseAreas } from '@/lib/supabase'
 
 interface Campaign {
   id: string
@@ -70,9 +73,11 @@ export function CampaignPage() {
   const { user, isSignedIn } = useUser()
   const [campaign, setCampaign] = useState<Campaign | null>(null)
   const [causeAreas, setCauseAreas] = useState<CauseArea[]>([])
+  const [allCauseAreas, setAllCauseAreas] = useState<CauseArea[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState('campaign')
+  const [showTagSelector, setShowTagSelector] = useState(false)
   
   // Edit mode state
   const [isEditing, setIsEditing] = useState(false)
@@ -87,12 +92,24 @@ export function CampaignPage() {
     creator_name: '',
     creator_role: ''
   })
+  const [selectedCauseAreaIds, setSelectedCauseAreaIds] = useState<string[]>([])
 
   useEffect(() => {
     if (slug) {
       fetchCampaign()
     }
+    // Fetch all cause areas for the tag selector
+    loadAllCauseAreas()
   }, [slug])
+
+  const loadAllCauseAreas = async () => {
+    try {
+      const areas = await fetchCauseAreas()
+      setAllCauseAreas(areas)
+    } catch (err) {
+      console.error('Error loading cause areas:', err)
+    }
+  }
 
   // Check if current user is the campaign owner
   const isOwner = campaign && user && campaign.created_by === user.id
@@ -110,6 +127,7 @@ export function CampaignPage() {
         creator_name: campaign.creator_name || '',
         creator_role: campaign.creator_role || ''
       })
+      setSelectedCauseAreaIds(campaign.cause_area_ids || [])
     }
   }, [campaign])
 
@@ -119,6 +137,7 @@ export function CampaignPage() {
 
   const handleCancelEdit = () => {
     setIsEditing(false)
+    setShowTagSelector(false)
     // Reset form to original values
     if (campaign) {
       setEditForm({
@@ -131,7 +150,16 @@ export function CampaignPage() {
         creator_name: campaign.creator_name || '',
         creator_role: campaign.creator_role || ''
       })
+      setSelectedCauseAreaIds(campaign.cause_area_ids || [])
     }
+  }
+
+  const toggleCauseArea = (causeAreaId: string) => {
+    setSelectedCauseAreaIds(prev => 
+      prev.includes(causeAreaId)
+        ? prev.filter(id => id !== causeAreaId)
+        : [...prev, causeAreaId]
+    )
   }
 
   const handleSaveEdit = async () => {
@@ -147,12 +175,17 @@ export function CampaignPage() {
         funding_goal: editForm.funding_goal,
         contact_email: editForm.contact_email,
         creator_name: editForm.creator_name,
-        creator_role: editForm.creator_role
+        creator_role: editForm.creator_role,
+        cause_area_ids: selectedCauseAreaIds
       })
       
       if (updated) {
         setCampaign({ ...campaign, ...updated })
+        // Update the displayed cause areas
+        const newCauseAreas = allCauseAreas.filter(ca => selectedCauseAreaIds.includes(ca.id))
+        setCauseAreas(newCauseAreas)
         setIsEditing(false)
+        setShowTagSelector(false)
       }
     } catch (err) {
       console.error('Error saving campaign:', err)
@@ -336,15 +369,72 @@ export function CampaignPage() {
             <span className="text-sm text-[#737373]">
               {formatDate(campaign.created_at)}
             </span>
-            {causeAreas.map((area) => (
-              <Badge 
-                key={area.id} 
-                variant="secondary"
-                className="bg-[#eaeaea] text-[#737373] font-normal rounded-full px-2 py-0.5"
-              >
-                {area.name}
-              </Badge>
-            ))}
+            
+            {isEditing ? (
+              <>
+                {/* Selected tags in edit mode */}
+                {selectedCauseAreaIds.map((id) => {
+                  const area = allCauseAreas.find(a => a.id === id)
+                  if (!area) return null
+                  return (
+                    <Badge 
+                      key={area.id} 
+                      variant="secondary"
+                      className="bg-[#1b5858] text-white font-normal rounded-full px-2 py-0.5 cursor-pointer hover:bg-[#164444] flex items-center gap-1"
+                      onClick={() => toggleCauseArea(area.id)}
+                    >
+                      {area.name}
+                      <X className="h-3 w-3" />
+                    </Badge>
+                  )
+                })}
+                
+                {/* Add tag button */}
+                <div className="relative">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-6 text-xs border-dashed"
+                    onClick={() => setShowTagSelector(!showTagSelector)}
+                  >
+                    <Plus className="h-3 w-3 mr-1" />
+                    Add Tag
+                  </Button>
+                  
+                  {/* Tag selector dropdown */}
+                  {showTagSelector && (
+                    <div className="absolute top-full left-0 mt-1 w-64 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-64 overflow-y-auto">
+                      <div className="p-2">
+                        <p className="text-xs text-[#737373] mb-2 px-2">Select cause areas:</p>
+                        {allCauseAreas.map((area) => (
+                          <label
+                            key={area.id}
+                            className="flex items-center gap-2 px-2 py-1.5 hover:bg-gray-50 rounded cursor-pointer"
+                          >
+                            <Checkbox
+                              checked={selectedCauseAreaIds.includes(area.id)}
+                              onCheckedChange={() => toggleCauseArea(area.id)}
+                            />
+                            <span className="text-sm">{area.name}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              // Display mode
+              causeAreas.map((area) => (
+                <Badge 
+                  key={area.id} 
+                  variant="secondary"
+                  className="bg-[#eaeaea] text-[#737373] font-normal rounded-full px-2 py-0.5"
+                >
+                  {area.name}
+                </Badge>
+              ))
+            )}
           </div>
 
         {/* Hero Section */}
