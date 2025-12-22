@@ -29,7 +29,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { OnboardingModal } from '@/components/OnboardingModal'
-import { CampaignFormModal } from '@/components/CampaignFormModal'
+import { CampaignForm } from '@/components/CampaignForm'
 import {
   ChevronDown,
   ChevronLeft,
@@ -150,6 +150,7 @@ const DEMO_REQUESTS: RequestRecord[] = [
 type SidebarSection = 
   | 'dashboard' 
   | 'campaigns' 
+  | 'create-campaign'
   | 'analytics' 
   | 'documents' 
   | 'settings' 
@@ -809,7 +810,6 @@ export function CBODashboard() {
   const [activeTab, setActiveTab] = useState('all')
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set())
   const [showOnboardingModal, setShowOnboardingModal] = useState(false)
-  const [showCampaignModal, setShowCampaignModal] = useState(false)
   
   // Data state
   const [stats, setStats] = useState<CBODashboardStats>(DEMO_STATS)
@@ -882,7 +882,7 @@ export function CBODashboard() {
   }
 
   const handleCreateCampaign = () => {
-    setShowCampaignModal(true)
+    setActiveSection('create-campaign')
   }
 
   // Get header title based on active section
@@ -890,6 +890,7 @@ export function CBODashboard() {
     switch (activeSection) {
       case 'dashboard': return 'Dashboard'
       case 'campaigns': return 'My Campaigns'
+      case 'create-campaign': return 'Create Campaign'
       case 'analytics': return 'Analytics'
       case 'documents': return 'Documents'
       case 'settings': return 'Settings'
@@ -918,6 +919,17 @@ export function CBODashboard() {
         )
       case 'campaigns':
         return <CampaignsContent onCreateCampaign={handleCreateCampaign} />
+      case 'create-campaign':
+        return (
+          <CampaignForm
+            organizationId={organization?.id}
+            onCancel={() => setActiveSection('campaigns')}
+            onComplete={() => {
+              setActiveSection('campaigns')
+              fetchData()
+            }}
+          />
+        )
       case 'analytics':
         return <AnalyticsContent stats={stats} requests={requests} />
       case 'documents':
@@ -977,16 +989,6 @@ export function CBODashboard() {
         userType="cbo"
       />
 
-      {/* Campaign Creation Modal */}
-      <CampaignFormModal
-        isOpen={showCampaignModal}
-        onClose={() => setShowCampaignModal(false)}
-        onComplete={() => {
-          setShowCampaignModal(false)
-          fetchData()
-        }}
-        organizationId={organization?.id}
-      />
 
       {/* Sidebar */}
       <aside className={`${sidebarOpen ? 'w-64' : 'w-16'} bg-[#fafafa] p-2 flex flex-col transition-all duration-300`}>

@@ -272,12 +272,14 @@ export function RichTextEditor({
     <div
       className={cn(
         'rounded-lg border overflow-hidden',
-        darkMode ? 'bg-[#183c3f] border-[#1b5858]' : 'bg-white border-gray-200',
+        darkMode ? 'bg-[#183c3f] border-[#1b5858]' : 'bg-white border-gray-300 shadow-sm',
         className
       )}
     >
       <MenuBar editor={editor} darkMode={darkMode} />
-      <EditorContent editor={editor} />
+      <div className={cn(darkMode ? '' : 'bg-white')}>
+        <EditorContent editor={editor} />
+      </div>
     </div>
   )
 }
