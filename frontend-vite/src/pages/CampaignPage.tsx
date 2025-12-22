@@ -10,8 +10,11 @@ import { useUser } from '@clerk/clerk-react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { RichTextEditor } from '@/components/ui/rich-text-editor'
 import { 
   Share2, 
   Facebook, 
@@ -22,9 +25,12 @@ import {
   Calendar, 
   Users, 
   Target,
-  Loader2
+  Loader2,
+  Pencil,
+  Save,
+  X
 } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
+import { supabase, updateCampaign } from '@/lib/supabase'
 
 interface Campaign {
   id: string
@@ -44,6 +50,8 @@ interface Campaign {
   status: string
   slug: string
   created_at: string
+  created_by?: string
+  organization_id?: string
   organization: {
     id: string
     name: string
@@ -65,12 +73,93 @@ export function CampaignPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState('campaign')
+  
+  // Edit mode state
+  const [isEditing, setIsEditing] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [editForm, setEditForm] = useState({
+    title: '',
+    short_description: '',
+    story_title: '',
+    story_content: '',
+    funding_goal: 0,
+    contact_email: '',
+    creator_name: '',
+    creator_role: ''
+  })
 
   useEffect(() => {
     if (slug) {
       fetchCampaign()
     }
   }, [slug])
+
+  // Check if current user is the campaign owner
+  const isOwner = campaign && user && campaign.created_by === user.id
+
+  // Populate edit form when campaign loads
+  useEffect(() => {
+    if (campaign) {
+      setEditForm({
+        title: campaign.title || '',
+        short_description: campaign.short_description || '',
+        story_title: campaign.story_title || '',
+        story_content: campaign.story_content || '',
+        funding_goal: campaign.funding_goal || 0,
+        contact_email: campaign.contact_email || '',
+        creator_name: campaign.creator_name || '',
+        creator_role: campaign.creator_role || ''
+      })
+    }
+  }, [campaign])
+
+  const handleStartEdit = () => {
+    setIsEditing(true)
+  }
+
+  const handleCancelEdit = () => {
+    setIsEditing(false)
+    // Reset form to original values
+    if (campaign) {
+      setEditForm({
+        title: campaign.title || '',
+        short_description: campaign.short_description || '',
+        story_title: campaign.story_title || '',
+        story_content: campaign.story_content || '',
+        funding_goal: campaign.funding_goal || 0,
+        contact_email: campaign.contact_email || '',
+        creator_name: campaign.creator_name || '',
+        creator_role: campaign.creator_role || ''
+      })
+    }
+  }
+
+  const handleSaveEdit = async () => {
+    if (!campaign) return
+    
+    setSaving(true)
+    try {
+      const updated = await updateCampaign(campaign.id, {
+        title: editForm.title,
+        short_description: editForm.short_description,
+        story_title: editForm.story_title,
+        story_content: editForm.story_content,
+        funding_goal: editForm.funding_goal,
+        contact_email: editForm.contact_email,
+        creator_name: editForm.creator_name,
+        creator_role: editForm.creator_role
+      })
+      
+      if (updated) {
+        setCampaign({ ...campaign, ...updated })
+        setIsEditing(false)
+      }
+    } catch (err) {
+      console.error('Error saving campaign:', err)
+    } finally {
+      setSaving(false)
+    }
+  }
 
   const fetchCampaign = async () => {
     try {
@@ -177,28 +266,86 @@ export function CampaignPage() {
 
   return (
     <div className="min-h-screen bg-[#fafafa]">
-      {/* Header Section */}
-      <div className="px-6 pt-7 pb-0">
-        {/* Title */}
-        <h1 className="text-5xl font-bold text-[#0a0a0a] leading-tight mb-3">
-          {campaign.title}
-        </h1>
+      <div className="max-w-[1200px] mx-auto">
+        {/* Header Section */}
+        <div className="px-6 pt-7 pb-0">
+          {/* Edit Mode Banner */}
+          {isEditing && (
+            <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-lg flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Pencil className="h-4 w-4 text-amber-600" />
+                <span className="text-amber-800 font-medium">Editing Campaign</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={handleCancelEdit}
+                  disabled={saving}
+                >
+                  <X className="h-4 w-4 mr-1" />
+                  Cancel
+                </Button>
+                <Button 
+                  size="sm"
+                  className="bg-[#1b5858] hover:bg-[#164444]"
+                  onClick={handleSaveEdit}
+                  disabled={saving}
+                >
+                  {saving ? (
+                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  ) : (
+                    <Save className="h-4 w-4 mr-1" />
+                  )}
+                  Save Changes
+                </Button>
+              </div>
+            </div>
+          )}
 
-        {/* Date and Tags */}
-        <div className="flex items-center gap-2 flex-wrap mb-4">
-          <span className="text-sm text-[#737373]">
-            {formatDate(campaign.created_at)}
-          </span>
-          {causeAreas.map((area) => (
-            <Badge 
-              key={area.id} 
-              variant="secondary"
-              className="bg-[#eaeaea] text-[#737373] font-normal rounded-full px-2 py-0.5"
-            >
-              {area.name}
-            </Badge>
-          ))}
-        </div>
+          {/* Title with Edit Button */}
+          <div className="flex items-start justify-between gap-4">
+            {isEditing ? (
+              <Input
+                value={editForm.title}
+                onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+                className="text-4xl font-bold h-auto py-2 border-dashed"
+                placeholder="Campaign Title"
+              />
+            ) : (
+              <h1 className="text-5xl font-bold text-[#0a0a0a] leading-tight mb-3">
+                {campaign.title}
+              </h1>
+            )}
+            
+            {isOwner && !isEditing && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleStartEdit}
+                className="flex-shrink-0"
+              >
+                <Pencil className="h-4 w-4 mr-1" />
+                Edit Campaign
+              </Button>
+            )}
+          </div>
+
+          {/* Date and Tags */}
+          <div className="flex items-center gap-2 flex-wrap mb-4">
+            <span className="text-sm text-[#737373]">
+              {formatDate(campaign.created_at)}
+            </span>
+            {causeAreas.map((area) => (
+              <Badge 
+                key={area.id} 
+                variant="secondary"
+                className="bg-[#eaeaea] text-[#737373] font-normal rounded-full px-2 py-0.5"
+              >
+                {area.name}
+              </Badge>
+            ))}
+          </div>
 
         {/* Hero Section */}
         <div className="flex gap-5">
@@ -374,22 +521,48 @@ export function CampaignPage() {
               {/* Outline Sidebar */}
               <div className="w-[323px] flex-shrink-0 space-y-6">
                 <h2 className="text-2xl font-semibold text-[#0a0a0a]">Outline</h2>
-                <p className="text-base text-[#0a0a0a] leading-relaxed">
-                  {campaign.short_description}
-                </p>
+                {isEditing ? (
+                  <Textarea
+                    value={editForm.short_description}
+                    onChange={(e) => setEditForm({ ...editForm, short_description: e.target.value })}
+                    className="min-h-[100px] border-dashed"
+                    placeholder="Short description of your campaign..."
+                  />
+                ) : (
+                  <p className="text-base text-[#0a0a0a] leading-relaxed">
+                    {campaign.short_description}
+                  </p>
+                )}
               </div>
 
               {/* Main Content */}
               <div className="flex-1 space-y-6">
                 {/* Story Title */}
-                {campaign.story_title && (
-                  <h2 className="text-5xl font-extrabold text-[#0a0a0a]">
-                    {campaign.story_title}
-                  </h2>
+                {isEditing ? (
+                  <Input
+                    value={editForm.story_title}
+                    onChange={(e) => setEditForm({ ...editForm, story_title: e.target.value })}
+                    className="text-3xl font-bold h-auto py-2 border-dashed"
+                    placeholder="Story Title"
+                  />
+                ) : (
+                  campaign.story_title && (
+                    <h2 className="text-5xl font-extrabold text-[#0a0a0a]">
+                      {campaign.story_title}
+                    </h2>
+                  )
                 )}
 
                 {/* Story Content */}
-                {campaign.story_content ? (
+                {isEditing ? (
+                  <div className="border border-dashed border-gray-300 rounded-lg">
+                    <RichTextEditor
+                      value={editForm.story_content}
+                      onChange={(value) => setEditForm({ ...editForm, story_content: value })}
+                      placeholder="Tell your campaign story..."
+                    />
+                  </div>
+                ) : campaign.story_content ? (
                   <div 
                     className="prose prose-lg max-w-none text-[#0a0a0a]"
                     dangerouslySetInnerHTML={{ 
@@ -442,13 +615,23 @@ export function CampaignPage() {
               <p className="text-base text-[#737373] mb-4">
                 Have questions about this campaign? Reach out to us.
               </p>
-              <a 
-                href={`mailto:${campaign.contact_email}`}
-                className="inline-flex items-center gap-2 text-[#ea580c] hover:underline"
-              >
-                <Mail className="h-4 w-4" />
-                {campaign.contact_email}
-              </a>
+              {isEditing ? (
+                <Input
+                  type="email"
+                  value={editForm.contact_email}
+                  onChange={(e) => setEditForm({ ...editForm, contact_email: e.target.value })}
+                  className="max-w-xs border-dashed"
+                  placeholder="contact@example.com"
+                />
+              ) : (
+                <a 
+                  href={`mailto:${campaign.contact_email}`}
+                  className="inline-flex items-center gap-2 text-[#ea580c] hover:underline"
+                >
+                  <Mail className="h-4 w-4" />
+                  {campaign.contact_email}
+                </a>
+              )}
             </div>
           </TabsContent>
         </Tabs>
@@ -456,6 +639,7 @@ export function CampaignPage() {
 
       {/* Bottom Padding */}
       <div className="h-20" />
+      </div>
     </div>
   )
 }
