@@ -72,6 +72,120 @@ function MenuButton({ onClick, isActive, children, title, darkMode }: MenuButton
   )
 }
 
+// Heading dropdown component
+function HeadingDropdown({ editor, darkMode }: { editor: Editor; darkMode?: boolean }) {
+  const [isOpen, setIsOpen] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
+  // Close dropdown when clicking outside
+  useEffectRef(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const headingLevels = [
+    { level: 1, label: 'Heading 1', icon: Heading1 },
+    { level: 2, label: 'Heading 2', icon: Heading2 },
+    { level: 3, label: 'Heading 3', icon: Heading3 },
+    { level: 4, label: 'Heading 4', icon: Heading4 },
+    { level: 5, label: 'Heading 5', icon: Heading5 },
+    { level: 6, label: 'Heading 6', icon: Heading6 },
+  ] as const
+
+  const getCurrentHeading = () => {
+    for (const h of headingLevels) {
+      if (editor.isActive('heading', { level: h.level })) {
+        return `H${h.level}`
+      }
+    }
+    return 'Paragraph'
+  }
+
+  const isAnyHeadingActive = headingLevels.some(h => editor.isActive('heading', { level: h.level }))
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className={cn(
+          'flex items-center gap-1 px-2 py-1.5 rounded text-sm transition-colors',
+          darkMode
+            ? isAnyHeadingActive
+              ? 'bg-white/20 text-white'
+              : 'text-white/60 hover:text-white hover:bg-white/10'
+            : isAnyHeadingActive
+              ? 'bg-gray-200 text-gray-900'
+              : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+        )}
+      >
+        <span className="font-medium min-w-[70px] text-left">{getCurrentHeading()}</span>
+        <ChevronDown className="h-3 w-3" />
+      </button>
+      
+      {isOpen && (
+        <div className={cn(
+          'absolute top-full left-0 mt-1 py-1 rounded-lg shadow-lg z-50 min-w-[140px]',
+          darkMode ? 'bg-[#1b5858] border border-white/10' : 'bg-white border border-gray-200'
+        )}>
+          <button
+            type="button"
+            onClick={() => {
+              editor.chain().focus().setParagraph().run()
+              setIsOpen(false)
+            }}
+            className={cn(
+              'w-full text-left px-3 py-1.5 text-sm',
+              darkMode
+                ? 'text-white/80 hover:bg-white/10'
+                : 'text-gray-700 hover:bg-gray-100'
+            )}
+          >
+            Paragraph
+          </button>
+          {headingLevels.map(({ level, label, icon: Icon }) => (
+            <button
+              key={level}
+              type="button"
+              onClick={() => {
+                editor.chain().focus().toggleHeading({ level }).run()
+                setIsOpen(false)
+              }}
+              className={cn(
+                'w-full text-left px-3 py-1.5 flex items-center gap-2',
+                darkMode
+                  ? editor.isActive('heading', { level })
+                    ? 'bg-white/20 text-white'
+                    : 'text-white/80 hover:bg-white/10'
+                  : editor.isActive('heading', { level })
+                    ? 'bg-gray-100 text-gray-900'
+                    : 'text-gray-700 hover:bg-gray-100'
+              )}
+            >
+              <Icon className={cn('h-4 w-4', level > 3 && 'h-3.5 w-3.5')} />
+              <span className={cn(
+                level === 1 && 'text-lg font-bold',
+                level === 2 && 'text-base font-bold',
+                level === 3 && 'text-sm font-semibold',
+                level === 4 && 'text-sm font-medium',
+                level === 5 && 'text-xs font-medium',
+                level === 6 && 'text-xs'
+              )}>
+                {label}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function MenuBar({ editor, darkMode }: { editor: Editor | null; darkMode?: boolean }) {
   if (!editor) return null
 
@@ -117,23 +231,8 @@ function MenuBar({ editor, darkMode }: { editor: Editor | null; darkMode?: boole
 
       <div className={cn('w-px h-5 mx-1', darkMode ? 'bg-white/20' : 'bg-gray-300')} />
 
-      {/* Headings */}
-      <MenuButton
-        onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
-        isActive={editor.isActive('heading', { level: 1 })}
-        title="Heading 1"
-        darkMode={darkMode}
-      >
-        <Heading1 className="h-4 w-4" />
-      </MenuButton>
-      <MenuButton
-        onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-        isActive={editor.isActive('heading', { level: 2 })}
-        title="Heading 2"
-        darkMode={darkMode}
-      >
-        <Heading2 className="h-4 w-4" />
-      </MenuButton>
+      {/* Headings Dropdown */}
+      <HeadingDropdown editor={editor} darkMode={darkMode} />
 
       <div className={cn('w-px h-5 mx-1', darkMode ? 'bg-white/20' : 'bg-gray-300')} />
 
@@ -259,6 +358,13 @@ export function RichTextEditor({
       attributes: {
         class: cn(
           'prose prose-sm max-w-none focus:outline-none min-h-[200px] p-4',
+          // Heading sizes
+          'prose-h1:text-3xl prose-h1:font-bold prose-h1:mb-4 prose-h1:mt-6',
+          'prose-h2:text-2xl prose-h2:font-bold prose-h2:mb-3 prose-h2:mt-5',
+          'prose-h3:text-xl prose-h3:font-semibold prose-h3:mb-3 prose-h3:mt-4',
+          'prose-h4:text-lg prose-h4:font-semibold prose-h4:mb-2 prose-h4:mt-4',
+          'prose-h5:text-base prose-h5:font-medium prose-h5:mb-2 prose-h5:mt-3',
+          'prose-h6:text-sm prose-h6:font-medium prose-h6:mb-2 prose-h6:mt-3 prose-h6:uppercase prose-h6:tracking-wide',
           darkMode
             ? 'prose-invert prose-headings:text-white prose-p:text-white/90 prose-strong:text-white prose-em:text-white/90 prose-ul:text-white/90 prose-ol:text-white/90 prose-blockquote:text-white/70 prose-blockquote:border-white/30'
             : 'prose-headings:text-gray-900 prose-p:text-gray-700'

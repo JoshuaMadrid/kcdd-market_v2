@@ -311,6 +311,41 @@ export const getOrganizationByUserId = async (userId: string) => {
   return data
 }
 
+// Update organization info
+export const updateOrganization = async (
+  organizationId: string, 
+  updates: {
+    name?: string
+    mission?: string
+    description?: string
+    email?: string
+    phone?: string
+    website?: string
+    address?: string
+    city?: string
+    state?: string
+    zipcode?: string
+    facebook_url?: string
+    twitter_url?: string
+    instagram_url?: string
+    linkedin_url?: string
+    youtube_url?: string
+    tiktok_url?: string
+  }
+) => {
+  const { data, error } = await supabase
+    .from('organizations')
+    .update({
+      ...updates,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', organizationId)
+    .select()
+    .single()
+
+  return { data, error }
+}
+
 // Save donor onboarding data
 export const saveDonorOnboarding = async (
   userId: string,
