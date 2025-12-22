@@ -71,9 +71,23 @@ import {
   fetchCBORequests,
   checkOnboardingStatus,
   getOrganizationByUserId,
+  getCampaignsByOrganization,
   type CBODashboardStats,
   type RequestRecord
 } from '@/lib/supabase'
+import { Link } from 'react-router-dom'
+
+// Campaign type
+interface Campaign {
+  id: string
+  title: string
+  slug: string
+  status: string
+  funding_goal: number
+  amount_raised?: number
+  supporters_count?: number
+  created_at: string
+}
 
 // Demo data
 const DEMO_STATS: CBODashboardStats = {
@@ -476,7 +490,11 @@ function DashboardContent({
 }
 
 // Manage Campaigns Content
-function CampaignsContent({ onCreateCampaign }: { onCreateCampaign: () => void }) {
+function CampaignsContent({ campaigns, onCreateCampaign }: { campaigns: Campaign[], onCreateCampaign: () => void }) {
+  const pendingCampaigns = campaigns.filter(c => c.status === 'pending')
+  const activeCampaigns = campaigns.filter(c => c.status === 'active')
+  const completedCampaigns = campaigns.filter(c => c.status === 'completed')
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -506,38 +524,119 @@ function CampaignsContent({ onCreateCampaign }: { onCreateCampaign: () => void }
             <Clock className="h-6 w-6 text-amber-600" />
           </div>
           <h3 className="font-medium">Pending Review</h3>
-          <p className="text-sm text-[#737373]">3 campaigns awaiting review</p>
+          <p className="text-sm text-[#737373]">{pendingCampaigns.length} campaigns awaiting review</p>
         </Card>
         <Card className="p-5 text-center hover:shadow-md transition-shadow cursor-pointer">
           <div className="h-12 w-12 bg-green-100 rounded-lg flex items-center justify-center mx-auto mb-3">
             <CheckCircle2 className="h-6 w-6 text-green-600" />
           </div>
           <h3 className="font-medium">Completed</h3>
-          <p className="text-sm text-[#737373]">28 campaigns completed</p>
+          <p className="text-sm text-[#737373]">{completedCampaigns.length} campaigns completed</p>
         </Card>
       </div>
 
-      <Card className="p-6">
-        <h3 className="font-medium mb-4">Quick Tips</h3>
-        <ul className="space-y-2 text-sm text-[#737373]">
-          <li className="flex items-start gap-2">
-            <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5" />
-            <span>Tell a compelling story about your cause and impact</span>
-          </li>
-          <li className="flex items-start gap-2">
-            <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5" />
-            <span>Include images to help donors connect with your mission</span>
-          </li>
-          <li className="flex items-start gap-2">
-            <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5" />
-            <span>Set realistic funding goals to build trust with donors</span>
-          </li>
-          <li className="flex items-start gap-2">
-            <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5" />
-            <span>Post regular updates to keep supporters engaged</span>
-          </li>
-        </ul>
-      </Card>
+      {/* Active/Recent Campaigns List */}
+      {campaigns.length > 0 && (
+        <div className="space-y-4">
+          <h3 className="font-medium">Your Campaigns</h3>
+          {campaigns.map((campaign) => (
+            <Card key={campaign.id} className="p-4">
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Link 
+                      to={`/campaign/${campaign.slug}`}
+                      className="font-medium text-[#0a0a0a] hover:text-[#1b5858] hover:underline"
+                    >
+                      {campaign.title}
+                    </Link>
+                    <Badge 
+                      variant="outline" 
+                      className={
+                        campaign.status === 'active' ? 'bg-green-50 text-green-700 border-green-200' :
+                        campaign.status === 'pending' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                        'bg-gray-50 text-gray-700 border-gray-200'
+                      }
+                    >
+                      {campaign.status}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-4 text-sm text-[#737373]">
+                    <span className="flex items-center gap-1">
+                      <DollarSign className="h-3 w-3" />
+                      Goal: ${campaign.funding_goal?.toLocaleString() || 0}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <TrendingUp className="h-3 w-3" />
+                      Raised: ${campaign.amount_raised?.toLocaleString() || 0}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Users className="h-3 w-3" />
+                      {campaign.supporters_count || 0} supporters
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Link to={`/campaign/${campaign.slug}`}>
+                    <Button variant="outline" size="sm">View</Button>
+                  </Link>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem>Edit Campaign</DropdownMenuItem>
+                      <DropdownMenuItem>View Analytics</DropdownMenuItem>
+                      <DropdownMenuItem>Share</DropdownMenuItem>
+                      <DropdownMenuItem className="text-red-600">Delete</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+              {/* Progress bar */}
+              <div className="mt-3">
+                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-[#1b5858] rounded-full transition-all"
+                    style={{ 
+                      width: `${Math.min(100, ((campaign.amount_raised || 0) / (campaign.funding_goal || 1)) * 100)}%` 
+                    }}
+                  />
+                </div>
+                <p className="text-xs text-[#737373] mt-1">
+                  {Math.round(((campaign.amount_raised || 0) / (campaign.funding_goal || 1)) * 100)}% funded
+                </p>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {campaigns.length === 0 && (
+        <Card className="p-6">
+          <h3 className="font-medium mb-4">Quick Tips</h3>
+          <ul className="space-y-2 text-sm text-[#737373]">
+            <li className="flex items-start gap-2">
+              <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5" />
+              <span>Tell a compelling story about your cause and impact</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5" />
+              <span>Include images to help donors connect with your mission</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5" />
+              <span>Set realistic funding goals to build trust with donors</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5" />
+              <span>Post regular updates to keep supporters engaged</span>
+            </li>
+          </ul>
+        </Card>
+      )}
     </div>
   )
 }
@@ -814,6 +913,7 @@ export function CBODashboard() {
   // Data state
   const [stats, setStats] = useState<CBODashboardStats>(DEMO_STATS)
   const [requests, setRequests] = useState<RequestRecord[]>(DEMO_REQUESTS)
+  const [campaigns, setCampaigns] = useState<Campaign[]>([])
   const [organization, setOrganization] = useState<any>(null)
   const [loading, setLoading] = useState(false)
   const [needsOnboarding, setNeedsOnboarding] = useState(true)
@@ -833,14 +933,19 @@ export function CBODashboard() {
         setOrganization(org)
         setHasOrganization(true)
 
-        const [statsData, requestsData] = await Promise.all([
+        const [statsData, requestsData, campaignsData] = await Promise.all([
           fetchCBODashboardStats(user.id),
-          fetchCBORequests(user.id)
+          fetchCBORequests(user.id),
+          getCampaignsByOrganization(org.id)
         ])
 
         if (requestsData && requestsData.length > 0) {
           setStats(statsData)
           setRequests(requestsData)
+        }
+        
+        if (campaignsData) {
+          setCampaigns(campaignsData)
         }
       } else {
         setHasOrganization(false)
@@ -918,7 +1023,7 @@ export function CBODashboard() {
           />
         )
       case 'campaigns':
-        return <CampaignsContent onCreateCampaign={handleCreateCampaign} />
+        return <CampaignsContent campaigns={campaigns} onCreateCampaign={handleCreateCampaign} />
       case 'create-campaign':
         return (
           <CampaignForm
@@ -1033,8 +1138,40 @@ export function CBODashboard() {
               }`}
             >
               <List className="w-4 h-4" />
-              {sidebarOpen && <span className="text-sm">My Campaigns</span>}
+              {sidebarOpen && (
+                <span className="text-sm flex-1 flex items-center justify-between">
+                  My Campaigns
+                  {campaigns.length > 0 && (
+                    <span className="bg-[#1b5858]/10 text-[#1b5858] px-1.5 py-0.5 rounded text-xs">
+                      {campaigns.length}
+                    </span>
+                  )}
+                </span>
+              )}
             </button>
+
+            {/* Campaign Links in Sidebar */}
+            {sidebarOpen && campaigns.length > 0 && (
+              <div className="ml-6 space-y-1 mt-1">
+                {campaigns.slice(0, 5).map((campaign) => (
+                  <Link
+                    key={campaign.id}
+                    to={`/campaign/${campaign.slug}`}
+                    className="block px-2 py-1.5 text-xs text-[#737373] hover:text-[#0a0a0a] hover:bg-gray-100 rounded truncate"
+                  >
+                    {campaign.title}
+                  </Link>
+                ))}
+                {campaigns.length > 5 && (
+                  <button
+                    onClick={() => setActiveSection('campaigns')}
+                    className="block px-2 py-1.5 text-xs text-[#1b5858] hover:underline"
+                  >
+                    View all ({campaigns.length})
+                  </button>
+                )}
+              </div>
+            )}
 
             <button 
               onClick={() => setActiveSection('analytics')}
