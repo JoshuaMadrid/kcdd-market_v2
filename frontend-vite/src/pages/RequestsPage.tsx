@@ -1,18 +1,18 @@
 /**
- * Browse Campaigns & Requests Page
+ * Browse Campaigns Page
  * Shows active campaigns as cards for donors to browse and support
+ * Supports filtering by cause area tags
  */
 
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { fetchOpenRequests, getActiveCampaigns, supabase } from '@/lib/supabase'
+import { getActiveCampaigns, supabase } from '@/lib/supabase'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
 import { formatCurrency, formatRelativeTime } from '@/lib/utils'
-import { Search, Target, Users, TrendingUp, Loader2 } from 'lucide-react'
+import { Search, Target, Users, Loader2, X, Filter } from 'lucide-react'
 
 interface Campaign {
   id: string
@@ -40,25 +40,23 @@ interface CauseArea {
 }
 
 export function RequestsPage() {
-  const [requests, setRequests] = useState<any[]>([])
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
   const [causeAreas, setCauseAreas] = useState<CauseArea[]>([])
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState('campaigns')
   const [searchQuery, setSearchQuery] = useState('')
+  const [selectedTags, setSelectedTags] = useState<string[]>([])
+  const [showTagFilter, setShowTagFilter] = useState(false)
 
   useEffect(() => {
     const loadData = async () => {
       try {
-        // Load campaigns, requests, and cause areas in parallel
-        const [campaignsData, requestsData, causeAreasData] = await Promise.all([
+        // Load campaigns and cause areas in parallel
+        const [campaignsData, causeAreasData] = await Promise.all([
           getActiveCampaigns(50),
-          fetchOpenRequests(),
-          supabase.from('cause_areas').select('id, name')
+          supabase.from('cause_areas').select('id, name').order('name')
         ])
         
         setCampaigns(campaignsData || [])
-        setRequests(requestsData || [])
         setCauseAreas(causeAreasData.data || [])
       } catch (error) {
         console.error('Error loading data:', error)
@@ -81,16 +79,32 @@ export function RequestsPage() {
     return Math.min((raised / goal) * 100, 100)
   }
 
-  const filteredCampaigns = campaigns.filter(campaign =>
-    campaign.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    campaign.short_description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    campaign.organization?.name?.toLowerCase().includes(searchQuery.toLowerCase())
-  )
+  const toggleTag = (tagId: string) => {
+    setSelectedTags(prev => 
+      prev.includes(tagId) 
+        ? prev.filter(id => id !== tagId)
+        : [...prev, tagId]
+    )
+  }
 
-  const filteredRequests = requests.filter(request =>
-    request.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    request.organization?.name?.toLowerCase().includes(searchQuery.toLowerCase())
-  )
+  const clearTags = () => {
+    setSelectedTags([])
+  }
+
+  // Filter campaigns by search query AND selected tags
+  const filteredCampaigns = campaigns.filter(campaign => {
+    // Search filter
+    const matchesSearch = 
+      campaign.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      campaign.short_description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      campaign.organization?.name?.toLowerCase().includes(searchQuery.toLowerCase())
+    
+    // Tag filter - campaign must have ALL selected tags
+    const matchesTags = selectedTags.length === 0 || 
+      selectedTags.every(tagId => campaign.cause_area_ids?.includes(tagId))
+    
+    return matchesSearch && matchesTags
+  })
 
   if (loading) {
     return (
@@ -113,37 +127,94 @@ export function RequestsPage() {
           </p>
         </div>
 
-        {/* Search Bar */}
-        <div className="relative mb-6">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-[#737373]" />
-          <Input
-            type="search"
-            placeholder="Search campaigns, organizations, or causes..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 h-12 bg-white border-[#e5e5e5] text-base"
-          />
+        {/* Search and Filter Bar */}
+        <div className="flex gap-3 mb-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-[#737373]" />
+            <Input
+              type="search"
+              placeholder="Search campaigns, organizations, or causes..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10 h-12 bg-white border-[#e5e5e5] text-base"
+            />
+          </div>
+          <Button
+            variant={showTagFilter ? "default" : "outline"}
+            onClick={() => setShowTagFilter(!showTagFilter)}
+            className={`h-12 px-4 ${showTagFilter ? 'bg-[#1b5858] hover:bg-[#164444]' : ''}`}
+          >
+            <Filter className="h-4 w-4 mr-2" />
+            Filter by Cause
+            {selectedTags.length > 0 && (
+              <Badge className="ml-2 bg-white text-[#1b5858]">{selectedTags.length}</Badge>
+            )}
+          </Button>
         </div>
 
-        {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="bg-[#f5f5f5] p-1 rounded-lg mb-6">
-            <TabsTrigger 
-              value="campaigns"
-              className="data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md px-6"
-            >
-              Campaigns ({filteredCampaigns.length})
-            </TabsTrigger>
-            <TabsTrigger 
-              value="requests"
-              className="data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md px-6"
-            >
-              Quick Requests ({filteredRequests.length})
-            </TabsTrigger>
-          </TabsList>
+        {/* Tag Filter Panel */}
+        {showTagFilter && (
+          <div className="bg-white border border-[#e5e5e5] rounded-lg p-4 mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-medium text-[#0a0a0a]">Filter by Cause Area</h3>
+              {selectedTags.length > 0 && (
+                <Button variant="ghost" size="sm" onClick={clearTags} className="text-[#737373]">
+                  <X className="h-4 w-4 mr-1" />
+                  Clear all
+                </Button>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {causeAreas.map((area) => {
+                const isSelected = selectedTags.includes(area.id)
+                return (
+                  <button
+                    key={area.id}
+                    onClick={() => toggleTag(area.id)}
+                    className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
+                      isSelected
+                        ? 'bg-[#1b5858] text-white'
+                        : 'bg-[#f5f5f5] text-[#737373] hover:bg-[#e5e5e5]'
+                    }`}
+                  >
+                    {area.name}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
-          {/* Campaigns Tab */}
-          <TabsContent value="campaigns" className="mt-0">
+        {/* Selected Tags Display */}
+        {selectedTags.length > 0 && !showTagFilter && (
+          <div className="flex items-center gap-2 mb-4 flex-wrap">
+            <span className="text-sm text-[#737373]">Filtering by:</span>
+            {selectedTags.map(tagId => {
+              const area = causeAreas.find(ca => ca.id === tagId)
+              return area ? (
+                <Badge 
+                  key={tagId}
+                  className="bg-[#1b5858] text-white cursor-pointer hover:bg-[#164444]"
+                  onClick={() => toggleTag(tagId)}
+                >
+                  {area.name}
+                  <X className="h-3 w-3 ml-1" />
+                </Badge>
+              ) : null
+            })}
+            <Button variant="ghost" size="sm" onClick={clearTags} className="text-[#737373] h-6 px-2">
+              Clear all
+            </Button>
+          </div>
+        )}
+
+        {/* Results Count */}
+        <div className="text-sm text-[#737373] mb-4">
+          Showing {filteredCampaigns.length} campaign{filteredCampaigns.length !== 1 ? 's' : ''}
+        </div>
+
+        {/* Campaigns Grid */}
+        <div>
             {filteredCampaigns.length === 0 ? (
               <Card className="border-dashed">
                 <CardContent className="py-12 text-center">
@@ -250,73 +321,7 @@ export function RequestsPage() {
                 ))}
               </div>
             )}
-          </TabsContent>
-
-          {/* Requests Tab */}
-          <TabsContent value="requests" className="mt-0">
-            {filteredRequests.length === 0 ? (
-              <Card className="border-dashed">
-                <CardContent className="py-12 text-center">
-                  <TrendingUp className="h-12 w-12 mx-auto text-[#737373] mb-4" />
-                  <p className="text-[#737373] text-lg">No open requests at this time.</p>
-                  <p className="text-[#737373] text-sm mt-1">Check back soon for new opportunities.</p>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                {filteredRequests.map((request) => (
-                  <Card key={request.id} className="flex flex-col border-[#e5e5e5]">
-                    <CardHeader>
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1">
-                          <CardDescription className="text-[#ea580c] font-medium">
-                            {request.organization?.name}
-                          </CardDescription>
-                          <CardTitle className="line-clamp-2 text-lg mt-1">
-                            {request.description}
-                          </CardTitle>
-                        </div>
-                        <Badge variant={
-                          request.urgency === 'high' ? 'destructive' :
-                          request.urgency === 'medium' ? 'default' : 'secondary'
-                        }>
-                          {request.urgency}
-                        </Badge>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="flex-1">
-                      <div className="space-y-2 text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-[#737373]">Amount needed:</span>
-                          <span className="font-semibold text-[#0a0a0a]">
-                            {formatCurrency(request.amount)}
-                          </span>
-                        </div>
-                        {request.cause_area && (
-                          <div className="flex justify-between">
-                            <span className="text-[#737373]">Cause area:</span>
-                            <span className="text-[#0a0a0a]">{request.cause_area.name}</span>
-                          </div>
-                        )}
-                        <div className="flex justify-between">
-                          <span className="text-[#737373]">Posted:</span>
-                          <span className="text-[#0a0a0a]">{formatRelativeTime(request.created_at)}</span>
-                        </div>
-                      </div>
-                    </CardContent>
-                    <CardFooter>
-                      <Link to={`/checkout/${request.id}`} className="w-full">
-                        <Button className="w-full bg-[#ea580c] hover:bg-[#dc4c06]">
-                          Donate Now
-                        </Button>
-                      </Link>
-                    </CardFooter>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </TabsContent>
-        </Tabs>
+          </div>
       </div>
     </div>
   )
