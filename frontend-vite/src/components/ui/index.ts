@@ -22,6 +22,7 @@ export * from './skeleton'
 export * from './separator'
 export * from './alert'
 export * from './scroll-area'
+export * from './table'
 
 // Overlay Components
 export * from './dialog'

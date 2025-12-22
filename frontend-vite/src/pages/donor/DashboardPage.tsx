@@ -1,41 +1,57 @@
 /**
  * Donor Dashboard Page
- * Fully functional dashboard with Supabase data + demo fallback
+ * Styled to match Figma design
  */
 
 import { useState, useEffect, useCallback } from 'react'
 import { useUser } from '@clerk/clerk-react'
-import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Checkbox } from '@/components/ui/checkbox'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Sidebar, SidebarGroup, SidebarItem, SidebarFooter } from '@/components/ui/sidebar'
-import { Input } from '@/components/ui/input'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Separator } from '@/components/ui/separator'
+import { Checkbox } from '@/components/ui/checkbox'
 import { OnboardingModal } from '@/components/OnboardingModal'
-import { 
-  AlertTriangle, 
-  Settings,
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  CheckCircle2,
+  Columns2,
+  Loader,
+  PanelLeft,
+  Plus,
+  TrendingUp,
+  MoreVertical,
   LayoutDashboard,
   Heart,
   BarChart3,
   FileText,
+  Settings,
   HelpCircle,
   Search,
-  PanelLeft,
-  TrendingUp,
-  Columns2,
-  GripVertical,
-  MoreVertical,
+  AlertTriangle,
   Loader2,
-  RefreshCw,
-  DollarSign,
-  CheckCircle,
-  Clock,
-  Target
+  ShieldCheck,
 } from 'lucide-react'
-import { Link, useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { 
   fetchDonorDashboardStats, 
   fetchDonorDonations,
@@ -44,7 +60,7 @@ import {
   type DonationRecord
 } from '@/lib/supabase'
 
-// Demo data for when there's no real data
+// Demo data
 const DEMO_STATS: DonorDashboardStats = {
   totalDonations: 2847,
   requestsFulfilled: 12,
@@ -133,116 +149,58 @@ const DEMO_DONATIONS: DonationRecord[] = [
   }
 ]
 
-// Stat card component
-interface StatCardProps {
-  title: string
-  value: string | number
-  subtitle?: string
-  trend?: { value: string; positive: boolean }
-  icon: React.ReactNode
-  loading?: boolean
-}
+// Stats data config
+const getStatsCards = (stats: DonorDashboardStats) => [
+  {
+    title: "Total Donated",
+    value: `$${stats.totalDonations.toLocaleString()}`,
+    change: "+12%",
+    changeLabel: "This month",
+  },
+  {
+    title: "Requests Fulfilled",
+    value: stats.requestsFulfilled.toString(),
+    change: "+3",
+    changeLabel: "This month",
+  },
+  {
+    title: "In Progress",
+    value: stats.requestsClaimed.toString(),
+    change: "Active",
+    changeLabel: "Awaiting completion",
+  },
+  {
+    title: "Causes Supported",
+    value: stats.causesSupported.toString(),
+    change: "+1",
+    changeLabel: "Different areas",
+  },
+]
 
-function StatCard({ title, value, subtitle, trend, icon, loading }: StatCardProps) {
+// Status Badge Component
+function StatusBadge({ status }: { status: string }) {
+  if (status === 'fulfilled') {
+    return (
+      <Badge variant="outline" className="gap-1 bg-white">
+        <CheckCircle2 className="h-3 w-3 text-green-500" />
+        <span className="font-semibold">Done</span>
+      </Badge>
+    )
+  }
+  if (status === 'claimed') {
+    return (
+      <Badge variant="outline" className="gap-1 bg-white">
+        <Loader className="h-3 w-3" />
+        <span className="font-semibold">In Process</span>
+      </Badge>
+    )
+  }
   return (
-    <Card className="p-4 bg-white border border-gray-200">
-      <div className="flex items-start justify-between">
-        <div className="flex-1">
-          <p className="text-sm font-medium text-gray-500">{title}</p>
-          {loading ? (
-            <div className="h-8 flex items-center">
-              <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
-            </div>
-          ) : (
-            <p className="mt-1 text-2xl font-semibold text-gray-900">{value}</p>
-          )}
-          {subtitle && <p className="text-xs text-gray-500 mt-1">{subtitle}</p>}
-          {trend && (
-            <div className={`flex items-center mt-2 text-xs ${trend.positive ? 'text-emerald-600' : 'text-red-600'}`}>
-              <TrendingUp className={`h-3 w-3 mr-1 ${!trend.positive && 'rotate-180'}`} />
-              {trend.value}
-            </div>
-          )}
-        </div>
-        <div className="p-2 bg-gray-100 rounded-lg">
-          {icon}
-        </div>
-      </div>
-    </Card>
+    <Badge variant="outline" className="gap-1 bg-white">
+      <span className="font-semibold capitalize">{status}</span>
+    </Badge>
   )
 }
-
-// Donation table row component
-interface DonationRowProps {
-  donation: DonationRecord
-  selected: boolean
-  onSelect: () => void
-}
-
-function DonationRow({ donation, selected, onSelect }: DonationRowProps) {
-  const statusColors = {
-    open: 'bg-blue-100 text-blue-800',
-    claimed: 'bg-amber-100 text-amber-800',
-    fulfilled: 'bg-emerald-100 text-emerald-800',
-    denied: 'bg-red-100 text-red-800'
-  }
-
-  const urgencyColors = {
-    low: 'bg-gray-100 text-gray-600',
-    medium: 'bg-orange-100 text-orange-700',
-    high: 'bg-red-100 text-red-700'
-  }
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
-    })
-  }
-
-  return (
-    <tr className={`border-b border-gray-100 hover:bg-gray-50 transition-colors ${selected ? 'bg-blue-50' : ''}`}>
-      <td className="py-3 px-4">
-        <Checkbox checked={selected} onCheckedChange={onSelect} />
-      </td>
-      <td className="py-3 px-4">
-        <div className="flex items-center gap-3">
-          <GripVertical className="h-4 w-4 text-gray-300 cursor-grab" />
-          <div>
-            <p className="font-medium text-gray-900 text-sm">{donation.organization_name}</p>
-            <p className="text-xs text-gray-500 max-w-[200px] truncate">{donation.description}</p>
-          </div>
-        </div>
-      </td>
-      <td className="py-3 px-4">
-        <Badge className={urgencyColors[donation.urgency]} variant="secondary">
-          {donation.urgency}
-        </Badge>
-      </td>
-      <td className="py-3 px-4">
-        <Badge className={statusColors[donation.status]} variant="secondary">
-          {donation.status}
-        </Badge>
-      </td>
-      <td className="py-3 px-4">
-        <span className="font-semibold text-gray-900">${donation.amount.toLocaleString()}</span>
-      </td>
-      <td className="py-3 px-4">
-        <span className="text-sm text-gray-500">{donation.cause_area_name}</span>
-      </td>
-      <td className="py-3 px-4">
-        <span className="text-sm text-gray-500">{formatDate(donation.created_at)}</span>
-      </td>
-      <td className="py-3 px-4">
-        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-          <MoreVertical className="h-4 w-4" />
-        </Button>
-      </td>
-    </tr>
-  )
-}
-
 
 export function DonorDashboard() {
   const { user, isLoaded } = useUser()
@@ -253,26 +211,21 @@ export function DonorDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [activeTab, setActiveTab] = useState('all')
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set())
-  const [searchQuery, setSearchQuery] = useState('')
   const [showOnboardingModal, setShowOnboardingModal] = useState(false)
   
-  // Data state - use demo data as fallback
+  // Data state
   const [stats, setStats] = useState<DonorDashboardStats>(DEMO_STATS)
   const [donations, setDonations] = useState<DonationRecord[]>(DEMO_DONATIONS)
   const [loading, setLoading] = useState(false)
   const [needsOnboarding, setNeedsOnboarding] = useState(true)
 
-  // Filter donations based on active tab
+  // Filter donations
   const filteredDonations = donations.filter(d => {
     if (activeTab === 'all') return true
     return d.status === activeTab
-  }).filter(d => {
-    if (!searchQuery) return true
-    return d.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-           d.organization_name.toLowerCase().includes(searchQuery.toLowerCase())
   })
 
-  // Fetch real data if available
+  // Fetch real data
   const fetchData = useCallback(async () => {
     if (!user?.id) return
 
@@ -286,7 +239,6 @@ export function DonorDashboard() {
         fetchDonorDonations(user.id)
       ])
 
-      // Only use real data if there is some, otherwise keep demo data
       if (donationsData && donationsData.length > 0) {
         setStats(statsData)
         setDonations(donationsData)
@@ -322,22 +274,21 @@ export function DonorDashboard() {
     }
   }
 
-  const handleBrowseRequests = () => navigate('/requests')
-
-  // Check if current path matches
   const isActive = (path: string) => location.pathname === path
 
   // Loading state
   if (!isLoaded) {
     return (
-      <div className="flex h-screen items-center justify-center bg-gray-50">
-        <Loader2 className="h-8 w-8 animate-spin text-gray-600" />
+      <div className="flex h-screen items-center justify-center bg-[#fafafa]">
+        <Loader2 className="h-8 w-8 animate-spin text-[#1b5858]" />
       </div>
     )
   }
 
+  const statsCards = getStatsCards(stats)
+
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex h-screen bg-[#fafafa]">
       {/* Onboarding Modal */}
       <OnboardingModal
         isOpen={showOnboardingModal}
@@ -345,313 +296,348 @@ export function DonorDashboard() {
         onComplete={() => {
           setShowOnboardingModal(false)
           setNeedsOnboarding(false)
-          fetchData() // Refresh data after completion
+          fetchData()
         }}
         userType="donor"
       />
 
       {/* Sidebar */}
-      <Sidebar className={`${sidebarOpen ? 'w-64' : 'w-16'} transition-all duration-300 border-r border-gray-200 bg-white`}>
-        <div className="p-4 border-b border-gray-100">
-          <div className="flex items-center gap-3">
-            <div className="h-8 w-8 bg-gray-900 rounded-lg flex items-center justify-center">
-              <Heart className="h-4 w-4 text-white" />
-            </div>
-            {sidebarOpen && <span className="font-semibold text-gray-900">KC Digital Drive</span>}
+      <aside className={`${sidebarOpen ? 'w-64' : 'w-16'} bg-[#fafafa] p-2 flex flex-col transition-all duration-300`}>
+        <div className="flex-1 space-y-2">
+          {/* Main Navigation */}
+          <nav className="space-y-1 p-2">
+            <button 
+              onClick={() => navigate('/donor/dashboard')}
+              className={`w-full flex items-center gap-2 px-2 py-2 rounded-lg transition-colors ${
+                isActive('/donor/dashboard') 
+                  ? 'bg-[#1b5858] text-white' 
+                  : 'text-[#0a0a0a] hover:bg-gray-100'
+              }`}
+            >
+              <LayoutDashboard className="w-4 h-4" />
+              {sidebarOpen && <span className="text-sm">My Campaign</span>}
+            </button>
+
+            <button 
+              onClick={() => navigate('/requests')}
+              className={`w-full flex items-center gap-2 px-2 py-2 rounded-lg transition-colors ${
+                isActive('/requests') 
+                  ? 'bg-[#1b5858] text-white' 
+                  : 'text-[#0a0a0a] hover:bg-gray-100'
+              }`}
+            >
+              <Heart className="w-4 h-4" />
+              {sidebarOpen && <span className="text-sm">Browse Requests</span>}
+            </button>
+
+            <button 
+              onClick={() => navigate('/donor/impact')}
+              className={`w-full flex items-center gap-2 px-2 py-2 rounded-lg transition-colors ${
+                isActive('/donor/impact') 
+                  ? 'bg-[#1b5858] text-white' 
+                  : 'text-[#0a0a0a] hover:bg-gray-100'
+              }`}
+            >
+              <BarChart3 className="w-4 h-4" />
+              {sidebarOpen && <span className="text-sm">Updates & Proof</span>}
+            </button>
+
+            <button className="w-full flex items-center gap-2 px-2 py-2 text-[#0a0a0a] rounded-lg hover:bg-gray-100">
+              <FileText className="w-4 h-4" />
+              {sidebarOpen && <span className="text-sm">Payouts / Transfers</span>}
+            </button>
+
+            <button className="w-full flex items-center gap-2 px-2 py-2 text-[#0a0a0a] rounded-lg hover:bg-gray-100">
+              <ShieldCheck className="w-4 h-4" />
+              {sidebarOpen && <span className="text-sm">Verification Status</span>}
+            </button>
+          </nav>
+
+          {/* Documents Section */}
+          <div className="p-2">
+            {sidebarOpen && (
+              <h3 className="px-2 mb-2 text-xs font-medium text-[#0a0a0a] opacity-70">
+                Documents
+              </h3>
+            )}
+            <button 
+              onClick={() => navigate('/donor/documents')}
+              className={`w-full flex items-center gap-2 px-2 py-2 rounded-lg transition-colors ${
+                isActive('/donor/documents') 
+                  ? 'bg-[#1b5858] text-white' 
+                  : 'text-[#0a0a0a] hover:bg-gray-100'
+              }`}
+            >
+              <FileText className="w-4 h-4" />
+              {sidebarOpen && <span className="text-sm">Tax Documents</span>}
+            </button>
           </div>
         </div>
-        
-        <SidebarGroup label={sidebarOpen ? "Menu" : undefined}>
-          <SidebarItem 
-            icon={<LayoutDashboard className="h-4 w-4 text-gray-700" />} 
-            active={isActive('/donor/dashboard')}
-            onClick={() => navigate('/donor/dashboard')}
-          >
-            {sidebarOpen && "Dashboard"}
-          </SidebarItem>
-          <SidebarItem 
-            icon={<Heart className="h-4 w-4 text-gray-700" />}
-            active={isActive('/requests')}
-            onClick={() => navigate('/requests')}
-          >
-            {sidebarOpen && "Browse Requests"}
-          </SidebarItem>
-          <SidebarItem 
-            icon={<BarChart3 className="h-4 w-4 text-gray-700" />}
-            active={isActive('/donor/impact')}
-            onClick={() => navigate('/donor/impact')}
-          >
-            {sidebarOpen && "Impact Report"}
-          </SidebarItem>
-          <SidebarItem 
-            icon={<FileText className="h-4 w-4 text-gray-700" />}
-            active={isActive('/donor/documents')}
-            onClick={() => navigate('/donor/documents')}
-          >
-            {sidebarOpen && "Tax Documents"}
-          </SidebarItem>
-        </SidebarGroup>
 
-        <SidebarGroup label={sidebarOpen ? "Account" : undefined}>
-          <SidebarItem 
-            icon={<Settings className="h-4 w-4 text-gray-700" />}
-            active={isActive('/donor/settings')}
+        {/* Footer Navigation */}
+        <div className="p-2 space-y-1 border-t border-gray-200 pt-2">
+          <button 
             onClick={() => setShowOnboardingModal(true)}
+            className="w-full flex items-center gap-2 px-2 py-2 text-[#0a0a0a] rounded-lg hover:bg-gray-100"
           >
-            {sidebarOpen && "Settings"}
-          </SidebarItem>
-          <SidebarItem 
-            icon={<HelpCircle className="h-4 w-4 text-gray-700" />}
-            active={isActive('/donor/support')}
-            onClick={() => navigate('/donor/support')}
-          >
-            {sidebarOpen && "Support"}
-          </SidebarItem>
-        </SidebarGroup>
+            <Settings className="w-4 h-4" />
+            {sidebarOpen && <span className="text-sm">Account Information</span>}
+          </button>
 
-        <SidebarFooter>
-          <div className={`flex items-center gap-3 p-2 ${sidebarOpen ? '' : 'justify-center'}`}>
-            <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-700 font-medium">
-              {user?.firstName?.[0] || user?.emailAddresses?.[0]?.emailAddress?.[0]?.toUpperCase() || 'D'}
-            </div>
-            {sidebarOpen && (
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 truncate">
-                  {user?.firstName || 'Demo User'}
-                </p>
-                <p className="text-xs text-gray-500 truncate">
-                  {user?.emailAddresses?.[0]?.emailAddress || 'demo@example.com'}
-                </p>
-              </div>
-            )}
-          </div>
-        </SidebarFooter>
-      </Sidebar>
+          <button 
+            onClick={() => navigate('/donor/support')}
+            className="w-full flex items-center gap-2 px-2 py-2 text-[#0a0a0a] rounded-lg hover:bg-gray-100"
+          >
+            <HelpCircle className="w-4 h-4" />
+            {sidebarOpen && <span className="text-sm">Support</span>}
+          </button>
+
+          <button className="w-full flex items-center gap-2 px-2 py-2 text-[#0a0a0a] rounded-lg hover:bg-gray-100">
+            <Search className="w-4 h-4" />
+            {sidebarOpen && <span className="text-sm">Search</span>}
+          </button>
+        </div>
+      </aside>
 
       {/* Main Content */}
-      <div className="flex-1 overflow-auto">
-        {/* Header */}
-        <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
-          <div className="flex items-center justify-between px-6 py-4">
-            <div className="flex items-center gap-4">
-              <Button 
-                variant="ghost" 
-                size="sm"
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="h-8 w-8 p-0"
-              >
-                <PanelLeft className="h-4 w-4" />
-              </Button>
-              <div>
-                <nav className="flex items-center gap-2 text-sm text-gray-500">
-                  <Link to="/" className="hover:text-gray-700">Home</Link>
-                  <span>/</span>
-                  <span className="text-gray-900">Donor Dashboard</span>
-                </nav>
-                <h1 className="text-xl font-semibold text-gray-900 mt-1">
-                  Welcome back, {user?.firstName || 'there'}!
-                </h1>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={fetchData}
-                disabled={loading}
-              >
-                <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                Refresh
-              </Button>
-              <Button 
-                size="sm" 
-                className="bg-gray-900 hover:bg-gray-800"
-                onClick={handleBrowseRequests}
-              >
-                <Heart className="h-4 w-4 mr-2" />
-                Browse Requests
-              </Button>
-            </div>
-          </div>
-        </header>
-
-        {/* Content */}
-        <main className="p-6">
-          {/* Onboarding Alert with Settings Button */}
-          {needsOnboarding && (
-            <Alert className="mb-6 bg-amber-50 border-amber-200">
-              <AlertTriangle className="h-4 w-4 text-amber-600" />
-              <AlertTitle className="text-amber-800">Complete Your Profile</AlertTitle>
-              <AlertDescription className="text-amber-700 flex items-center justify-between">
-                <span>Please complete your profile setup to get started donating.</span>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="ml-4 border-amber-300 text-amber-800 hover:bg-amber-100"
-                  onClick={() => setShowOnboardingModal(true)}
-                >
-                  <Settings className="size-4 mr-2" />
-                  Complete Setup
-                </Button>
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {/* Stats Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <StatCard
-              title="Total Donated"
-              value={`$${stats.totalDonations.toLocaleString()}`}
-              subtitle="All time contributions"
-              trend={{ value: '+12% this month', positive: true }}
-              icon={<DollarSign className="h-5 w-5 text-gray-700" />}
-              loading={loading}
-            />
-            <StatCard
-              title="Requests Fulfilled"
-              value={stats.requestsFulfilled}
-              subtitle="Completed donations"
-              trend={{ value: '+3 this month', positive: true }}
-              icon={<CheckCircle className="h-5 w-5 text-gray-700" />}
-              loading={loading}
-            />
-            <StatCard
-              title="In Progress"
-              value={stats.requestsClaimed}
-              subtitle="Awaiting fulfillment"
-              icon={<Clock className="h-5 w-5 text-gray-700" />}
-              loading={loading}
-            />
-            <StatCard
-              title="Causes Supported"
-              value={stats.causesSupported}
-              subtitle="Different cause areas"
-              icon={<Target className="h-5 w-5 text-gray-700" />}
-              loading={loading}
-            />
+      <main className="flex-1 p-2 overflow-auto">
+        <div className="bg-white rounded-[14px] shadow-sm h-full flex flex-col">
+          {/* Header */}
+          <div className="flex items-center gap-2 px-6 h-[49px] border-b border-[#e5e5e5]">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-7 w-7"
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+            >
+              <PanelLeft className="h-4 w-4" />
+            </Button>
+            <Separator orientation="vertical" className="h-4" />
+            <div className="text-sm">Donations</div>
           </div>
 
-          {/* Donations Table */}
-          <Card className="border border-gray-200 bg-white">
-            <div className="p-4 border-b border-gray-100">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div>
-                  <h2 className="text-lg font-semibold text-gray-900">Your Donations</h2>
-                  <p className="text-sm text-gray-500">Track and manage your donation history</p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <Input
-                      placeholder="Search donations..."
-                      className="pl-9 w-64"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                    />
+          {/* Content */}
+          <div className="flex-1 overflow-auto p-6">
+            {/* Onboarding Alert */}
+            {needsOnboarding && (
+              <Alert className="mb-6 bg-amber-50 border-amber-200">
+                <AlertTriangle className="h-4 w-4 text-amber-600" />
+                <AlertTitle className="text-amber-800">Complete Your Profile</AlertTitle>
+                <AlertDescription className="text-amber-700 flex items-center justify-between">
+                  <span>Please complete your profile setup to get started donating.</span>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="ml-4 border-amber-300 text-amber-800 hover:bg-amber-100"
+                    onClick={() => setShowOnboardingModal(true)}
+                  >
+                    <Settings className="h-4 w-4 mr-2" />
+                    Complete Setup
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* Stats Cards */}
+            <div className="grid grid-cols-4 gap-4 mb-6">
+              {statsCards.map((stat, i) => (
+                <Card key={i} className="p-6">
+                  <div className="space-y-6">
+                    <div className="space-y-1.5">
+                      <p className="text-[#737373]">{stat.title}</p>
+                      {loading ? (
+                        <div className="h-9 flex items-center">
+                          <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+                        </div>
+                      ) : (
+                        <p className="text-[30px] font-semibold leading-9">
+                          {stat.value}
+                        </p>
+                      )}
+                    </div>
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm">{stat.change}</span>
+                        <TrendingUp className="h-4 w-4" />
+                      </div>
+                      <p className="text-sm text-[#737373]">
+                        {stat.changeLabel}
+                      </p>
+                    </div>
                   </div>
-                  <Button variant="outline" size="sm">
-                    <Columns2 className="h-4 w-4 mr-2" />
-                    Columns
+                </Card>
+              ))}
+            </div>
+
+            {/* Table Section */}
+            <div className="space-y-6">
+              {/* Filters */}
+              <div className="flex items-center justify-between">
+                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-auto">
+                  <TabsList>
+                    <TabsTrigger value="all">All</TabsTrigger>
+                    <TabsTrigger value="claimed">In Progress</TabsTrigger>
+                    <TabsTrigger value="fulfilled">Completed</TabsTrigger>
+                    <TabsTrigger value="open">Open</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+
+                <div className="flex items-center gap-2">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm">
+                        <Columns2 className="h-4 w-4" />
+                        <span>Customize Columns</span>
+                        <ChevronDown className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48">
+                      <DropdownMenuItem>Organization</DropdownMenuItem>
+                      <DropdownMenuItem>Cause Area</DropdownMenuItem>
+                      <DropdownMenuItem>Status</DropdownMenuItem>
+                      <DropdownMenuItem>Amount</DropdownMenuItem>
+                      <DropdownMenuItem>Date</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+
+                  <Button variant="outline" size="sm" onClick={() => navigate('/requests')}>
+                    <Plus className="h-4 w-4" />
+                    <span>New Donation</span>
                   </Button>
                 </div>
               </div>
 
-              {/* Tabs */}
-              <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-4">
-                <TabsList className="bg-gray-100">
-                  <TabsTrigger value="all" className="data-[state=active]:bg-white">
-                    All
-                    <Badge variant="secondary" className="ml-2 bg-gray-200 text-gray-600">
-                      {donations.length}
-                    </Badge>
-                  </TabsTrigger>
-                  <TabsTrigger value="claimed" className="data-[state=active]:bg-white">
-                    In Progress
-                    <Badge variant="secondary" className="ml-2 bg-amber-100 text-amber-700">
-                      {donations.filter(d => d.status === 'claimed').length}
-                    </Badge>
-                  </TabsTrigger>
-                  <TabsTrigger value="fulfilled" className="data-[state=active]:bg-white">
-                    Fulfilled
-                    <Badge variant="secondary" className="ml-2 bg-emerald-100 text-emerald-700">
-                      {donations.filter(d => d.status === 'fulfilled').length}
-                    </Badge>
-                  </TabsTrigger>
-                </TabsList>
-              </Tabs>
+              {/* Table */}
+              <div className="border border-[#e5e5e5] rounded-lg overflow-hidden">
+                {loading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead className="w-12">
+                          <div className="flex items-center justify-center">
+                            <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 16 16">
+                              <circle cx="6" cy="4" r="1" fill="currentColor" />
+                              <circle cx="10" cy="4" r="1" fill="currentColor" />
+                              <circle cx="6" cy="8" r="1" fill="currentColor" />
+                              <circle cx="10" cy="8" r="1" fill="currentColor" />
+                              <circle cx="6" cy="12" r="1" fill="currentColor" />
+                              <circle cx="10" cy="12" r="1" fill="currentColor" />
+                            </svg>
+                          </div>
+                        </TableHead>
+                        <TableHead className="w-12">
+                          <Checkbox 
+                            checked={selectedRows.size === filteredDonations.length && filteredDonations.length > 0}
+                            onCheckedChange={toggleAllRows}
+                          />
+                        </TableHead>
+                        <TableHead>Organization</TableHead>
+                        <TableHead>Cause Area</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Amount</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead className="w-12"></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredDonations.map((donation) => (
+                        <TableRow key={donation.id}>
+                          <TableCell>
+                            <div className="flex items-center justify-center">
+                              <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 16 16">
+                                <circle cx="6" cy="4" r="1" fill="currentColor" />
+                                <circle cx="10" cy="4" r="1" fill="currentColor" />
+                                <circle cx="6" cy="8" r="1" fill="currentColor" />
+                                <circle cx="10" cy="8" r="1" fill="currentColor" />
+                                <circle cx="6" cy="12" r="1" fill="currentColor" />
+                                <circle cx="10" cy="12" r="1" fill="currentColor" />
+                              </svg>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Checkbox 
+                              checked={selectedRows.has(donation.id)}
+                              onCheckedChange={() => toggleRowSelection(donation.id)}
+                            />
+                          </TableCell>
+                          <TableCell>{donation.organization_name}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline">{donation.cause_area_name}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            <StatusBadge status={donation.status} />
+                          </TableCell>
+                          <TableCell>${donation.amount}</TableCell>
+                          <TableCell>
+                            {new Date(donation.created_at).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem>View Details</DropdownMenuItem>
+                                <DropdownMenuItem>Download Receipt</DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </div>
+
+              {/* Pagination */}
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-gray-600">
+                  {selectedRows.size} of {filteredDonations.length} row(s) selected.
+                </span>
+                <div className="flex items-center gap-6">
+                  <div className="flex items-center gap-2">
+                    <span>Rows per page</span>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="sm" className="h-8">
+                          10
+                          <ChevronDown className="h-4 w-4 ml-1" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem>10</DropdownMenuItem>
+                        <DropdownMenuItem>20</DropdownMenuItem>
+                        <DropdownMenuItem>50</DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                  <span>Page 1 of 1</span>
+                  <div className="flex items-center gap-1">
+                    <Button variant="outline" size="sm" className="h-8 w-8 p-0" disabled>
+                      <ChevronsLeft className="h-4 w-4" />
+                    </Button>
+                    <Button variant="outline" size="sm" className="h-8 w-8 p-0" disabled>
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <Button variant="outline" size="sm" className="h-8 w-8 p-0" disabled>
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                    <Button variant="outline" size="sm" className="h-8 w-8 p-0" disabled>
+                      <ChevronsRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
             </div>
-
-            {/* Table */}
-            {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50 border-b border-gray-100">
-                    <tr>
-                      <th className="py-3 px-4 text-left">
-                        <Checkbox 
-                          checked={selectedRows.size === filteredDonations.length && filteredDonations.length > 0}
-                          onCheckedChange={toggleAllRows}
-                        />
-                      </th>
-                      <th className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Organization
-                      </th>
-                      <th className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Urgency
-                      </th>
-                      <th className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Status
-                      </th>
-                      <th className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Amount
-                      </th>
-                      <th className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Cause Area
-                      </th>
-                      <th className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Date
-                      </th>
-                      <th className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredDonations.map((donation) => (
-                      <DonationRow
-                        key={donation.id}
-                        donation={donation}
-                        selected={selectedRows.has(donation.id)}
-                        onSelect={() => toggleRowSelection(donation.id)}
-                      />
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {/* Pagination */}
-            <div className="p-4 border-t border-gray-100 flex items-center justify-between">
-              <p className="text-sm text-gray-500">
-                Showing {filteredDonations.length} of {donations.length} donation{donations.length !== 1 ? 's' : ''}
-              </p>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" disabled>
-                  Previous
-                </Button>
-                <Button variant="outline" size="sm" disabled>
-                  Next
-                </Button>
-              </div>
-            </div>
-          </Card>
-
-        </main>
-      </div>
+          </div>
+        </div>
+      </main>
     </div>
   )
 }
