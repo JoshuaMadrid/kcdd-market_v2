@@ -26,6 +26,13 @@ import {
   Plus,
   Trash2,
   HelpCircle,
+  Facebook,
+  Twitter,
+  Instagram,
+  Linkedin,
+  Youtube,
+  Globe,
+  X,
 } from 'lucide-react'
 import { createCampaign, supabase } from '@/lib/supabase'
 
@@ -40,6 +47,22 @@ interface FAQ {
   answer: string
 }
 
+interface ImageFile {
+  file: File
+  preview: string
+  caption: string
+}
+
+interface SocialLinks {
+  facebook: string
+  twitter: string
+  instagram: string
+  linkedin: string
+  youtube: string
+  tiktok: string
+  website: string
+}
+
 interface CampaignFormData {
   campaignTitle: string
   creatorName: string
@@ -49,13 +72,15 @@ interface CampaignFormData {
   fundingGoal: string
   shortDescription: string
   logoFile: File | null
+  images: ImageFile[]
   storyTitle: string
   campaignStory: string
   contactEmail: string
   faqs: FAQ[]
+  socialLinks: SocialLinks
 }
 
-type FormDataValue = string | string[] | boolean | File | null | FAQ[]
+type FormDataValue = string | string[] | boolean | File | null | FAQ[] | ImageFile[] | SocialLinks
 
 const CAUSE_AREAS = [
   'Health & Medicine',
@@ -76,7 +101,7 @@ const CAUSE_AREAS = [
   'Senior Services',
 ]
 
-const TOTAL_STEPS = 6
+const TOTAL_STEPS = 7
 
 export function CampaignForm({ organizationId, onCancel, onComplete }: CampaignFormProps) {
   const { user } = useUser()
@@ -95,11 +120,22 @@ export function CampaignForm({ organizationId, onCancel, onComplete }: CampaignF
     fundingGoal: '',
     shortDescription: '',
     logoFile: null,
+    images: [],
     storyTitle: '',
     campaignStory: '',
     contactEmail: user?.primaryEmailAddress?.emailAddress || '',
     faqs: [{ question: '', answer: '' }],
+    socialLinks: {
+      facebook: '',
+      twitter: '',
+      instagram: '',
+      linkedin: '',
+      youtube: '',
+      tiktok: '',
+      website: ''
+    }
   })
+  const imageInputRef = useRef<HTMLInputElement>(null)
 
   const updateFormData = (field: keyof CampaignFormData, value: FormDataValue) => {
     setFormData(prev => ({ ...prev, [field]: value }))
@@ -138,6 +174,59 @@ export function CampaignForm({ organizationId, onCancel, onComplete }: CampaignF
     }))
   }
 
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files) return
+
+    const newImages: ImageFile[] = []
+    Array.from(files).forEach(file => {
+      if (file.type.startsWith('image/')) {
+        newImages.push({
+          file,
+          preview: URL.createObjectURL(file),
+          caption: ''
+        })
+      }
+    })
+
+    setFormData(prev => ({
+      ...prev,
+      images: [...prev.images, ...newImages]
+    }))
+
+    // Reset input
+    if (imageInputRef.current) {
+      imageInputRef.current.value = ''
+    }
+  }
+
+  const removeImage = (index: number) => {
+    setFormData(prev => {
+      // Revoke the object URL to free memory
+      URL.revokeObjectURL(prev.images[index].preview)
+      return {
+        ...prev,
+        images: prev.images.filter((_, i) => i !== index)
+      }
+    })
+  }
+
+  const updateImageCaption = (index: number, caption: string) => {
+    setFormData(prev => ({
+      ...prev,
+      images: prev.images.map((img, i) => 
+        i === index ? { ...img, caption } : img
+      )
+    }))
+  }
+
+  const updateSocialLink = (platform: keyof SocialLinks, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      socialLinks: { ...prev.socialLinks, [platform]: value }
+    }))
+  }
+
   const handleNext = () => {
     // Validation for each step
     if (currentStep === 1 && !formData.campaignTitle.trim()) {
@@ -148,7 +237,7 @@ export function CampaignForm({ organizationId, onCancel, onComplete }: CampaignF
       setError('Please enter a funding goal')
       return
     }
-    if (currentStep === 4 && !formData.campaignStory.trim()) {
+    if (currentStep === 5 && !formData.campaignStory.trim()) {
       setError('Please write your campaign story')
       return
     }
@@ -226,7 +315,7 @@ export function CampaignForm({ organizationId, onCancel, onComplete }: CampaignF
         }
       }
       
-      // Create the campaign
+      // Create the campaign with social links
       const campaign = await createCampaign({
         organization_id: organizationId,
         created_by: user.id,
@@ -240,12 +329,52 @@ export function CampaignForm({ organizationId, onCancel, onComplete }: CampaignF
         story_content: formData.campaignStory,
         contact_email: formData.contactEmail,
         logo_url: logoUrl,
+        facebook_url: formData.socialLinks.facebook || undefined,
+        twitter_url: formData.socialLinks.twitter || undefined,
+        instagram_url: formData.socialLinks.instagram || undefined,
+        linkedin_url: formData.socialLinks.linkedin || undefined,
+        youtube_url: formData.socialLinks.youtube || undefined,
+        tiktok_url: formData.socialLinks.tiktok || undefined,
+        website_url: formData.socialLinks.website || undefined,
       })
+
+      const campaignId = (campaign as { id: string }).id
+
+      // Upload and save gallery images
+      if (formData.images.length > 0 && campaignId) {
+        for (let i = 0; i < formData.images.length; i++) {
+          const img = formData.images[i]
+          try {
+            const fileExt = img.file.name.split('.').pop()
+            const fileName = `campaign-${campaignId}-image-${i}-${Date.now()}.${fileExt}`
+            
+            const { error: uploadError } = await supabase.storage
+              .from('campaign-images')
+              .upload(fileName, img.file)
+
+            if (!uploadError) {
+              const { data: urlData } = supabase.storage
+                .from('campaign-images')
+                .getPublicUrl(fileName)
+              
+              // Insert image record
+              await (supabase.from('campaign_images') as any).insert({
+                campaign_id: campaignId,
+                image_url: urlData.publicUrl,
+                caption: img.caption || null,
+                sort_order: i,
+                is_featured: i === 0 // First image is featured
+              })
+            }
+          } catch (imgError) {
+            console.error('Error uploading image:', imgError)
+          }
+        }
+      }
 
       // Save FAQs
       const validFaqs = formData.faqs.filter(faq => faq.question.trim() && faq.answer.trim())
-      if (validFaqs.length > 0 && campaign) {
-        const campaignId = (campaign as { id: string }).id
+      if (validFaqs.length > 0 && campaignId) {
         const faqsToInsert = validFaqs.map((faq, index) => ({
           campaign_id: campaignId,
           question: faq.question,
@@ -253,7 +382,7 @@ export function CampaignForm({ organizationId, onCancel, onComplete }: CampaignF
           sort_order: index,
         }))
         
-        await supabase.from('campaign_faqs').insert(faqsToInsert)
+        await (supabase.from('campaign_faqs') as any).insert(faqsToInsert)
       }
 
       onComplete()
@@ -279,7 +408,7 @@ export function CampaignForm({ organizationId, onCancel, onComplete }: CampaignF
   }
 
   // Step titles for progress indicator
-  const stepTitles = ['Basic Info', 'Cause Areas', 'Funding', 'Your Story', 'FAQs', 'Review']
+  const stepTitles = ['Basic Info', 'Cause Areas', 'Funding', 'Media & Social', 'Your Story', 'FAQs', 'Review']
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -486,24 +615,25 @@ export function CampaignForm({ organizationId, onCancel, onComplete }: CampaignF
           </div>
         )}
 
-        {/* Step 4: Story */}
+        {/* Step 4: Media & Social Links */}
         {currentStep === 4 && (
           <div className="space-y-6">
             <div>
-              <h2 className="text-xl font-semibold text-[#0a0a0a] mb-1">Tell Your Story</h2>
-              <p className="text-[#737373]">Share the details that will inspire donors to support your cause</p>
+              <h2 className="text-xl font-semibold text-[#0a0a0a] mb-1">Media & Social Links</h2>
+              <p className="text-[#737373]">Add images and connect your social media to help donors find you</p>
             </div>
 
-            <div className="space-y-4">
-              {/* Logo Upload */}
+            <div className="space-y-6">
+              {/* Main Logo/Image Upload */}
               <div className="space-y-2">
-                <label className="text-sm font-medium text-[#0a0a0a]">Campaign Image</label>
+                <span className="text-sm font-medium text-[#0a0a0a]">Campaign Logo/Avatar</span>
                 <div 
                   role="button"
                   tabIndex={0}
                   onClick={() => fileInputRef.current?.click()}
                   onKeyDown={(e) => e.key === 'Enter' && fileInputRef.current?.click()}
-                  className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-[#1b5858] hover:bg-gray-50 transition-colors cursor-pointer"
+                  className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-[#1b5858] hover:bg-gray-50 transition-colors cursor-pointer"
+                  aria-label="Upload campaign logo or avatar"
                 >
                   {formData.logoFile ? (
                     <div className="flex items-center justify-center gap-3">
@@ -515,9 +645,9 @@ export function CampaignForm({ organizationId, onCancel, onComplete }: CampaignF
                     </div>
                   ) : (
                     <>
-                      <Upload className="h-10 w-10 text-gray-400 mx-auto mb-3" />
-                      <p className="font-medium text-[#0a0a0a]">Click to upload an image</p>
-                      <p className="text-sm text-[#737373]">PNG, JPG up to 10MB</p>
+                      <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                      <p className="font-medium text-[#0a0a0a]">Upload Logo or Avatar</p>
+                      <p className="text-sm text-[#737373]">PNG, JPG up to 5MB</p>
                     </>
                   )}
                 </div>
@@ -527,9 +657,172 @@ export function CampaignForm({ organizationId, onCancel, onComplete }: CampaignF
                   accept="image/*"
                   onChange={handleFileChange}
                   className="hidden"
+                  aria-hidden="true"
                 />
               </div>
 
+              {/* Gallery Images */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-[#0a0a0a]">Campaign Gallery</span>
+                  <span className="text-xs text-[#737373]">{formData.images.length} image{formData.images.length !== 1 ? 's' : ''}</span>
+                </div>
+                
+                {/* Image Grid */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {formData.images.map((img, index) => (
+                    <div key={index} className="relative group">
+                      <img 
+                        src={img.preview} 
+                        alt={`Gallery upload ${index + 1}`}
+                        className="w-full aspect-square object-cover rounded-lg border border-gray-200"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeImage(index)}
+                        className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                        aria-label="Remove image"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                      <Input
+                        value={img.caption}
+                        onChange={(e) => updateImageCaption(index, e.target.value)}
+                        placeholder="Caption (optional)"
+                        className="mt-1 text-xs h-8"
+                      />
+                    </div>
+                  ))}
+                  
+                  {/* Add Image Button */}
+                  <button
+                    type="button"
+                    onClick={() => imageInputRef.current?.click()}
+                    className="aspect-square border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center hover:border-[#1b5858] hover:bg-gray-50 transition-colors"
+                  >
+                    <Plus className="h-6 w-6 text-gray-400 mb-1" />
+                    <span className="text-xs text-[#737373]">Add Image</span>
+                  </button>
+                </div>
+                <input
+                  ref={imageInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handleImageUpload}
+                  className="hidden"
+                />
+                <p className="text-xs text-[#737373]">
+                  Add photos that show your work and impact. The first image will be your featured image.
+                </p>
+              </div>
+
+              {/* Social Media Links */}
+              <div className="space-y-4 pt-4 border-t border-gray-200">
+                <h3 className="text-sm font-medium text-[#0a0a0a]">Social Media Links (Optional)</h3>
+                <p className="text-xs text-[#737373]">Add your social media profiles so donors can follow your work</p>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-[#1877f2] rounded-lg flex items-center justify-center flex-shrink-0">
+                      <Facebook className="h-5 w-5 text-white" />
+                    </div>
+                    <Input
+                      value={formData.socialLinks.facebook}
+                      onChange={(e) => updateSocialLink('facebook', e.target.value)}
+                      placeholder="https://facebook.com/yourpage"
+                      className="h-10"
+                    />
+                  </div>
+                  
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-black rounded-lg flex items-center justify-center flex-shrink-0">
+                      <Twitter className="h-5 w-5 text-white" />
+                    </div>
+                    <Input
+                      value={formData.socialLinks.twitter}
+                      onChange={(e) => updateSocialLink('twitter', e.target.value)}
+                      placeholder="https://twitter.com/yourhandle"
+                      className="h-10"
+                    />
+                  </div>
+                  
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-gradient-to-br from-[#f58529] via-[#dd2a7b] to-[#515bd4] rounded-lg flex items-center justify-center flex-shrink-0">
+                      <Instagram className="h-5 w-5 text-white" />
+                    </div>
+                    <Input
+                      value={formData.socialLinks.instagram}
+                      onChange={(e) => updateSocialLink('instagram', e.target.value)}
+                      placeholder="https://instagram.com/yourhandle"
+                      className="h-10"
+                    />
+                  </div>
+                  
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-[#0077b5] rounded-lg flex items-center justify-center flex-shrink-0">
+                      <Linkedin className="h-5 w-5 text-white" />
+                    </div>
+                    <Input
+                      value={formData.socialLinks.linkedin}
+                      onChange={(e) => updateSocialLink('linkedin', e.target.value)}
+                      placeholder="https://linkedin.com/company/yours"
+                      className="h-10"
+                    />
+                  </div>
+                  
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-[#ff0000] rounded-lg flex items-center justify-center flex-shrink-0">
+                      <Youtube className="h-5 w-5 text-white" />
+                    </div>
+                    <Input
+                      value={formData.socialLinks.youtube}
+                      onChange={(e) => updateSocialLink('youtube', e.target.value)}
+                      placeholder="https://youtube.com/@yourchannel"
+                      className="h-10"
+                    />
+                  </div>
+                  
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-black rounded-lg flex items-center justify-center flex-shrink-0">
+                      <svg viewBox="0 0 24 24" className="h-5 w-5 text-white fill-current">
+                        <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/>
+                      </svg>
+                    </div>
+                    <Input
+                      value={formData.socialLinks.tiktok}
+                      onChange={(e) => updateSocialLink('tiktok', e.target.value)}
+                      placeholder="https://tiktok.com/@yourhandle"
+                      className="h-10"
+                    />
+                  </div>
+                  
+                  <div className="flex items-center gap-3 md:col-span-2">
+                    <div className="w-10 h-10 bg-[#1b5858] rounded-lg flex items-center justify-center flex-shrink-0">
+                      <Globe className="h-5 w-5 text-white" />
+                    </div>
+                    <Input
+                      value={formData.socialLinks.website}
+                      onChange={(e) => updateSocialLink('website', e.target.value)}
+                      placeholder="https://yourwebsite.org"
+                      className="h-10"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Step 5: Story */}
+        {currentStep === 5 && (
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-xl font-semibold text-[#0a0a0a] mb-1">Tell Your Story</h2>
+              <p className="text-[#737373]">Share the details that will inspire donors to support your cause</p>
+            </div>
+
+            <div className="space-y-4">
               {/* Story Title */}
               <div className="space-y-2">
                 <label htmlFor="storyTitle" className="text-sm font-medium text-[#0a0a0a]">
@@ -546,9 +839,9 @@ export function CampaignForm({ organizationId, onCancel, onComplete }: CampaignF
 
               {/* Campaign Story - Rich Text Editor */}
               <div className="space-y-2">
-                <label className="text-sm font-medium text-[#0a0a0a]">
+                <span className="text-sm font-medium text-[#0a0a0a]">
                   Your Campaign Story *
-                </label>
+                </span>
                 <RichTextEditor
                   value={formData.campaignStory}
                   onChange={(value) => updateFormData('campaignStory', value)}
@@ -564,8 +857,8 @@ export function CampaignForm({ organizationId, onCancel, onComplete }: CampaignF
           </div>
         )}
 
-        {/* Step 5: FAQs */}
-        {currentStep === 5 && (
+        {/* Step 6: FAQs */}
+        {currentStep === 6 && (
           <div className="space-y-6">
             <div>
               <h2 className="text-xl font-semibold text-[#0a0a0a] mb-1">Frequently Asked Questions</h2>
@@ -638,8 +931,8 @@ export function CampaignForm({ organizationId, onCancel, onComplete }: CampaignF
           </div>
         )}
 
-        {/* Step 6: Review */}
-        {currentStep === 6 && (
+        {/* Step 7: Review */}
+        {currentStep === 7 && (
           <div className="space-y-6">
             <div>
               <h2 className="text-xl font-semibold text-[#0a0a0a] mb-1">Review & Launch</h2>
@@ -672,9 +965,11 @@ export function CampaignForm({ organizationId, onCancel, onComplete }: CampaignF
                   { label: 'Role', value: formData.roleTitle, editStep: 1 },
                   { label: 'Funding Goal', value: formData.fundingGoal ? `$${parseFloat(formData.fundingGoal).toLocaleString()}` : 'Not set', editStep: 3 },
                   { label: 'Cause Areas', value: formData.causeAreas.length > 0 ? formData.causeAreas.join(', ') : 'None selected', editStep: 2 },
-                  { label: 'Story Title', value: formData.storyTitle || 'Not set', editStep: 4 },
-                  { label: 'FAQs', value: `${formData.faqs.filter(f => f.question.trim()).length} question(s)`, editStep: 5 },
-                  { label: 'Contact Email', value: formData.contactEmail, editStep: 6 },
+                  { label: 'Images', value: `${formData.images.length} image(s)${formData.logoFile ? ' + logo' : ''}`, editStep: 4 },
+                  { label: 'Social Links', value: Object.values(formData.socialLinks).filter(v => v).length > 0 ? `${Object.values(formData.socialLinks).filter(v => v).length} linked` : 'None added', editStep: 4 },
+                  { label: 'Story Title', value: formData.storyTitle || 'Not set', editStep: 5 },
+                  { label: 'FAQs', value: `${formData.faqs.filter(f => f.question.trim()).length} question(s)`, editStep: 6 },
+                  { label: 'Contact Email', value: formData.contactEmail, editStep: 7 },
                 ].map((item) => (
                   <div 
                     key={item.label}
@@ -685,7 +980,7 @@ export function CampaignForm({ organizationId, onCancel, onComplete }: CampaignF
                       <span className="text-sm font-medium text-[#0a0a0a]">
                         {item.value}
                       </span>
-                      {item.editStep !== 6 && (
+                      {item.editStep !== 7 && (
                         <button
                           onClick={() => goToStep(item.editStep)}
                           className="p-1 text-[#737373] hover:text-[#1b5858] transition-colors flex-shrink-0"

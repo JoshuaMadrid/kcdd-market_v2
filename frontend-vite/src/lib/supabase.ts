@@ -779,6 +779,14 @@ export interface CampaignData {
   contact_email: string
   image_url?: string
   logo_url?: string
+  // Social media links
+  facebook_url?: string
+  twitter_url?: string
+  instagram_url?: string
+  linkedin_url?: string
+  youtube_url?: string
+  tiktok_url?: string
+  website_url?: string
 }
 
 // Create a new campaign

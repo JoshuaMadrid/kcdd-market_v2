@@ -47,6 +47,9 @@ import {
   CheckCircle2,
   AlertCircle,
   MessageCircle,
+  Instagram,
+  Youtube,
+  Globe,
 } from 'lucide-react'
 import { supabase, updateCampaign, fetchCauseAreas } from '@/lib/supabase'
 
@@ -70,12 +73,28 @@ interface Campaign {
   created_at: string
   created_by?: string
   organization_id?: string
+  // Social links
+  facebook_url?: string
+  twitter_url?: string
+  instagram_url?: string
+  linkedin_url?: string
+  youtube_url?: string
+  tiktok_url?: string
+  website_url?: string
   organization: {
     id: string
     name: string
     mission: string
     logo: string | null
   }
+}
+
+interface CampaignImage {
+  id: string
+  image_url: string
+  caption: string | null
+  is_featured: boolean
+  sort_order: number
 }
 
 interface CauseArea {
@@ -124,6 +143,8 @@ export function CampaignPage() {
   const [faqs, setFaqs] = useState<FAQ[]>([])
   const [updates, setUpdates] = useState<CampaignUpdate[]>([])
   const [submittedQuestions, setSubmittedQuestions] = useState<SubmittedQuestion[]>([])
+  const [campaignImages, setCampaignImages] = useState<CampaignImage[]>([])
+  const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const [outline, setOutline] = useState<OutlineItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -214,12 +235,13 @@ export function CampaignPage() {
     }
   }, [campaign?.story_content])
 
-  // Fetch FAQs, updates, and submitted questions when campaign loads
+  // Fetch FAQs, updates, submitted questions, and images when campaign loads
   useEffect(() => {
     if (campaign?.id) {
       loadFaqs()
       loadUpdates()
       loadSubmittedQuestions()
+      loadCampaignImages()
     }
   }, [campaign?.id])
 
@@ -358,6 +380,41 @@ export function CampaignPage() {
       console.error('Error rejecting question:', err)
     }
   }
+
+  const loadCampaignImages = async () => {
+    if (!campaign?.id) return
+    try {
+      const { data, error } = await (supabase
+        .from('campaign_images') as any)
+        .select('*')
+        .eq('campaign_id', campaign.id)
+        .order('sort_order', { ascending: true })
+      
+      if (!error && data) {
+        setCampaignImages(data)
+        // Set featured image as selected
+        const featured = data.find((img: CampaignImage) => img.is_featured)
+        if (featured) {
+          setSelectedImage(featured.image_url)
+        } else if (data.length > 0) {
+          setSelectedImage(data[0].image_url)
+        }
+      }
+    } catch (err) {
+      console.error('Error loading campaign images:', err)
+    }
+  }
+
+  // Check if campaign has any social links
+  const hasSocialLinks = campaign && (
+    campaign.facebook_url || 
+    campaign.twitter_url || 
+    campaign.instagram_url || 
+    campaign.linkedin_url || 
+    campaign.youtube_url || 
+    campaign.tiktok_url ||
+    campaign.website_url
+  )
 
   const handlePostUpdate = async () => {
     if (!campaign?.id || !user?.id || !newUpdateTitle.trim() || !newUpdateContent.trim()) return
@@ -725,20 +782,66 @@ export function CampaignPage() {
 
         {/* Hero Section */}
         <div className="flex gap-5">
-          {/* Main Image */}
-          <div className="w-[824px] h-[515px] bg-[#f5f5f5] rounded-[10px] overflow-hidden flex-shrink-0">
-            {campaign.image_url ? (
-              <img 
-                src={campaign.image_url} 
-                alt={campaign.title}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center">
-                <div className="text-[#737373] flex flex-col items-center">
-                  <Target className="h-16 w-16 mb-2 opacity-50" />
-                  <span className="text-sm">Campaign Image</span>
+          {/* Main Image and Gallery */}
+          <div className="w-[824px] flex-shrink-0 space-y-3">
+            {/* Main Display Image */}
+            <div className="w-full h-[460px] bg-[#f5f5f5] rounded-[10px] overflow-hidden">
+              {selectedImage || campaign.image_url ? (
+                <img 
+                  src={selectedImage || campaign.image_url || ''} 
+                  alt={campaign.title}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <div className="text-[#737373] flex flex-col items-center">
+                    <Target className="h-16 w-16 mb-2 opacity-50" />
+                    <span className="text-sm">Campaign Media</span>
+                  </div>
                 </div>
+              )}
+            </div>
+            
+            {/* Image Thumbnails */}
+            {campaignImages.length > 0 && (
+              <div className="flex gap-2 overflow-x-auto pb-2">
+                {/* Logo as first thumbnail if exists */}
+                {campaign.logo_url && (
+                  <button
+                    onClick={() => setSelectedImage(campaign.logo_url!)}
+                    className={`flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-all ${
+                      selectedImage === campaign.logo_url 
+                        ? 'border-[#ea580c] ring-2 ring-[#ea580c]/20' 
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <img 
+                      src={campaign.logo_url} 
+                      alt="Organization logo"
+                      className="w-full h-full object-cover"
+                    />
+                  </button>
+                )}
+                
+                {/* Gallery images */}
+                {campaignImages.map((img) => (
+                  <button
+                    key={img.id}
+                    onClick={() => setSelectedImage(img.image_url)}
+                    className={`flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-all ${
+                      selectedImage === img.image_url 
+                        ? 'border-[#ea580c] ring-2 ring-[#ea580c]/20' 
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                    title={img.caption || undefined}
+                  >
+                    <img 
+                      src={img.image_url} 
+                      alt={img.caption || 'Campaign gallery'}
+                      className="w-full h-full object-cover"
+                    />
+                  </button>
+                ))}
               </div>
             )}
           </div>
@@ -813,37 +916,125 @@ export function CampaignPage() {
                   Support Campaign
                 </Button>
 
-                {/* Share Icons */}
-                <div className="flex items-center justify-center gap-2">
-                  <button
-                    onClick={() => handleShare('facebook')}
-                    className="p-1.5 bg-[#eaeaea] rounded-full hover:bg-[#dcdcdc] transition-colors"
-                    aria-label="Share on Facebook"
-                  >
-                    <Facebook className="h-3.5 w-3.5 text-[#737373]" />
-                  </button>
-                  <button
-                    onClick={() => handleShare('twitter')}
-                    className="p-1.5 bg-[#eaeaea] rounded-full hover:bg-[#dcdcdc] transition-colors"
-                    aria-label="Share on Twitter"
-                  >
-                    <Twitter className="h-3.5 w-3.5 text-[#737373]" />
-                  </button>
-                  <button
-                    onClick={() => handleShare('linkedin')}
-                    className="p-1.5 bg-[#eaeaea] rounded-full hover:bg-[#dcdcdc] transition-colors"
-                    aria-label="Share on LinkedIn"
-                  >
-                    <Linkedin className="h-3.5 w-3.5 text-[#737373]" />
-                  </button>
-                  <button
-                    onClick={() => handleShare('email')}
-                    className="p-1.5 bg-[#eaeaea] rounded-full hover:bg-[#dcdcdc] transition-colors"
-                    aria-label="Share via Email"
-                  >
-                    <Mail className="h-3.5 w-3.5 text-[#737373]" />
-                  </button>
-                </div>
+                {/* Social Links - Show campaign's own social media if available */}
+                {hasSocialLinks ? (
+                  <div className="space-y-2">
+                    <p className="text-xs text-center text-[#737373]">Follow us</p>
+                    <div className="flex items-center justify-center gap-2 flex-wrap">
+                      {campaign.facebook_url && (
+                        <a
+                          href={campaign.facebook_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-2 bg-[#1877f2] rounded-full hover:opacity-80 transition-opacity"
+                          aria-label="Facebook"
+                        >
+                          <Facebook className="h-4 w-4 text-white" />
+                        </a>
+                      )}
+                      {campaign.twitter_url && (
+                        <a
+                          href={campaign.twitter_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-2 bg-black rounded-full hover:opacity-80 transition-opacity"
+                          aria-label="Twitter/X"
+                        >
+                          <Twitter className="h-4 w-4 text-white" />
+                        </a>
+                      )}
+                      {campaign.instagram_url && (
+                        <a
+                          href={campaign.instagram_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-2 bg-gradient-to-br from-[#f58529] via-[#dd2a7b] to-[#515bd4] rounded-full hover:opacity-80 transition-opacity"
+                          aria-label="Instagram"
+                        >
+                          <Instagram className="h-4 w-4 text-white" />
+                        </a>
+                      )}
+                      {campaign.linkedin_url && (
+                        <a
+                          href={campaign.linkedin_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-2 bg-[#0077b5] rounded-full hover:opacity-80 transition-opacity"
+                          aria-label="LinkedIn"
+                        >
+                          <Linkedin className="h-4 w-4 text-white" />
+                        </a>
+                      )}
+                      {campaign.youtube_url && (
+                        <a
+                          href={campaign.youtube_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-2 bg-[#ff0000] rounded-full hover:opacity-80 transition-opacity"
+                          aria-label="YouTube"
+                        >
+                          <Youtube className="h-4 w-4 text-white" />
+                        </a>
+                      )}
+                      {campaign.tiktok_url && (
+                        <a
+                          href={campaign.tiktok_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-2 bg-black rounded-full hover:opacity-80 transition-opacity"
+                          aria-label="TikTok"
+                        >
+                          <svg viewBox="0 0 24 24" className="h-4 w-4 text-white fill-current">
+                            <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/>
+                          </svg>
+                        </a>
+                      )}
+                      {campaign.website_url && (
+                        <a
+                          href={campaign.website_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-2 bg-[#1b5858] rounded-full hover:opacity-80 transition-opacity"
+                          aria-label="Website"
+                        >
+                          <Globe className="h-4 w-4 text-white" />
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  /* Share Icons - Fallback if no social links */
+                  <div className="flex items-center justify-center gap-2">
+                    <button
+                      onClick={() => handleShare('facebook')}
+                      className="p-1.5 bg-[#eaeaea] rounded-full hover:bg-[#dcdcdc] transition-colors"
+                      aria-label="Share on Facebook"
+                    >
+                      <Facebook className="h-3.5 w-3.5 text-[#737373]" />
+                    </button>
+                    <button
+                      onClick={() => handleShare('twitter')}
+                      className="p-1.5 bg-[#eaeaea] rounded-full hover:bg-[#dcdcdc] transition-colors"
+                      aria-label="Share on Twitter"
+                    >
+                      <Twitter className="h-3.5 w-3.5 text-[#737373]" />
+                    </button>
+                    <button
+                      onClick={() => handleShare('linkedin')}
+                      className="p-1.5 bg-[#eaeaea] rounded-full hover:bg-[#dcdcdc] transition-colors"
+                      aria-label="Share on LinkedIn"
+                    >
+                      <Linkedin className="h-3.5 w-3.5 text-[#737373]" />
+                    </button>
+                    <button
+                      onClick={() => handleShare('email')}
+                      className="p-1.5 bg-[#eaeaea] rounded-full hover:bg-[#dcdcdc] transition-colors"
+                      aria-label="Share via Email"
+                    >
+                      <Mail className="h-3.5 w-3.5 text-[#737373]" />
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </Card>
