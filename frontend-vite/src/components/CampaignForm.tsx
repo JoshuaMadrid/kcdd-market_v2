@@ -277,11 +277,6 @@ export function CampaignForm({ organizationId, onCancel, onComplete }: CampaignF
                 <span className={`text-xs mt-2 ${isActive ? 'text-[#0a0a0a] font-medium' : 'text-[#737373]'}`}>
                   {title}
                 </span>
-                {index < stepTitles.length - 1 && (
-                  <div className={`hidden md:block absolute h-0.5 w-full max-w-[80px] ${
-                    isCompleted ? 'bg-[#1b5858]' : 'bg-gray-200'
-                  }`} style={{ left: '50%', top: '20px' }} />
-                )}
               </div>
             )
           })}
