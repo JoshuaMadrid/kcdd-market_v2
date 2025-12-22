@@ -203,7 +203,7 @@ function NoOrganizationState({ onSetup }: { onSetup: () => void }) {
   )
 }
 
-export default function CBODashboardPage() {
+export function CBODashboard() {
   const { user, isLoaded } = useUser()
   const navigate = useNavigate()
   

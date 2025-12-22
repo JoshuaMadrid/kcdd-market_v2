@@ -171,7 +171,7 @@ function EmptyState({ onBrowseRequests }: { onBrowseRequests: () => void }) {
   )
 }
 
-export default function DonorDashboardPage() {
+export function DonorDashboard() {
   const { user, isLoaded } = useUser()
   const navigate = useNavigate()
   
