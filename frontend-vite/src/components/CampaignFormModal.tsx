@@ -16,8 +16,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Card } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
+import { RichTextEditor } from '@/components/ui/rich-text-editor'
 import { X, Loader2, CheckCircle2, Pencil } from 'lucide-react'
 import { createCampaign, supabase } from '@/lib/supabase'
 
@@ -412,22 +411,23 @@ export function CampaignFormModal({
         />
       </div>
 
-      {/* Campaign Story */}
+      {/* Campaign Story - Rich Text Editor */}
       <div className="space-y-2">
-        <label htmlFor="campaignStory" className="text-sm font-medium text-white">Campaign Story *</label>
-        <Textarea
-          id="campaignStory"
+        <span className="text-sm font-medium text-white block">Campaign Story *</span>
+        <RichTextEditor
           value={formData.campaignStory}
-          onChange={(e) => updateFormData('campaignStory', e.target.value)}
-          placeholder="Tell your story. Why should people support your campaign?"
-          rows={4}
-          className="bg-[#183c3f] border-[#1b5858] text-white placeholder:text-white/50 focus-visible:ring-[#1b5858] resize-none"
+          onChange={(value) => updateFormData('campaignStory', value)}
+          placeholder="Tell your story. Why should people support your campaign? Use formatting to make your story engaging..."
+          darkMode={true}
         />
+        <p className="text-xs text-white/50">
+          Use the toolbar above to format your text, add headings, lists, and links.
+        </p>
       </div>
     </div>
   )
 
-  // Step 5: Contact & Review (Light theme)
+  // Step 5: Contact & Review (Dark theme matching other steps)
   const renderStep5 = () => {
     const summaryItems = [
       { label: 'Campaign Title', value: formData.campaignTitle, editStep: 1 },
@@ -439,10 +439,15 @@ export function CampaignFormModal({
     ]
 
     return (
-      <div className="space-y-6">
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <h3 className="text-2xl font-bold text-white">Review & Launch</h3>
+          <p className="text-white/80">Review your campaign details before publishing</p>
+        </div>
+
         {/* Contact Email */}
         <div className="space-y-2">
-          <label htmlFor="contactEmail" className="text-sm font-medium text-[#0a0a0a]">
+          <label htmlFor="contactEmail" className="text-sm font-medium text-white">
             Contact Email *
           </label>
           <Input
@@ -451,31 +456,31 @@ export function CampaignFormModal({
             value={formData.contactEmail}
             onChange={(e) => updateFormData('contactEmail', e.target.value)}
             placeholder="your.email@example.com"
-            className="bg-[#f3f3f5] border-transparent text-[#0a0a0a] placeholder:text-[#717182]"
+            className="bg-[#183c3f] border-[#1b5858] text-white placeholder:text-white/50 focus-visible:ring-[#1b5858]"
           />
           {!formData.contactEmail && (
-            <p className="text-sm text-red-500">Email is required</p>
+            <p className="text-sm text-red-400">Email is required</p>
           )}
         </div>
 
-        {/* Campaign Summary Card */}
-        <Card className="bg-[#fafafa] border-[#f5f5f5] p-6">
-          <h3 className="text-lg font-semibold text-[#0a0a0a] mb-4">Campaign Summary</h3>
+        {/* Campaign Summary */}
+        <div className="bg-[#183c3f] border border-[#1b5858] rounded-lg p-4">
+          <h4 className="text-lg font-semibold text-white mb-4">Campaign Summary</h4>
           
           <div className="space-y-3">
             {summaryItems.map((item) => (
               <div 
                 key={item.label}
-                className="flex items-center justify-between py-2 border-b border-[#eaeaea] last:border-0"
+                className="flex items-center justify-between py-2 border-b border-white/10 last:border-0"
               >
-                <span className="text-sm text-[#737373]">{item.label}:</span>
+                <span className="text-sm text-white/60">{item.label}:</span>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-[#0a0a0a]">
+                  <span className="text-sm font-medium text-white">
                     {item.value || 'Not set'}
                   </span>
                   <button
                     onClick={() => goToStep(item.editStep)}
-                    className="p-1 text-[#737373] hover:text-[#ea580c] transition-colors"
+                    className="p-1 text-white/40 hover:text-[#dbf938] transition-colors"
                     aria-label={`Edit ${item.label}`}
                   >
                     <Pencil className="h-3 w-3" />
@@ -484,22 +489,17 @@ export function CampaignFormModal({
               </div>
             ))}
           </div>
-        </Card>
+        </div>
 
         {/* Ready to launch notice */}
-        <div className="bg-[#f5cdb8] border border-[#ea580c]/20 rounded-lg p-4">
-          <div className="flex items-start gap-3">
-            <div className="w-5 h-5 bg-[#ea580c] rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-              <CheckCircle2 className="h-3 w-3 text-white" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-[#0a0a0a]">Ready to launch</p>
-              <p className="text-xs text-[#737373]">
-                Review your information and click &quot;Create Campaign&quot; to publish your campaign.
-              </p>
-            </div>
-          </div>
-        </div>
+        <Alert className="bg-[#1b5858] border-[#dbf938]/30 text-white">
+          <CheckCircle2 className="h-4 w-4 text-[#dbf938]" />
+          <AlertTitle className="text-[#dbf938] font-bold">Ready to launch</AlertTitle>
+          <AlertDescription className="text-white/80">
+            Review your information and click &quot;Create Campaign&quot; to publish your campaign.
+            Your campaign will be reviewed before going live.
+          </AlertDescription>
+        </Alert>
       </div>
     )
   }
@@ -525,78 +525,7 @@ export function CampaignFormModal({
     }
   }
 
-  // Different layout for step 5 (review page - white card style)
-  if (currentStep === 5) {
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center">
-        {/* Backdrop */}
-        <div 
-          role="button"
-          tabIndex={0}
-          aria-label="Close modal"
-          className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-          onClick={handleBackdropClick}
-          onKeyDown={handleBackdropKeyDown}
-        />
-        
-        {/* Modal - White Card Style */}
-        <Card className="relative w-full max-w-[900px] mx-4 bg-white rounded-[14px] shadow-xl overflow-hidden">
-          {/* Close button */}
-          <button
-            onClick={onClose}
-            aria-label="Close"
-            className="absolute top-4 right-4 text-[#737373] hover:text-[#0a0a0a] transition-colors z-10"
-          >
-            <X className="h-5 w-5" />
-          </button>
-
-          {/* Header */}
-          <div className="p-6 pb-0">
-            <Badge className="bg-[#f5cdb8] text-[#ea580c] hover:bg-[#f5cdb8] mb-4">
-              Step {currentStep} of {TOTAL_STEPS}
-            </Badge>
-            <h2 className="text-2xl font-medium text-[#0a0a0a] tracking-tight">
-              Contact & Review
-            </h2>
-            <p className="text-[#717182] mt-1">
-              Final details and review
-            </p>
-          </div>
-
-          {/* Content */}
-          <div className="p-6 max-h-[500px] overflow-y-auto">
-            {renderStep5()}
-          </div>
-
-          {/* Footer */}
-          <div className="p-6 pt-0 border-t border-[#f5f5f5] mt-4">
-            <div className="flex items-center justify-between pt-4">
-              <Button
-                variant="outline"
-                onClick={handlePrevious}
-                className="px-6"
-              >
-                Previous
-              </Button>
-              <Button
-                onClick={handleSubmit}
-                disabled={isSubmitting || !formData.contactEmail}
-                className="bg-[#ea580c] hover:bg-[#dc4c06] text-white px-6"
-              >
-                {isSubmitting ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  'Create Campaign'
-                )}
-              </Button>
-            </div>
-          </div>
-        </Card>
-      </div>
-    )
-  }
-
-  // Steps 1-4: Dark theme modal
+  // All steps use the same dark theme modal
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
@@ -667,8 +596,8 @@ export function CampaignFormModal({
 
           {/* Footer */}
           <div className="flex items-center justify-between pt-6 border-t border-white/10 mt-6">
-            {/* Skip link */}
-            {currentStep > 1 && (
+            {/* Skip link - only show on steps 2-4 */}
+            {currentStep > 1 && currentStep < TOTAL_STEPS && (
               <button
                 onClick={handleSkip}
                 className="text-[#dbf938] text-sm font-medium underline hover:text-[#e5ff66] transition-colors"
@@ -676,7 +605,7 @@ export function CampaignFormModal({
                 Skip for now
               </button>
             )}
-            {currentStep === 1 && <div />}
+            {(currentStep === 1 || currentStep === TOTAL_STEPS) && <div />}
 
             {/* Navigation buttons */}
             <div className="flex items-center gap-3">
@@ -690,17 +619,27 @@ export function CampaignFormModal({
               >
                 Previous
               </Button>
-              <Button
-                onClick={handleNext}
-                disabled={isSubmitting}
-                className="bg-white text-[#0a0a0a] hover:bg-white/90"
-              >
-                {isSubmitting ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  'Next'
-                )}
-              </Button>
+              {currentStep === TOTAL_STEPS ? (
+                <Button
+                  onClick={handleSubmit}
+                  disabled={isSubmitting || !formData.contactEmail}
+                  className="bg-[#dbf938] text-[#0a0a0a] hover:bg-[#e5ff66]"
+                >
+                  {isSubmitting ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    'Create Campaign'
+                  )}
+                </Button>
+              ) : (
+                <Button
+                  onClick={handleNext}
+                  disabled={isSubmitting}
+                  className="bg-white text-[#0a0a0a] hover:bg-white/90"
+                >
+                  Next
+                </Button>
+              )}
             </div>
           </div>
         </div>

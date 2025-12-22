@@ -149,7 +149,7 @@ const DEMO_REQUESTS: RequestRecord[] = [
 // Sidebar sections enum
 type SidebarSection = 
   | 'dashboard' 
-  | 'requests' 
+  | 'campaigns' 
   | 'analytics' 
   | 'documents' 
   | 'settings' 
@@ -332,7 +332,7 @@ function DashboardContent({
               onClick={onCreateRequest}
             >
               <Plus className="h-4 w-4" />
-              <span>New Request</span>
+              <span>New Campaign</span>
             </Button>
           </div>
         </div>
@@ -474,26 +474,26 @@ function DashboardContent({
   )
 }
 
-// Manage Requests Content
-function RequestsContent({ onCreateRequest }: { onCreateRequest: () => void }) {
+// Manage Campaigns Content
+function CampaignsContent({ onCreateCampaign }: { onCreateCampaign: () => void }) {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-semibold text-[#0a0a0a]">Manage Campaigns</h2>
+          <h2 className="text-xl font-semibold text-[#0a0a0a]">My Campaigns</h2>
           <p className="text-sm text-[#737373]">Create and manage your donation campaigns</p>
         </div>
         <Button 
           className="bg-[#1b5858] hover:bg-[#164444]"
-          onClick={onCreateRequest}
+          onClick={onCreateCampaign}
         >
           <Plus className="h-4 w-4 mr-2" />
-          Create Campaign
+          New Campaign
         </Button>
       </div>
 
       <div className="grid grid-cols-3 gap-4">
-        <Card className="p-5 text-center hover:shadow-md transition-shadow cursor-pointer" onClick={onCreateRequest}>
+        <Card className="p-5 text-center hover:shadow-md transition-shadow cursor-pointer" onClick={onCreateCampaign}>
           <div className="h-12 w-12 bg-[#1b5858] rounded-lg flex items-center justify-center mx-auto mb-3">
             <Plus className="h-6 w-6 text-white" />
           </div>
@@ -505,14 +505,14 @@ function RequestsContent({ onCreateRequest }: { onCreateRequest: () => void }) {
             <Clock className="h-6 w-6 text-amber-600" />
           </div>
           <h3 className="font-medium">Pending Review</h3>
-          <p className="text-sm text-[#737373]">3 requests awaiting review</p>
+          <p className="text-sm text-[#737373]">3 campaigns awaiting review</p>
         </Card>
         <Card className="p-5 text-center hover:shadow-md transition-shadow cursor-pointer">
           <div className="h-12 w-12 bg-green-100 rounded-lg flex items-center justify-center mx-auto mb-3">
             <CheckCircle2 className="h-6 w-6 text-green-600" />
           </div>
           <h3 className="font-medium">Completed</h3>
-          <p className="text-sm text-[#737373]">28 requests fulfilled</p>
+          <p className="text-sm text-[#737373]">28 campaigns completed</p>
         </Card>
       </div>
 
@@ -521,19 +521,19 @@ function RequestsContent({ onCreateRequest }: { onCreateRequest: () => void }) {
         <ul className="space-y-2 text-sm text-[#737373]">
           <li className="flex items-start gap-2">
             <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5" />
-            <span>Be specific about what you need and why</span>
+            <span>Tell a compelling story about your cause and impact</span>
           </li>
           <li className="flex items-start gap-2">
             <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5" />
-            <span>Include images to help donors understand your needs</span>
+            <span>Include images to help donors connect with your mission</span>
           </li>
           <li className="flex items-start gap-2">
             <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5" />
-            <span>Set realistic urgency levels - high urgency requests get more attention</span>
+            <span>Set realistic funding goals to build trust with donors</span>
           </li>
           <li className="flex items-start gap-2">
             <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5" />
-            <span>Update request status promptly when donations are received</span>
+            <span>Post regular updates to keep supporters engaged</span>
           </li>
         </ul>
       </Card>
@@ -881,7 +881,7 @@ export function CBODashboard() {
     setShowOnboardingModal(true)
   }
 
-  const handleCreateRequest = () => {
+  const handleCreateCampaign = () => {
     setShowCampaignModal(true)
   }
 
@@ -889,7 +889,7 @@ export function CBODashboard() {
   const getHeaderTitle = () => {
     switch (activeSection) {
       case 'dashboard': return 'Dashboard'
-      case 'requests': return 'My Requests'
+      case 'campaigns': return 'My Campaigns'
       case 'analytics': return 'Analytics'
       case 'documents': return 'Documents'
       case 'settings': return 'Settings'
@@ -913,11 +913,11 @@ export function CBODashboard() {
             toggleAllRows={toggleAllRows}
             activeTab={activeTab}
             setActiveTab={setActiveTab}
-            onCreateRequest={handleCreateRequest}
+            onCreateRequest={handleCreateCampaign}
           />
         )
-      case 'requests':
-        return <RequestsContent onCreateRequest={handleCreateRequest} />
+      case 'campaigns':
+        return <CampaignsContent onCreateCampaign={handleCreateCampaign} />
       case 'analytics':
         return <AnalyticsContent stats={stats} requests={requests} />
       case 'documents':
@@ -1023,15 +1023,15 @@ export function CBODashboard() {
             </button>
 
             <button 
-              onClick={() => setActiveSection('requests')}
+              onClick={() => setActiveSection('campaigns')}
               className={`w-full flex items-center gap-2 px-2 py-2 rounded-lg transition-colors ${
-                activeSection === 'requests'
+                activeSection === 'campaigns'
                   ? 'bg-[#1b5858] text-white' 
                   : 'text-[#0a0a0a] hover:bg-gray-100'
               }`}
             >
               <List className="w-4 h-4" />
-              {sidebarOpen && <span className="text-sm">My Requests</span>}
+              {sidebarOpen && <span className="text-sm">My Campaigns</span>}
             </button>
 
             <button 
@@ -1070,10 +1070,10 @@ export function CBODashboard() {
               variant="outline" 
               size="sm" 
               className="w-full justify-start"
-              onClick={handleCreateRequest}
+              onClick={handleCreateCampaign}
             >
               <Plus className="h-4 w-4 mr-2" />
-              {sidebarOpen && 'New Request'}
+              {sidebarOpen && 'New Campaign'}
             </Button>
           </div>
         </div>
