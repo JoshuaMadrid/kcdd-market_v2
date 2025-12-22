@@ -19,6 +19,9 @@ import { AboutPage } from '@/pages/AboutPage'
 import { RequestsPage } from '@/pages/RequestsPage'
 import { DonorDashboard } from '@/pages/donor/DashboardPage'
 import { DonorProfile } from '@/pages/donor/ProfilePage'
+import { DonorImpact } from '@/pages/donor/ImpactPage'
+import { DonorDocuments } from '@/pages/donor/DocumentsPage'
+import { DonorSupport } from '@/pages/donor/SupportPage'
 import { CBODashboard } from '@/pages/cbo/DashboardPage'
 import { CBOSetup } from '@/pages/cbo/SetupPage'
 import { CBORequests } from '@/pages/cbo/RequestsPage'
@@ -67,6 +70,30 @@ export function AppRoutes() {
           element={
             <ProtectedRoute>
               <DonorProfile />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/donor/impact"
+          element={
+            <ProtectedRoute>
+              <DonorImpact />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/donor/documents"
+          element={
+            <ProtectedRoute>
+              <DonorDocuments />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/donor/support"
+          element={
+            <ProtectedRoute>
+              <DonorSupport />
             </ProtectedRoute>
           }
         />
