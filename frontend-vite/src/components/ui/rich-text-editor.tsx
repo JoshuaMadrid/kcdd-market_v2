@@ -22,10 +22,16 @@ import {
   Link as LinkIcon,
   Heading1,
   Heading2,
+  Heading3,
+  Heading4,
+  Heading5,
+  Heading6,
   Quote,
   Undo,
   Redo,
+  ChevronDown,
 } from 'lucide-react'
+import { useState, useRef, useEffect as useEffectRef } from 'react'
 import { cn } from '@/lib/utils'
 
 interface RichTextEditorProps {
