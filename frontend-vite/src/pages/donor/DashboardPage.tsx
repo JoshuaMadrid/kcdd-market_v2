@@ -13,7 +13,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Sidebar, SidebarGroup, SidebarItem, SidebarFooter } from '@/components/ui/sidebar'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { OnboardingModal } from '@/components/OnboardingModal'
 import { 
   AlertTriangle, 
   Settings,
@@ -33,9 +33,7 @@ import {
   DollarSign,
   CheckCircle,
   Clock,
-  Target,
-  ExternalLink,
-  X
+  Target
 } from 'lucide-react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { 
@@ -211,7 +209,6 @@ function DonationRow({ donation, selected, onSelect }: DonationRowProps) {
       <td className="py-3 px-4">
         <div className="flex items-center gap-3">
           <GripVertical className="h-4 w-4 text-gray-300 cursor-grab" />
-          <span className="text-xl">{donation.organization_logo_emoji}</span>
           <div>
             <p className="font-medium text-gray-900 text-sm">{donation.organization_name}</p>
             <p className="text-xs text-gray-500 max-w-[200px] truncate">{donation.description}</p>
@@ -246,133 +243,6 @@ function DonationRow({ donation, selected, onSelect }: DonationRowProps) {
   )
 }
 
-// Settings Form Modal
-interface SettingsFormProps {
-  onClose: () => void
-  user: any
-}
-
-function SettingsForm({ onClose, user }: SettingsFormProps) {
-  const [formData, setFormData] = useState({
-    displayName: user?.firstName || '',
-    email: user?.emailAddresses?.[0]?.emailAddress || '',
-    phone: '',
-    bio: '',
-    maxPerRequest: '500',
-    serviceAreaZipcode: ''
-  })
-  const [saving, setSaving] = useState(false)
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setSaving(true)
-    // Simulate save
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    setSaving(false)
-    onClose()
-  }
-
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <Card className="w-full max-w-lg mx-4 p-6 bg-white">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold text-gray-900">Complete Your Profile</h2>
-          <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0">
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="displayName">Display Name</Label>
-              <Input
-                id="displayName"
-                value={formData.displayName}
-                onChange={(e) => setFormData({ ...formData, displayName: e.target.value })}
-                placeholder="Your name"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="phone">Phone Number</Label>
-              <Input
-                id="phone"
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                placeholder="(555) 123-4567"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              placeholder="you@example.com"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="bio">Bio</Label>
-            <textarea
-              id="bio"
-              value={formData.bio}
-              onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
-              placeholder="Tell us a bit about yourself and why you donate..."
-              className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm resize-none h-24 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="maxPerRequest">Max Donation per Request</Label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
-                <Input
-                  id="maxPerRequest"
-                  type="number"
-                  value={formData.maxPerRequest}
-                  onChange={(e) => setFormData({ ...formData, maxPerRequest: e.target.value })}
-                  className="pl-7"
-                  placeholder="500"
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="serviceAreaZipcode">Service Area Zipcode</Label>
-              <Input
-                id="serviceAreaZipcode"
-                value={formData.serviceAreaZipcode}
-                onChange={(e) => setFormData({ ...formData, serviceAreaZipcode: e.target.value })}
-                placeholder="64108"
-              />
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 pt-2">
-            <Checkbox id="updates" />
-            <Label htmlFor="updates" className="text-sm text-gray-600">
-              Send me email updates about new requests matching my interests
-            </Label>
-          </div>
-
-          <div className="flex gap-3 pt-4">
-            <Button type="button" variant="outline" onClick={onClose} className="flex-1">
-              Cancel
-            </Button>
-            <Button type="submit" className="flex-1 bg-emerald-600 hover:bg-emerald-700" disabled={saving}>
-              {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              Save Profile
-            </Button>
-          </div>
-        </form>
-      </Card>
-    </div>
-  )
-}
 
 export function DonorDashboard() {
   const { user, isLoaded } = useUser()
@@ -384,7 +254,7 @@ export function DonorDashboard() {
   const [activeTab, setActiveTab] = useState('all')
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set())
   const [searchQuery, setSearchQuery] = useState('')
-  const [showSettingsForm, setShowSettingsForm] = useState(false)
+  const [showOnboardingModal, setShowOnboardingModal] = useState(false)
   
   // Data state - use demo data as fallback
   const [stats, setStats] = useState<DonorDashboardStats>(DEMO_STATS)
@@ -468,10 +338,17 @@ export function DonorDashboard() {
 
   return (
     <div className="flex h-screen bg-gray-50">
-      {/* Settings Form Modal */}
-      {showSettingsForm && (
-        <SettingsForm onClose={() => setShowSettingsForm(false)} user={user} />
-      )}
+      {/* Onboarding Modal */}
+      <OnboardingModal
+        isOpen={showOnboardingModal}
+        onClose={() => setShowOnboardingModal(false)}
+        onComplete={() => {
+          setShowOnboardingModal(false)
+          setNeedsOnboarding(false)
+          fetchData() // Refresh data after completion
+        }}
+        userType="donor"
+      />
 
       {/* Sidebar */}
       <Sidebar className={`${sidebarOpen ? 'w-64' : 'w-16'} transition-all duration-300 border-r border-gray-200 bg-white`}>
@@ -519,7 +396,7 @@ export function DonorDashboard() {
           <SidebarItem 
             icon={<Settings className="h-4 w-4 text-gray-700" />}
             active={isActive('/donor/settings')}
-            onClick={() => setShowSettingsForm(true)}
+            onClick={() => setShowOnboardingModal(true)}
           >
             {sidebarOpen && "Settings"}
           </SidebarItem>
@@ -611,7 +488,7 @@ export function DonorDashboard() {
                   variant="outline" 
                   size="sm" 
                   className="ml-4 border-amber-300 text-amber-800 hover:bg-amber-100"
-                  onClick={() => setShowSettingsForm(true)}
+                  onClick={() => setShowOnboardingModal(true)}
                 >
                   <Settings className="size-4 mr-2" />
                   Complete Setup
@@ -773,45 +650,6 @@ export function DonorDashboard() {
             </div>
           </Card>
 
-          {/* Quick Actions */}
-          <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card className="p-4 hover:shadow-md transition-shadow cursor-pointer" onClick={handleBrowseRequests}>
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                  <Heart className="h-5 w-5 text-gray-700" />
-                </div>
-                <div>
-                  <h3 className="font-medium text-gray-900">Find New Requests</h3>
-                  <p className="text-sm text-gray-500">Browse open donation opportunities</p>
-                </div>
-                <ExternalLink className="h-4 w-4 text-gray-400 ml-auto" />
-              </div>
-            </Card>
-            <Card className="p-4 hover:shadow-md transition-shadow cursor-pointer" onClick={() => navigate('/donor/impact')}>
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                  <BarChart3 className="h-5 w-5 text-gray-700" />
-                </div>
-                <div>
-                  <h3 className="font-medium text-gray-900">View Impact Report</h3>
-                  <p className="text-sm text-gray-500">See your donation impact</p>
-                </div>
-                <ExternalLink className="h-4 w-4 text-gray-400 ml-auto" />
-              </div>
-            </Card>
-            <Card className="p-4 hover:shadow-md transition-shadow cursor-pointer" onClick={() => navigate('/donor/documents')}>
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                  <FileText className="h-5 w-5 text-gray-700" />
-                </div>
-                <div>
-                  <h3 className="font-medium text-gray-900">Tax Documents</h3>
-                  <p className="text-sm text-gray-500">Download tax receipts</p>
-                </div>
-                <ExternalLink className="h-4 w-4 text-gray-400 ml-auto" />
-              </div>
-            </Card>
-          </div>
         </main>
       </div>
     </div>

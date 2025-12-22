@@ -345,6 +345,20 @@ export const saveDonorOnboarding = async (
     }
   }
 
+  // First update user_profiles with email info
+  await supabase
+    .from('user_profiles')
+    .upsert(
+      {
+        id: userId,
+        email: data.email,
+        phone: data.phone,
+        profile_picture_url: profilePictureUrl,
+        updated_at: new Date().toISOString()
+      },
+      { onConflict: 'id' }
+    )
+
   // Upsert donor profile
   const { data: profileData, error } = await supabase
     .from('donor_profiles')
@@ -356,6 +370,7 @@ export const saveDonorOnboarding = async (
         email: data.email,
         phone: data.phone,
         bio: data.bio,
+        website: data.website,
         profile_picture_url: profilePictureUrl,
         updated_at: new Date().toISOString()
       },

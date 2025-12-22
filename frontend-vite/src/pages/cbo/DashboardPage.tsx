@@ -13,6 +13,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Sidebar, SidebarGroup, SidebarItem, SidebarFooter } from '@/components/ui/sidebar'
 import { Input } from '@/components/ui/input'
+import { OnboardingModal } from '@/components/OnboardingModal'
 import { 
   AlertTriangle, 
   Settings,
@@ -34,7 +35,6 @@ import {
   CheckCircle,
   Clock,
   Building2,
-  ExternalLink,
   Users
 } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
@@ -221,6 +221,7 @@ export function CBODashboard() {
   const [error, setError] = useState<string | null>(null)
   const [needsOnboarding, setNeedsOnboarding] = useState(false)
   const [hasOrganization, setHasOrganization] = useState(true)
+  const [showOnboardingModal, setShowOnboardingModal] = useState(false)
 
   // Fetch dashboard data
   const fetchData = useCallback(async () => {
@@ -302,7 +303,7 @@ export function CBODashboard() {
   }
 
   const handleSetup = () => {
-    navigate('/cbo/setup')
+    setShowOnboardingModal(true)
   }
 
   // Loading state
@@ -316,11 +317,39 @@ export function CBODashboard() {
 
   // No organization state
   if (!loading && !hasOrganization) {
-    return <NoOrganizationState onSetup={handleSetup} />
+    return (
+      <>
+        <OnboardingModal
+          isOpen={showOnboardingModal}
+          onClose={() => setShowOnboardingModal(false)}
+          onComplete={() => {
+            setShowOnboardingModal(false)
+            setNeedsOnboarding(false)
+            setHasOrganization(true)
+            fetchData()
+          }}
+          userType="cbo"
+        />
+        <NoOrganizationState onSetup={handleSetup} />
+      </>
+    )
   }
 
   return (
     <div className="flex h-screen bg-gray-50">
+      {/* Onboarding Modal */}
+      <OnboardingModal
+        isOpen={showOnboardingModal}
+        onClose={() => setShowOnboardingModal(false)}
+        onComplete={() => {
+          setShowOnboardingModal(false)
+          setNeedsOnboarding(false)
+          setHasOrganization(true)
+          fetchData() // Refresh data after completion
+        }}
+        userType="cbo"
+      />
+
       {/* Sidebar */}
       <Sidebar className={`${sidebarOpen ? 'w-64' : 'w-16'} transition-all duration-300 border-r border-gray-200 bg-white`}>
         <div className="p-4 border-b border-gray-100">
@@ -365,7 +394,7 @@ export function CBODashboard() {
         <SidebarFooter>
           <div className={`flex items-center gap-3 p-2 ${sidebarOpen ? '' : 'justify-center'}`}>
             <div className="h-8 w-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-medium">
-              {organization?.logo_emoji || organization?.name?.[0] || 'O'}
+              {organization?.name?.[0] || 'O'}
             </div>
             {sidebarOpen && (
               <div className="flex-1 min-w-0">
@@ -633,45 +662,6 @@ export function CBODashboard() {
             )}
           </Card>
 
-          {/* Quick Actions */}
-          <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card className="p-4 hover:shadow-md transition-shadow cursor-pointer" onClick={handleCreateRequest}>
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 bg-emerald-100 rounded-lg flex items-center justify-center">
-                  <Plus className="h-5 w-5 text-emerald-600" />
-                </div>
-                <div>
-                  <h3 className="font-medium text-gray-900">Create New Request</h3>
-                  <p className="text-sm text-gray-500">Submit a new donation request</p>
-                </div>
-                <ExternalLink className="h-4 w-4 text-gray-400 ml-auto" />
-              </div>
-            </Card>
-            <Card className="p-4 hover:shadow-md transition-shadow cursor-pointer">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <BarChart3 className="h-5 w-5 text-blue-600" />
-                </div>
-                <div>
-                  <h3 className="font-medium text-gray-900">View Analytics</h3>
-                  <p className="text-sm text-gray-500">Track your organization's impact</p>
-                </div>
-                <ExternalLink className="h-4 w-4 text-gray-400 ml-auto" />
-              </div>
-            </Card>
-            <Card className="p-4 hover:shadow-md transition-shadow cursor-pointer" onClick={handleSetup}>
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                  <Settings className="h-5 w-5 text-purple-600" />
-                </div>
-                <div>
-                  <h3 className="font-medium text-gray-900">Organization Settings</h3>
-                  <p className="text-sm text-gray-500">Update profile and preferences</p>
-                </div>
-                <ExternalLink className="h-4 w-4 text-gray-400 ml-auto" />
-              </div>
-            </Card>
-          </div>
         </main>
       </div>
     </div>
