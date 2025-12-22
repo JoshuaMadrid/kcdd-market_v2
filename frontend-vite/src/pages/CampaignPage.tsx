@@ -17,6 +17,12 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { RichTextEditor } from '@/components/ui/rich-text-editor'
 import { Checkbox } from '@/components/ui/checkbox'
 import { 
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion'
+import { 
   Share2, 
   Facebook, 
   Twitter, 
@@ -38,6 +44,9 @@ import {
   HelpCircle,
   Clock,
   Send,
+  CheckCircle2,
+  AlertCircle,
+  MessageCircle,
 } from 'lucide-react'
 import { supabase, updateCampaign, fetchCauseAreas } from '@/lib/supabase'
 
@@ -95,6 +104,17 @@ interface OutlineItem {
   level: number
 }
 
+interface SubmittedQuestion {
+  id: string
+  question: string
+  submitter_email: string | null
+  submitter_name: string | null
+  status: 'pending' | 'answered' | 'rejected'
+  answer: string | null
+  is_public: boolean
+  created_at: string
+}
+
 export function CampaignPage() {
   const { slug } = useParams<{ slug: string }>()
   const { user, isSignedIn } = useUser()
@@ -103,12 +123,26 @@ export function CampaignPage() {
   const [allCauseAreas, setAllCauseAreas] = useState<CauseArea[]>([])
   const [faqs, setFaqs] = useState<FAQ[]>([])
   const [updates, setUpdates] = useState<CampaignUpdate[]>([])
+  const [submittedQuestions, setSubmittedQuestions] = useState<SubmittedQuestion[]>([])
   const [outline, setOutline] = useState<OutlineItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState('campaign')
   const [showTagSelector, setShowTagSelector] = useState(false)
-  const [expandedFaq, setExpandedFaq] = useState<string | null>(null)
+  
+  // Question submission state
+  const [showQuestionForm, setShowQuestionForm] = useState(false)
+  const [newQuestion, setNewQuestion] = useState('')
+  const [questionName, setQuestionName] = useState('')
+  const [questionEmail, setQuestionEmail] = useState('')
+  const [submittingQuestion, setSubmittingQuestion] = useState(false)
+  const [questionSubmitted, setQuestionSubmitted] = useState(false)
+  
+  // Question answering state (for owners)
+  const [answeringQuestionId, setAnsweringQuestionId] = useState<string | null>(null)
+  const [answerText, setAnswerText] = useState('')
+  const [makePublic, setMakePublic] = useState(true)
+  const [submittingAnswer, setSubmittingAnswer] = useState(false)
   
   // Update posting state
   const [showUpdateForm, setShowUpdateForm] = useState(false)
@@ -180,11 +214,12 @@ export function CampaignPage() {
     }
   }, [campaign?.story_content])
 
-  // Fetch FAQs and updates when campaign loads
+  // Fetch FAQs, updates, and submitted questions when campaign loads
   useEffect(() => {
     if (campaign?.id) {
       loadFaqs()
       loadUpdates()
+      loadSubmittedQuestions()
     }
   }, [campaign?.id])
 
@@ -219,6 +254,108 @@ export function CampaignPage() {
       }
     } catch (err) {
       console.error('Error loading updates:', err)
+    }
+  }
+
+  const loadSubmittedQuestions = async () => {
+    if (!campaign?.id) return
+    try {
+      // If owner, load all questions; otherwise just public answered ones
+      let query = supabase
+        .from('campaign_questions')
+        .select('*')
+        .eq('campaign_id', campaign.id)
+        .order('created_at', { ascending: false })
+      
+      if (!isOwner) {
+        query = query.eq('is_public', true).eq('status', 'answered')
+      }
+      
+      const { data, error } = await query
+      
+      if (!error && data) {
+        setSubmittedQuestions(data)
+      }
+    } catch (err) {
+      console.error('Error loading submitted questions:', err)
+    }
+  }
+
+  const handleSubmitQuestion = async () => {
+    if (!campaign?.id || !newQuestion.trim()) return
+    
+    setSubmittingQuestion(true)
+    try {
+      const { error } = await supabase
+        .from('campaign_questions')
+        .insert({
+          campaign_id: campaign.id,
+          question: newQuestion.trim(),
+          submitter_name: questionName.trim() || null,
+          submitter_email: questionEmail.trim() || null,
+          status: 'pending'
+        })
+      
+      if (!error) {
+        setQuestionSubmitted(true)
+        setNewQuestion('')
+        setQuestionName('')
+        setQuestionEmail('')
+        setTimeout(() => {
+          setQuestionSubmitted(false)
+          setShowQuestionForm(false)
+        }, 3000)
+      }
+    } catch (err) {
+      console.error('Error submitting question:', err)
+    } finally {
+      setSubmittingQuestion(false)
+    }
+  }
+
+  const handleAnswerQuestion = async (questionId: string) => {
+    if (!answerText.trim()) return
+    
+    setSubmittingAnswer(true)
+    try {
+      const { error } = await supabase
+        .from('campaign_questions')
+        .update({
+          answer: answerText.trim(),
+          status: 'answered',
+          is_public: makePublic,
+          answered_at: new Date().toISOString(),
+          answered_by: user?.id
+        })
+        .eq('id', questionId)
+      
+      if (!error) {
+        setAnsweringQuestionId(null)
+        setAnswerText('')
+        setMakePublic(true)
+        loadSubmittedQuestions()
+        // If made public, also reload FAQs as it might show there
+        if (makePublic) {
+          loadFaqs()
+        }
+      }
+    } catch (err) {
+      console.error('Error answering question:', err)
+    } finally {
+      setSubmittingAnswer(false)
+    }
+  }
+
+  const handleRejectQuestion = async (questionId: string) => {
+    try {
+      await supabase
+        .from('campaign_questions')
+        .update({ status: 'rejected' })
+        .eq('id', questionId)
+      
+      loadSubmittedQuestions()
+    } catch (err) {
+      console.error('Error rejecting question:', err)
     }
   }
 
@@ -851,42 +988,265 @@ export function CampaignPage() {
           {/* FAQs Tab */}
           <TabsContent value="faqs" className="mt-0">
             <div className="max-w-3xl">
-              <h2 className="text-2xl font-semibold text-[#0a0a0a] mb-6">Frequently Asked Questions</h2>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-semibold text-[#0a0a0a]">Frequently Asked Questions</h2>
+                {!showQuestionForm && (
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowQuestionForm(true)}
+                    className="border-[#1b5858] text-[#1b5858] hover:bg-[#1b5858] hover:text-white"
+                  >
+                    <MessageCircle className="h-4 w-4 mr-2" />
+                    Ask a Question
+                  </Button>
+                )}
+              </div>
+
+              {/* Question Submission Form */}
+              {showQuestionForm && (
+                <Card className="p-6 mb-6 border-[#1b5858]">
+                  {questionSubmitted ? (
+                    <div className="text-center py-4">
+                      <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto mb-3" />
+                      <h3 className="font-semibold text-[#0a0a0a] mb-1">Question Submitted!</h3>
+                      <p className="text-sm text-[#737373]">
+                        The campaign organizer will review your question and may add it to the FAQs.
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      <h3 className="font-semibold text-[#0a0a0a] mb-4">Ask the Campaign Organizer</h3>
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <label htmlFor="question-text" className="text-sm font-medium text-[#0a0a0a]">
+                            Your Question *
+                          </label>
+                          <Textarea
+                            id="question-text"
+                            value={newQuestion}
+                            onChange={(e) => setNewQuestion(e.target.value)}
+                            placeholder="What would you like to know about this campaign?"
+                            rows={3}
+                            className="resize-none"
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <label htmlFor="question-name" className="text-sm font-medium text-[#0a0a0a]">
+                              Your Name (optional)
+                            </label>
+                            <Input
+                              id="question-name"
+                              value={questionName}
+                              onChange={(e) => setQuestionName(e.target.value)}
+                              placeholder="John Doe"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <label htmlFor="question-email" className="text-sm font-medium text-[#0a0a0a]">
+                              Email (optional)
+                            </label>
+                            <Input
+                              id="question-email"
+                              type="email"
+                              value={questionEmail}
+                              onChange={(e) => setQuestionEmail(e.target.value)}
+                              placeholder="john@example.com"
+                            />
+                            <p className="text-xs text-[#737373]">Get notified when your question is answered</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-end gap-3">
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              setShowQuestionForm(false)
+                              setNewQuestion('')
+                              setQuestionName('')
+                              setQuestionEmail('')
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            onClick={handleSubmitQuestion}
+                            disabled={submittingQuestion || !newQuestion.trim()}
+                            className="bg-[#1b5858] hover:bg-[#164444]"
+                          >
+                            {submittingQuestion ? (
+                              <>
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                Submitting...
+                              </>
+                            ) : (
+                              <>
+                                <Send className="h-4 w-4 mr-2" />
+                                Submit Question
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </Card>
+              )}
+
+              {/* Owner's Pending Questions Section */}
+              {isOwner && submittedQuestions.filter(q => q.status === 'pending').length > 0 && (
+                <div className="mb-8">
+                  <h3 className="font-semibold text-[#0a0a0a] mb-4 flex items-center gap-2">
+                    <AlertCircle className="h-5 w-5 text-amber-500" />
+                    Pending Questions ({submittedQuestions.filter(q => q.status === 'pending').length})
+                  </h3>
+                  <div className="space-y-3">
+                    {submittedQuestions
+                      .filter(q => q.status === 'pending')
+                      .map((question) => (
+                        <Card key={question.id} className="p-4 border-amber-200 bg-amber-50">
+                          <div className="flex items-start justify-between gap-4 mb-3">
+                            <div>
+                              <p className="font-medium text-[#0a0a0a]">{question.question}</p>
+                              <p className="text-xs text-[#737373] mt-1">
+                                {question.submitter_name && `From: ${question.submitter_name} • `}
+                                {new Date(question.created_at).toLocaleDateString()}
+                              </p>
+                            </div>
+                          </div>
+                          
+                          {answeringQuestionId === question.id ? (
+                            <div className="space-y-3 mt-4 pt-4 border-t border-amber-200">
+                              <Textarea
+                                value={answerText}
+                                onChange={(e) => setAnswerText(e.target.value)}
+                                placeholder="Write your answer..."
+                                rows={3}
+                                className="resize-none bg-white"
+                              />
+                              <div className="flex items-center gap-2">
+                                <Checkbox
+                                  id={`public-${question.id}`}
+                                  checked={makePublic}
+                                  onCheckedChange={(checked) => setMakePublic(checked === true)}
+                                />
+                                <label 
+                                  htmlFor={`public-${question.id}`} 
+                                  className="text-sm text-[#737373] cursor-pointer"
+                                >
+                                  Add to public FAQs
+                                </label>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    setAnsweringQuestionId(null)
+                                    setAnswerText('')
+                                  }}
+                                >
+                                  Cancel
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleAnswerQuestion(question.id)}
+                                  disabled={submittingAnswer || !answerText.trim()}
+                                  className="bg-[#1b5858] hover:bg-[#164444]"
+                                >
+                                  {submittingAnswer ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    'Submit Answer'
+                                  )}
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <Button
+                                size="sm"
+                                onClick={() => setAnsweringQuestionId(question.id)}
+                                className="bg-[#1b5858] hover:bg-[#164444]"
+                              >
+                                Answer
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleRejectQuestion(question.id)}
+                                className="text-red-600 border-red-200 hover:bg-red-50"
+                              >
+                                Dismiss
+                              </Button>
+                            </div>
+                          )}
+                        </Card>
+                      ))}
+                  </div>
+                </div>
+              )}
               
-              {faqs.length > 0 ? (
-                <div className="space-y-3">
+              {/* FAQs Accordion */}
+              {faqs.length > 0 || submittedQuestions.filter(q => q.status === 'answered' && q.is_public).length > 0 ? (
+                <Accordion type="single" collapsible className="space-y-3">
+                  {/* Static FAQs */}
                   {faqs.map((faq) => (
-                    <div 
-                      key={faq.id}
-                      className="border border-gray-200 rounded-lg overflow-hidden"
+                    <AccordionItem 
+                      key={faq.id} 
+                      value={faq.id}
+                      className="border border-gray-200 rounded-lg px-4 data-[state=open]:bg-gray-50"
                     >
-                      <button
-                        onClick={() => setExpandedFaq(expandedFaq === faq.id ? null : faq.id)}
-                        className="w-full flex items-center justify-between p-4 text-left hover:bg-gray-50 transition-colors"
-                      >
-                        <div className="flex items-center gap-3">
+                      <AccordionTrigger className="hover:no-underline">
+                        <div className="flex items-center gap-3 text-left">
                           <HelpCircle className="h-5 w-5 text-[#1b5858] flex-shrink-0" />
                           <span className="font-medium text-[#0a0a0a]">{faq.question}</span>
                         </div>
-                        {expandedFaq === faq.id ? (
-                          <ChevronUp className="h-5 w-5 text-[#737373] flex-shrink-0" />
-                        ) : (
-                          <ChevronDown className="h-5 w-5 text-[#737373] flex-shrink-0" />
-                        )}
-                      </button>
-                      {expandedFaq === faq.id && (
-                        <div className="px-4 pb-4 pl-12">
-                          <p className="text-[#737373] leading-relaxed">{faq.answer}</p>
-                        </div>
-                      )}
-                    </div>
+                      </AccordionTrigger>
+                      <AccordionContent className="pl-8 text-[#737373]">
+                        {faq.answer}
+                      </AccordionContent>
+                    </AccordionItem>
                   ))}
-                </div>
+                  
+                  {/* Answered public questions */}
+                  {submittedQuestions
+                    .filter(q => q.status === 'answered' && q.is_public)
+                    .map((question) => (
+                      <AccordionItem 
+                        key={question.id} 
+                        value={question.id}
+                        className="border border-gray-200 rounded-lg px-4 data-[state=open]:bg-gray-50"
+                      >
+                        <AccordionTrigger className="hover:no-underline">
+                          <div className="flex items-center gap-3 text-left">
+                            <MessageCircle className="h-5 w-5 text-[#ea580c] flex-shrink-0" />
+                            <span className="font-medium text-[#0a0a0a]">{question.question}</span>
+                          </div>
+                        </AccordionTrigger>
+                        <AccordionContent className="pl-8 text-[#737373]">
+                          {question.answer}
+                          {question.submitter_name && (
+                            <p className="text-xs mt-2 text-[#a3a3a3]">
+                              Asked by {question.submitter_name}
+                            </p>
+                          )}
+                        </AccordionContent>
+                      </AccordionItem>
+                    ))}
+                </Accordion>
               ) : (
                 <div className="py-12 text-center text-[#737373] bg-gray-50 rounded-lg">
                   <HelpCircle className="h-12 w-12 mx-auto mb-4 opacity-50" />
                   <p className="text-lg">No FAQs have been added yet.</p>
-                  <p className="text-sm mt-2">Check back later for updates.</p>
+                  <p className="text-sm mt-2">Be the first to ask a question!</p>
+                  <Button
+                    variant="outline"
+                    className="mt-4"
+                    onClick={() => setShowQuestionForm(true)}
+                  >
+                    <MessageCircle className="h-4 w-4 mr-2" />
+                    Ask a Question
+                  </Button>
                 </div>
               )}
             </div>
