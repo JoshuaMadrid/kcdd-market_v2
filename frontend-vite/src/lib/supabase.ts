@@ -449,3 +449,300 @@ export const saveOrganizationCauseAreas = async (organizationId: string, causeAr
   return data
 }
 
+// ============================================
+// DASHBOARD DATA FETCHING
+// ============================================
+
+export interface DonorDashboardStats {
+  totalDonations: number
+  requestsFulfilled: number
+  requestsClaimed: number
+  causesSupported: number
+}
+
+export interface CBODashboardStats {
+  totalReceived: number
+  activeRequests: number
+  fulfilledRequests: number
+  pendingRequests: number
+}
+
+export interface DonationRecord {
+  id: string
+  description: string
+  amount: number
+  status: 'open' | 'claimed' | 'fulfilled' | 'denied'
+  urgency: 'low' | 'medium' | 'high'
+  organization_name: string
+  organization_logo_emoji: string
+  cause_area_name: string
+  created_at: string
+  claimed_at: string | null
+  fulfilled_at: string | null
+}
+
+export interface RequestRecord {
+  id: string
+  description: string
+  amount: number
+  status: 'open' | 'claimed' | 'fulfilled' | 'denied'
+  urgency: 'low' | 'medium' | 'high'
+  zipcode: string
+  cause_area_name: string
+  donor_email: string | null
+  created_at: string
+  claimed_at: string | null
+  fulfilled_at: string | null
+}
+
+// Fetch donor dashboard statistics
+export const fetchDonorDashboardStats = async (donorId: string): Promise<DonorDashboardStats> => {
+  // Get all requests where this donor is involved
+  const { data: donations, error } = await supabase
+    .from('requests')
+    .select(`
+      id,
+      amount,
+      status,
+      cause_area_id
+    `)
+    .eq('donor_id', donorId)
+
+  if (error) throw error
+
+  const fulfilled = donations?.filter(d => d.status === 'fulfilled') || []
+  const claimed = donations?.filter(d => d.status === 'claimed') || []
+  
+  // Calculate unique cause areas supported
+  const uniqueCauseAreas = new Set(donations?.map(d => d.cause_area_id) || [])
+
+  return {
+    totalDonations: fulfilled.reduce((sum, d) => sum + Number(d.amount), 0),
+    requestsFulfilled: fulfilled.length,
+    requestsClaimed: claimed.length,
+    causesSupported: uniqueCauseAreas.size
+  }
+}
+
+// Fetch donor's donation history
+export const fetchDonorDonations = async (
+  donorId: string, 
+  filters?: { status?: string; search?: string }
+): Promise<DonationRecord[]> => {
+  let query = supabase
+    .from('requests')
+    .select(`
+      id,
+      description,
+      amount,
+      status,
+      urgency,
+      created_at,
+      claimed_at,
+      fulfilled_at,
+      organization:organizations(name, logo_emoji),
+      cause_area:cause_areas(name)
+    `)
+    .eq('donor_id', donorId)
+    .order('created_at', { ascending: false })
+
+  if (filters?.status && filters.status !== 'all') {
+    query = query.eq('status', filters.status)
+  }
+
+  if (filters?.search) {
+    query = query.ilike('description', `%${filters.search}%`)
+  }
+
+  const { data, error } = await query
+
+  if (error) throw error
+
+  return (data || []).map((item: any) => ({
+    id: item.id,
+    description: item.description,
+    amount: Number(item.amount),
+    status: item.status,
+    urgency: item.urgency,
+    organization_name: item.organization?.name || 'Unknown Organization',
+    organization_logo_emoji: item.organization?.logo_emoji || '🏢',
+    cause_area_name: item.cause_area?.name || 'General',
+    created_at: item.created_at,
+    claimed_at: item.claimed_at,
+    fulfilled_at: item.fulfilled_at
+  }))
+}
+
+// Fetch CBO dashboard statistics
+export const fetchCBODashboardStats = async (userId: string): Promise<CBODashboardStats> => {
+  // First get the organization for this user
+  const { data: org, error: orgError } = await supabase
+    .from('organizations')
+    .select('id')
+    .eq('user_id', userId)
+    .single()
+
+  if (orgError) {
+    // No organization yet
+    return {
+      totalReceived: 0,
+      activeRequests: 0,
+      fulfilledRequests: 0,
+      pendingRequests: 0
+    }
+  }
+
+  // Get all requests for this organization
+  const { data: requests, error } = await supabase
+    .from('requests')
+    .select('id, amount, status')
+    .eq('organization_id', org.id)
+
+  if (error) throw error
+
+  const fulfilled = requests?.filter(r => r.status === 'fulfilled') || []
+  const active = requests?.filter(r => r.status === 'claimed') || []
+  const pending = requests?.filter(r => r.status === 'open') || []
+
+  return {
+    totalReceived: fulfilled.reduce((sum, r) => sum + Number(r.amount), 0),
+    activeRequests: active.length,
+    fulfilledRequests: fulfilled.length,
+    pendingRequests: pending.length
+  }
+}
+
+// Fetch CBO's requests
+export const fetchCBORequests = async (
+  userId: string,
+  filters?: { status?: string; search?: string }
+): Promise<RequestRecord[]> => {
+  // First get the organization
+  const { data: org, error: orgError } = await supabase
+    .from('organizations')
+    .select('id')
+    .eq('user_id', userId)
+    .single()
+
+  if (orgError) return []
+
+  let query = supabase
+    .from('requests')
+    .select(`
+      id,
+      description,
+      amount,
+      status,
+      urgency,
+      zipcode,
+      created_at,
+      claimed_at,
+      fulfilled_at,
+      cause_area:cause_areas(name),
+      donor:user_profiles!requests_donor_id_fkey(id)
+    `)
+    .eq('organization_id', org.id)
+    .order('created_at', { ascending: false })
+
+  if (filters?.status && filters.status !== 'all') {
+    query = query.eq('status', filters.status)
+  }
+
+  if (filters?.search) {
+    query = query.ilike('description', `%${filters.search}%`)
+  }
+
+  const { data, error } = await query
+
+  if (error) throw error
+
+  return (data || []).map((item: any) => ({
+    id: item.id,
+    description: item.description,
+    amount: Number(item.amount),
+    status: item.status,
+    urgency: item.urgency,
+    zipcode: item.zipcode,
+    cause_area_name: item.cause_area?.name || 'General',
+    donor_email: item.donor ? 'Donor assigned' : null,
+    created_at: item.created_at,
+    claimed_at: item.claimed_at,
+    fulfilled_at: item.fulfilled_at
+  }))
+}
+
+// Get donor profile
+export const getDonorProfile = async (userId: string) => {
+  const { data, error } = await supabase
+    .from('donor_profiles')
+    .select('*')
+    .eq('user_id', userId)
+    .single()
+
+  if (error && error.code !== 'PGRST116') throw error
+  return data
+}
+
+// Get all cause areas
+export const fetchCauseAreas = async () => {
+  const { data, error } = await supabase
+    .from('cause_areas')
+    .select('id, name, description')
+    .order('name')
+
+  if (error) throw error
+  return data || []
+}
+
+// Create a new request (for CBO)
+export const createNewRequest = async (request: {
+  organization_id: string
+  cause_area_id: string
+  description: string
+  amount: number
+  urgency: 'low' | 'medium' | 'high'
+  zipcode: string
+}) => {
+  const { data, error } = await supabase
+    .from('requests')
+    .insert({
+      ...request,
+      status: 'open'
+    })
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+// Update request status
+export const updateRequestStatus = async (
+  requestId: string, 
+  status: 'open' | 'claimed' | 'fulfilled' | 'denied',
+  additionalData?: { donor_id?: string; donor_note?: string; denial_reason?: string }
+) => {
+  const updateData: any = { status }
+  
+  if (status === 'claimed') {
+    updateData.claimed_at = new Date().toISOString()
+    if (additionalData?.donor_id) updateData.donor_id = additionalData.donor_id
+    if (additionalData?.donor_note) updateData.donor_note = additionalData.donor_note
+  } else if (status === 'fulfilled') {
+    updateData.fulfilled_at = new Date().toISOString()
+  } else if (status === 'denied') {
+    updateData.denied_at = new Date().toISOString()
+    if (additionalData?.denial_reason) updateData.denial_reason = additionalData.denial_reason
+  }
+
+  const { data, error } = await supabase
+    .from('requests')
+    .update(updateData)
+    .eq('id', requestId)
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+

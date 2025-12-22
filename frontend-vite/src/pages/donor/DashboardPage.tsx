@@ -1,9 +1,9 @@
 /**
  * Donor Dashboard Page
- * Based on Figma design with sidebar navigation, stats cards, and data table
+ * Fully functional dashboard with real Supabase data
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useUser } from '@clerk/clerk-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -12,477 +12,598 @@ import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Sidebar, SidebarGroup, SidebarItem, SidebarFooter } from '@/components/ui/sidebar'
+import { Input } from '@/components/ui/input'
 import { 
   AlertTriangle, 
   Settings,
   LayoutDashboard,
-  List,
+  Heart,
   BarChart3,
-  Folder,
-  Users,
   FileText,
   HelpCircle,
   Search,
   PanelLeft,
   TrendingUp,
   Columns2,
-  Plus,
   GripVertical,
   MoreVertical,
   Loader2,
-  CheckCircle2,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
-  Heart,
+  RefreshCw,
   DollarSign,
-  Gift
+  CheckCircle,
+  Clock,
+  Target,
+  ExternalLink
 } from 'lucide-react'
-import { OnboardingModal } from '@/components/OnboardingModal'
-import { checkOnboardingStatus } from '@/lib/supabase'
+import { Link, useNavigate } from 'react-router-dom'
+import { 
+  fetchDonorDashboardStats, 
+  fetchDonorDonations,
+  checkOnboardingStatus,
+  type DonorDashboardStats,
+  type DonationRecord
+} from '@/lib/supabase'
 
-// Sample data for the donation history table
-const tableData = [
-  { id: 1, organization: 'Kansas City Food Bank', category: 'Food & Nutrition', status: 'completed', amount: 150, date: '2024-01-15', impact: 'Fed 30 families' },
-  { id: 2, organization: 'Hope House KC', category: 'Shelter', status: 'completed', amount: 200, date: '2024-01-10', impact: 'Housing support' },
-  { id: 3, organization: 'KC Youth Programs', category: 'Education', status: 'pending', amount: 75, date: '2024-01-08', impact: 'School supplies' },
-  { id: 4, organization: 'Heartland Animal Rescue', category: 'Animal Welfare', status: 'completed', amount: 100, date: '2024-01-05', impact: '10 animals cared for' },
-  { id: 5, organization: 'Community Health Center', category: 'Healthcare', status: 'pending', amount: 250, date: '2024-01-03', impact: 'Medical supplies' },
-  { id: 6, organization: 'Midwest Veterans Support', category: 'Veterans', status: 'completed', amount: 175, date: '2023-12-28', impact: 'Veteran assistance' },
-  { id: 7, organization: 'Green KC Initiative', category: 'Environment', status: 'completed', amount: 50, date: '2023-12-20', impact: '25 trees planted' },
-  { id: 8, organization: 'Arts for All KC', category: 'Arts & Culture', status: 'pending', amount: 125, date: '2023-12-15', impact: 'Art supplies' },
-  { id: 9, organization: 'Senior Care Network', category: 'Senior Services', status: 'completed', amount: 300, date: '2023-12-10', impact: 'Meals for 50 seniors' },
-  { id: 10, organization: 'KC Tech Bridge', category: 'Technology', status: 'completed', amount: 400, date: '2023-12-05', impact: '10 laptops donated' },
-]
-
+// Stat card component with real data
 interface StatCardProps {
-  label: string
-  value: string
-  trend?: string
-  description?: string
-  icon?: React.ReactNode
+  title: string
+  value: string | number
+  subtitle?: string
+  trend?: { value: string; positive: boolean }
+  icon: React.ReactNode
+  loading?: boolean
 }
 
-function StatCard({ label, value, trend, description, icon }: StatCardProps) {
+function StatCard({ title, value, subtitle, trend, icon, loading }: StatCardProps) {
   return (
-    <Card className="flex-1 p-6 bg-white border border-border rounded-xl shadow-sm">
-      <div className="flex flex-col gap-6">
-        <div className="flex flex-col gap-1.5">
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">{label}</span>
-            {icon}
-          </div>
-          <span className="text-3xl font-semibold text-foreground">{value}</span>
+    <Card className="p-4 bg-white border border-gray-200">
+      <div className="flex items-start justify-between">
+        <div className="flex-1">
+          <p className="text-sm font-medium text-gray-500">{title}</p>
+          {loading ? (
+            <div className="h-8 flex items-center">
+              <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+            </div>
+          ) : (
+            <p className="mt-1 text-2xl font-semibold text-gray-900">{value}</p>
+          )}
+          {subtitle && <p className="text-xs text-gray-500 mt-1">{subtitle}</p>}
+          {trend && (
+            <div className={`flex items-center mt-2 text-xs ${trend.positive ? 'text-emerald-600' : 'text-red-600'}`}>
+              <TrendingUp className={`h-3 w-3 mr-1 ${!trend.positive && 'rotate-180'}`} />
+              {trend.value}
+            </div>
+          )}
         </div>
-        <div className="flex flex-col gap-1.5">
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-foreground">{trend || 'This month'}</span>
-            <TrendingUp className="size-4 text-green-500" />
-          </div>
-          <span className="text-sm text-muted-foreground">{description || 'vs last month'}</span>
+        <div className="p-2 bg-gray-50 rounded-lg">
+          {icon}
         </div>
       </div>
     </Card>
   )
 }
 
-function StatusBadge({ status }: { status: string }) {
-  if (status === 'completed') {
-    return (
-      <Badge variant="outline" className="gap-1 bg-white">
-        <CheckCircle2 className="size-3 text-green-500" />
-        Completed
-      </Badge>
-    )
+// Donation table row component
+interface DonationRowProps {
+  donation: DonationRecord
+  selected: boolean
+  onSelect: () => void
+}
+
+function DonationRow({ donation, selected, onSelect }: DonationRowProps) {
+  const statusColors = {
+    open: 'bg-blue-100 text-blue-800',
+    claimed: 'bg-amber-100 text-amber-800',
+    fulfilled: 'bg-emerald-100 text-emerald-800',
+    denied: 'bg-red-100 text-red-800'
   }
+
+  const urgencyColors = {
+    low: 'bg-gray-100 text-gray-600',
+    medium: 'bg-orange-100 text-orange-700',
+    high: 'bg-red-100 text-red-700'
+  }
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    })
+  }
+
   return (
-    <Badge variant="outline" className="gap-1 bg-white">
-      <Loader2 className="size-3 animate-spin" />
-      Pending
-    </Badge>
+    <tr className={`border-b border-gray-100 hover:bg-gray-50 transition-colors ${selected ? 'bg-blue-50' : ''}`}>
+      <td className="py-3 px-4">
+        <Checkbox checked={selected} onCheckedChange={onSelect} />
+      </td>
+      <td className="py-3 px-4">
+        <div className="flex items-center gap-3">
+          <GripVertical className="h-4 w-4 text-gray-300 cursor-grab" />
+          <span className="text-xl">{donation.organization_logo_emoji}</span>
+          <div>
+            <p className="font-medium text-gray-900 text-sm">{donation.organization_name}</p>
+            <p className="text-xs text-gray-500 max-w-[200px] truncate">{donation.description}</p>
+          </div>
+        </div>
+      </td>
+      <td className="py-3 px-4">
+        <Badge className={urgencyColors[donation.urgency]} variant="secondary">
+          {donation.urgency}
+        </Badge>
+      </td>
+      <td className="py-3 px-4">
+        <Badge className={statusColors[donation.status]} variant="secondary">
+          {donation.status}
+        </Badge>
+      </td>
+      <td className="py-3 px-4">
+        <span className="font-semibold text-gray-900">${donation.amount.toLocaleString()}</span>
+      </td>
+      <td className="py-3 px-4">
+        <span className="text-sm text-gray-500">{donation.cause_area_name}</span>
+      </td>
+      <td className="py-3 px-4">
+        <span className="text-sm text-gray-500">{formatDate(donation.created_at)}</span>
+      </td>
+      <td className="py-3 px-4">
+        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+          <MoreVertical className="h-4 w-4" />
+        </Button>
+      </td>
+    </tr>
   )
 }
 
-function CategoryBadge({ category }: { category: string }) {
+// Empty state component
+function EmptyState({ onBrowseRequests }: { onBrowseRequests: () => void }) {
   return (
-    <Badge variant="outline" className="bg-white font-semibold text-xs">
-      {category}
-    </Badge>
+    <div className="text-center py-12">
+      <Heart className="h-12 w-12 mx-auto text-gray-300 mb-4" />
+      <h3 className="text-lg font-medium text-gray-900 mb-2">No donations yet</h3>
+      <p className="text-gray-500 mb-6 max-w-md mx-auto">
+        Start making an impact by claiming a request from a community organization.
+      </p>
+      <Button onClick={onBrowseRequests} className="bg-emerald-600 hover:bg-emerald-700">
+        Browse Open Requests
+      </Button>
+    </div>
   )
 }
 
-export function DonorDashboard() {
+export default function DonorDashboardPage() {
   const { user, isLoaded } = useUser()
-  const [showOnboardingModal, setShowOnboardingModal] = useState(false)
-  const [onboardingComplete, setOnboardingComplete] = useState<boolean | null>(null)
-  const [isCheckingStatus, setIsCheckingStatus] = useState(true)
-  const [activeNav, setActiveNav] = useState('dashboard')
-  const [selectedRows, setSelectedRows] = useState<number[]>([])
-  const [currentPage, setCurrentPage] = useState(1)
-  const rowsPerPage = 10
-  const totalPages = 7
+  const navigate = useNavigate()
+  
+  // State
+  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [activeTab, setActiveTab] = useState('all')
+  const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set())
+  const [searchQuery, setSearchQuery] = useState('')
+  
+  // Data state
+  const [stats, setStats] = useState<DonorDashboardStats | null>(null)
+  const [donations, setDonations] = useState<DonationRecord[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [needsOnboarding, setNeedsOnboarding] = useState(false)
 
-  // Check onboarding status on mount
+  // Fetch dashboard data
+  const fetchData = useCallback(async () => {
+    if (!user?.id) return
+
+    setLoading(true)
+    setError(null)
+
+    try {
+      // Check onboarding status
+      const onboardingStatus = await checkOnboardingStatus(user.id, 'donor')
+      setNeedsOnboarding(!onboardingStatus.onboarding_complete)
+
+      // Fetch stats and donations in parallel
+      const [statsData, donationsData] = await Promise.all([
+        fetchDonorDashboardStats(user.id),
+        fetchDonorDonations(user.id, {
+          status: activeTab === 'all' ? undefined : activeTab,
+          search: searchQuery || undefined
+        })
+      ])
+
+      setStats(statsData)
+      setDonations(donationsData)
+    } catch (err) {
+      console.error('Error fetching dashboard data:', err)
+      setError('Failed to load dashboard data. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }, [user?.id, activeTab, searchQuery])
+
   useEffect(() => {
-    const checkStatus = async () => {
-      if (!user?.id) return
-      
-      try {
-        const status = await checkOnboardingStatus(user.id)
-        setOnboardingComplete(status.onboarding_complete ?? false)
-        
-        // Auto-show modal if onboarding not complete
-        if (!status.onboarding_complete) {
-          setShowOnboardingModal(true)
-        }
-      } catch (error) {
-        console.error('Error checking onboarding status:', error)
-        setOnboardingComplete(false)
-      } finally {
-        setIsCheckingStatus(false)
+    if (isLoaded && user?.id) {
+      fetchData()
+    }
+  }, [isLoaded, user?.id, fetchData])
+
+  // Handle search with debounce
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (isLoaded && user?.id) {
+        fetchData()
       }
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchQuery])
+
+  const toggleRowSelection = (id: string) => {
+    const newSelected = new Set(selectedRows)
+    if (newSelected.has(id)) {
+      newSelected.delete(id)
+    } else {
+      newSelected.add(id)
     }
-
-    if (isLoaded && user) {
-      checkStatus()
-    }
-  }, [user, isLoaded])
-
-  const handleOnboardingComplete = () => {
-    setOnboardingComplete(true)
-    setShowOnboardingModal(false)
-  }
-
-  const toggleRow = (id: number) => {
-    setSelectedRows(prev => 
-      prev.includes(id) ? prev.filter(r => r !== id) : [...prev, id]
-    )
+    setSelectedRows(newSelected)
   }
 
   const toggleAllRows = () => {
-    if (selectedRows.length === tableData.length) {
-      setSelectedRows([])
+    if (selectedRows.size === donations.length) {
+      setSelectedRows(new Set())
     } else {
-      setSelectedRows(tableData.map(row => row.id))
+      setSelectedRows(new Set(donations.map(d => d.id)))
     }
   }
 
+  const handleBrowseRequests = () => {
+    navigate('/requests')
+  }
+
+  // Loading state
+  if (!isLoaded) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-gray-50">
+        <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+      </div>
+    )
+  }
+
   return (
-    <div className="flex h-screen bg-[#fafafa]">
+    <div className="flex h-screen bg-gray-50">
       {/* Sidebar */}
-      <Sidebar className="shrink-0">
-        <div className="flex flex-col h-full">
-          <SidebarGroup>
-            <SidebarItem 
-              icon={<LayoutDashboard className="size-4" />} 
-              active={activeNav === 'dashboard'}
-              onClick={() => setActiveNav('dashboard')}
-            >
-              My Dashboard
-            </SidebarItem>
-            <SidebarItem 
-              icon={<Heart className="size-4" />}
-              active={activeNav === 'donations'}
-              onClick={() => setActiveNav('donations')}
-            >
-              My Donations
-            </SidebarItem>
-            <SidebarItem 
-              icon={<BarChart3 className="size-4" />}
-              active={activeNav === 'impact'}
-              onClick={() => setActiveNav('impact')}
-            >
-              Impact & Reports
-            </SidebarItem>
-            <SidebarItem 
-              icon={<Gift className="size-4" />}
-              active={activeNav === 'browse'}
-              onClick={() => setActiveNav('browse')}
-            >
-              Browse Requests
-            </SidebarItem>
-            <SidebarItem 
-              icon={<Users className="size-4" />}
-              active={activeNav === 'organizations'}
-              onClick={() => setActiveNav('organizations')}
-            >
-              Organizations
-            </SidebarItem>
-          </SidebarGroup>
-
-          <SidebarGroup label="Documents" className="mt-4">
-            <SidebarItem 
-              icon={<FileText className="size-4" />}
-              active={activeNav === 'tax'}
-              onClick={() => setActiveNav('tax')}
-            >
-              Tax Documents
-            </SidebarItem>
-          </SidebarGroup>
-
-          <SidebarFooter>
-            <SidebarGroup>
-              <SidebarItem 
-                icon={<Settings className="size-4" />}
-                active={activeNav === 'account'}
-                onClick={() => setActiveNav('account')}
-              >
-                Account Settings
-              </SidebarItem>
-              <SidebarItem 
-                icon={<HelpCircle className="size-4" />}
-                active={activeNav === 'support'}
-                onClick={() => setActiveNav('support')}
-              >
-                Support
-              </SidebarItem>
-              <SidebarItem 
-                icon={<Search className="size-4" />}
-                active={activeNav === 'search'}
-                onClick={() => setActiveNav('search')}
-              >
-                Search
-              </SidebarItem>
-            </SidebarGroup>
-          </SidebarFooter>
+      <Sidebar className={`${sidebarOpen ? 'w-64' : 'w-16'} transition-all duration-300 border-r border-gray-200 bg-white`}>
+        <div className="p-4 border-b border-gray-100">
+          <div className="flex items-center gap-3">
+            <div className="h-8 w-8 bg-emerald-600 rounded-lg flex items-center justify-center">
+              <Heart className="h-4 w-4 text-white" />
+            </div>
+            {sidebarOpen && <span className="font-semibold text-gray-900">KC Digital Drive</span>}
+          </div>
         </div>
+        
+        <SidebarGroup label={sidebarOpen ? "Menu" : undefined}>
+          <SidebarItem icon={<LayoutDashboard className="h-4 w-4" />} active>
+            {sidebarOpen && "Dashboard"}
+          </SidebarItem>
+          <SidebarItem 
+            icon={<Heart className="h-4 w-4" />}
+            onClick={handleBrowseRequests}
+          >
+            {sidebarOpen && "Browse Requests"}
+          </SidebarItem>
+          <SidebarItem icon={<BarChart3 className="h-4 w-4" />}>
+            {sidebarOpen && "Impact Report"}
+          </SidebarItem>
+          <SidebarItem icon={<FileText className="h-4 w-4" />}>
+            {sidebarOpen && "Tax Documents"}
+          </SidebarItem>
+        </SidebarGroup>
+
+        <SidebarGroup label={sidebarOpen ? "Account" : undefined}>
+          <SidebarItem icon={<Settings className="h-4 w-4" />}>
+            {sidebarOpen && "Settings"}
+          </SidebarItem>
+          <SidebarItem icon={<HelpCircle className="h-4 w-4" />}>
+            {sidebarOpen && "Support"}
+          </SidebarItem>
+        </SidebarGroup>
+
+        <SidebarFooter>
+          <div className={`flex items-center gap-3 p-2 ${sidebarOpen ? '' : 'justify-center'}`}>
+            <div className="h-8 w-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-medium">
+              {user?.firstName?.[0] || user?.emailAddresses?.[0]?.emailAddress?.[0]?.toUpperCase() || 'D'}
+            </div>
+            {sidebarOpen && (
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-900 truncate">
+                  {user?.firstName || 'Donor'}
+                </p>
+                <p className="text-xs text-gray-500 truncate">
+                  {user?.emailAddresses?.[0]?.emailAddress}
+                </p>
+              </div>
+            )}
+          </div>
+        </SidebarFooter>
       </Sidebar>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col pr-2 py-2 min-w-0">
-        <div className="flex-1 bg-white rounded-xl shadow-sm overflow-hidden flex flex-col">
-          {/* Header */}
-          <div className="flex items-center h-12 px-6 border-b border-border">
-            <div className="flex items-center gap-2">
-              <button className="size-7 flex items-center justify-center rounded-lg hover:bg-muted">
-                <PanelLeft className="size-4" />
-              </button>
-              <div className="w-2 flex items-center justify-center">
-                <div className="h-4 w-px bg-border" />
+      <div className="flex-1 overflow-auto">
+        {/* Header */}
+        <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
+          <div className="flex items-center justify-between px-6 py-4">
+            <div className="flex items-center gap-4">
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                className="h-8 w-8 p-0"
+              >
+                <PanelLeft className="h-4 w-4" />
+              </Button>
+              <div>
+                <nav className="flex items-center gap-2 text-sm text-gray-500">
+                  <Link to="/" className="hover:text-gray-700">Home</Link>
+                  <span>/</span>
+                  <span className="text-gray-900">Donor Dashboard</span>
+                </nav>
+                <h1 className="text-xl font-semibold text-gray-900 mt-1">
+                  Welcome back, {user?.firstName || 'there'}!
+                </h1>
               </div>
-              <span className="text-sm">
-                Welcome back, {user?.firstName || 'Donor'}!
-              </span>
+            </div>
+            <div className="flex items-center gap-3">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={fetchData}
+                disabled={loading}
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
+              <Button 
+                size="sm" 
+                className="bg-emerald-600 hover:bg-emerald-700"
+                onClick={handleBrowseRequests}
+              >
+                <Heart className="h-4 w-4 mr-2" />
+                Browse Requests
+              </Button>
             </div>
           </div>
+        </header>
 
-          {/* Content Area */}
-          <div className="flex-1 p-6 overflow-auto">
-            {/* Onboarding Warning Banner - KEPT FROM ORIGINAL */}
-            {onboardingComplete === false && !isCheckingStatus && (
-              <Alert variant="destructive" className="mb-6 bg-amber-50 border-amber-200">
-                <AlertTriangle className="h-4 w-4 text-amber-600" />
-                <AlertTitle className="text-amber-800">Complete Your Profile</AlertTitle>
-                <AlertDescription className="text-amber-700 flex items-center justify-between">
-                  <span>
-                    Please complete your profile setup to get started.
-                  </span>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => setShowOnboardingModal(true)}
-                    className="ml-4 border-amber-300 text-amber-800 hover:bg-amber-100"
-                  >
-                    <Settings className="size-4 mr-2" />
-                    Complete Setup
-                  </Button>
-                </AlertDescription>
-              </Alert>
-            )}
+        {/* Content */}
+        <main className="p-6">
+          {/* Onboarding Alert */}
+          {needsOnboarding && (
+            <Alert className="mb-6 bg-amber-50 border-amber-200">
+              <AlertTriangle className="h-4 w-4 text-amber-600" />
+              <AlertTitle className="text-amber-800">Complete Your Profile</AlertTitle>
+              <AlertDescription className="text-amber-700 flex items-center justify-between">
+                <span>Please complete your profile setup to get started donating.</span>
+                <Button variant="outline" size="sm" className="ml-4 border-amber-300 text-amber-800 hover:bg-amber-100">
+                  <Settings className="size-4 mr-2" />
+                  Complete Setup
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
 
-            {/* Stats Cards */}
-            <div className="flex gap-4 mb-6">
-              <StatCard 
-                label="Total Donated" 
-                value="$1,825.00" 
-                trend="+$425 this month" 
-                description="23% increase"
-                icon={<DollarSign className="size-4 text-muted-foreground" />}
-              />
-              <StatCard 
-                label="Requests Funded" 
-                value="12" 
-                trend="3 this month" 
-                description="Organizations helped"
-                icon={<Gift className="size-4 text-muted-foreground" />}
-              />
-              <StatCard 
-                label="Impact Score" 
-                value="847" 
-                trend="+125 points" 
-                description="Top 15% of donors"
-                icon={<Heart className="size-4 text-muted-foreground" />}
-              />
-              <StatCard 
-                label="Tax Deductions" 
-                value="$1,650" 
-                trend="2024 YTD" 
-                description="Eligible donations"
-                icon={<FileText className="size-4 text-muted-foreground" />}
-              />
-            </div>
+          {/* Error Alert */}
+          {error && (
+            <Alert className="mb-6 bg-red-50 border-red-200">
+              <AlertTriangle className="h-4 w-4 text-red-600" />
+              <AlertTitle className="text-red-800">Error</AlertTitle>
+              <AlertDescription className="text-red-700 flex items-center justify-between">
+                <span>{error}</span>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={fetchData}
+                  className="ml-4 border-red-300 text-red-800 hover:bg-red-100"
+                >
+                  Try Again
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
 
-            {/* Data Table */}
-            <div className="flex flex-col">
-              {/* Table Filters */}
-              <div className="flex items-center justify-between pb-6">
-                <Tabs defaultValue="all" className="w-auto">
-                  <TabsList className="bg-muted rounded-lg p-[3px] h-9">
-                    <TabsTrigger value="all" className="text-sm px-2 py-1 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md">
-                      All Donations
-                    </TabsTrigger>
-                    <TabsTrigger value="pending" className="text-sm px-2 py-1 rounded-md">
-                      Pending
-                    </TabsTrigger>
-                    <TabsTrigger value="completed" className="text-sm px-2 py-1 rounded-md">
-                      Completed
-                    </TabsTrigger>
-                    <TabsTrigger value="recurring" className="text-sm px-2 py-1 rounded-md">
-                      Recurring
-                    </TabsTrigger>
-                  </TabsList>
-                </Tabs>
+          {/* Stats Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <StatCard
+              title="Total Donated"
+              value={stats ? `$${stats.totalDonations.toLocaleString()}` : '$0'}
+              subtitle="All time contributions"
+              icon={<DollarSign className="h-5 w-5 text-emerald-600" />}
+              loading={loading}
+            />
+            <StatCard
+              title="Requests Fulfilled"
+              value={stats?.requestsFulfilled || 0}
+              subtitle="Completed donations"
+              icon={<CheckCircle className="h-5 w-5 text-emerald-600" />}
+              loading={loading}
+            />
+            <StatCard
+              title="In Progress"
+              value={stats?.requestsClaimed || 0}
+              subtitle="Awaiting fulfillment"
+              icon={<Clock className="h-5 w-5 text-amber-500" />}
+              loading={loading}
+            />
+            <StatCard
+              title="Causes Supported"
+              value={stats?.causesSupported || 0}
+              subtitle="Different cause areas"
+              icon={<Target className="h-5 w-5 text-blue-600" />}
+              loading={loading}
+            />
+          </div>
 
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" className="h-8 gap-2">
-                    <Columns2 className="size-4" />
-                    <span className="text-xs">Customize Columns</span>
-                    <ChevronDown className="size-4" />
-                  </Button>
-                  <Button variant="outline" size="sm" className="h-8 gap-2">
-                    <Plus className="size-4" />
-                    <span className="text-xs">New Donation</span>
+          {/* Donations Table */}
+          <Card className="border border-gray-200 bg-white">
+            <div className="p-4 border-b border-gray-100">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">Your Donations</h2>
+                  <p className="text-sm text-gray-500">Track and manage your donation history</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Input
+                      placeholder="Search donations..."
+                      className="pl-9 w-64"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                  </div>
+                  <Button variant="outline" size="sm">
+                    <Columns2 className="h-4 w-4 mr-2" />
+                    Columns
                   </Button>
                 </div>
               </div>
 
-              {/* Table */}
-              <div className="border border-border rounded-lg overflow-hidden">
+              {/* Tabs */}
+              <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-4">
+                <TabsList className="bg-gray-100">
+                  <TabsTrigger value="all" className="data-[state=active]:bg-white">
+                    All
+                    <Badge variant="secondary" className="ml-2 bg-gray-200 text-gray-600">
+                      {donations.length}
+                    </Badge>
+                  </TabsTrigger>
+                  <TabsTrigger value="claimed" className="data-[state=active]:bg-white">
+                    In Progress
+                    <Badge variant="secondary" className="ml-2 bg-amber-100 text-amber-700">
+                      {donations.filter(d => d.status === 'claimed').length}
+                    </Badge>
+                  </TabsTrigger>
+                  <TabsTrigger value="fulfilled" className="data-[state=active]:bg-white">
+                    Fulfilled
+                    <Badge variant="secondary" className="ml-2 bg-emerald-100 text-emerald-700">
+                      {donations.filter(d => d.status === 'fulfilled').length}
+                    </Badge>
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
+
+            {/* Table */}
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+              </div>
+            ) : donations.length === 0 ? (
+              <EmptyState onBrowseRequests={handleBrowseRequests} />
+            ) : (
+              <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead>
-                    <tr className="bg-muted/50">
-                      <th className="w-11 h-10 border-b border-border"></th>
-                      <th className="w-14 h-10 border-b border-border px-3">
+                  <thead className="bg-gray-50 border-b border-gray-100">
+                    <tr>
+                      <th className="py-3 px-4 text-left">
                         <Checkbox 
-                          checked={selectedRows.length === tableData.length}
+                          checked={selectedRows.size === donations.length && donations.length > 0}
                           onCheckedChange={toggleAllRows}
                         />
                       </th>
-                      <th className="h-10 border-b border-border px-2 text-left text-sm font-medium">Organization</th>
-                      <th className="h-10 border-b border-border px-2 text-left text-sm font-medium">Category</th>
-                      <th className="h-10 border-b border-border px-2 text-left text-sm font-medium">Status</th>
-                      <th className="h-10 border-b border-border px-2 text-left text-sm font-medium">Amount</th>
-                      <th className="h-10 border-b border-border px-2 text-left text-sm font-medium">Date</th>
-                      <th className="h-10 border-b border-border px-2 text-left text-sm font-medium">Impact</th>
-                      <th className="w-14 h-10 border-b border-border"></th>
+                      <th className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Organization
+                      </th>
+                      <th className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Urgency
+                      </th>
+                      <th className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Status
+                      </th>
+                      <th className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Amount
+                      </th>
+                      <th className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Cause Area
+                      </th>
+                      <th className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Date
+                      </th>
+                      <th className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Actions
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {tableData.map((row) => (
-                      <tr key={row.id} className="border-b border-border last:border-b-0 hover:bg-muted/30">
-                        <td className="h-[53px] px-2">
-                          <button className="size-8 flex items-center justify-center rounded-lg hover:bg-muted">
-                            <GripVertical className="size-4 text-muted-foreground" />
-                          </button>
-                        </td>
-                        <td className="h-[53px] px-3">
-                          <Checkbox 
-                            checked={selectedRows.includes(row.id)}
-                            onCheckedChange={() => toggleRow(row.id)}
-                          />
-                        </td>
-                        <td className="h-[53px] px-2 text-sm font-medium truncate max-w-[200px]">{row.organization}</td>
-                        <td className="h-[53px] px-2">
-                          <CategoryBadge category={row.category} />
-                        </td>
-                        <td className="h-[53px] px-2">
-                          <StatusBadge status={row.status} />
-                        </td>
-                        <td className="h-[53px] px-2 text-sm font-semibold">${row.amount}</td>
-                        <td className="h-[53px] px-2 text-sm text-muted-foreground">{row.date}</td>
-                        <td className="h-[53px] px-2 text-sm text-muted-foreground">{row.impact}</td>
-                        <td className="h-[53px] px-2">
-                          <button className="size-9 flex items-center justify-center rounded-lg hover:bg-muted">
-                            <MoreVertical className="size-4" />
-                          </button>
-                        </td>
-                      </tr>
+                    {donations.map((donation) => (
+                      <DonationRow
+                        key={donation.id}
+                        donation={donation}
+                        selected={selectedRows.has(donation.id)}
+                        onSelect={() => toggleRowSelection(donation.id)}
+                      />
                     ))}
                   </tbody>
                 </table>
               </div>
+            )}
 
-              {/* Table Footer / Pagination */}
-              <div className="flex items-center justify-between pt-4">
-                <span className="text-sm text-muted-foreground">
-                  {selectedRows.length} of {tableData.length * totalPages} row(s) selected.
-                </span>
-
-                <div className="flex items-center gap-8">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">Rows per page</span>
-                    <Button variant="outline" className="h-9 w-20 gap-2 justify-between">
-                      <span>{rowsPerPage}</span>
-                      <ChevronDown className="size-4 opacity-50" />
-                    </Button>
-                  </div>
-
-                  <span className="text-sm font-medium">Page {currentPage} of {totalPages}</span>
-
-                  <div className="flex items-center gap-2">
-                    <Button 
-                      variant="outline" 
-                      size="icon" 
-                      className="size-9"
-                      disabled={currentPage === 1}
-                      onClick={() => setCurrentPage(1)}
-                    >
-                      <ChevronsLeft className="size-4" />
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="icon" 
-                      className="size-9"
-                      disabled={currentPage === 1}
-                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                    >
-                      <ChevronLeft className="size-4" />
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="icon" 
-                      className="size-9"
-                      disabled={currentPage === totalPages}
-                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                    >
-                      <ChevronRight className="size-4" />
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="icon" 
-                      className="size-9"
-                      disabled={currentPage === totalPages}
-                      onClick={() => setCurrentPage(totalPages)}
-                    >
-                      <ChevronsRight className="size-4" />
-                    </Button>
-                  </div>
+            {/* Pagination */}
+            {donations.length > 0 && (
+              <div className="p-4 border-t border-gray-100 flex items-center justify-between">
+                <p className="text-sm text-gray-500">
+                  Showing {donations.length} donation{donations.length !== 1 ? 's' : ''}
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" disabled>
+                    Previous
+                  </Button>
+                  <Button variant="outline" size="sm" disabled>
+                    Next
+                  </Button>
                 </div>
               </div>
-            </div>
-          </div>
-        </div>
-      </div>
+            )}
+          </Card>
 
-      {/* Onboarding Modal */}
-      <OnboardingModal
-        isOpen={showOnboardingModal}
-        onClose={() => setShowOnboardingModal(false)}
-        onComplete={handleOnboardingComplete}
-        userType="donor"
-      />
+          {/* Quick Actions */}
+          <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card className="p-4 hover:shadow-md transition-shadow cursor-pointer" onClick={handleBrowseRequests}>
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 bg-emerald-100 rounded-lg flex items-center justify-center">
+                  <Heart className="h-5 w-5 text-emerald-600" />
+                </div>
+                <div>
+                  <h3 className="font-medium text-gray-900">Find New Requests</h3>
+                  <p className="text-sm text-gray-500">Browse open donation opportunities</p>
+                </div>
+                <ExternalLink className="h-4 w-4 text-gray-400 ml-auto" />
+              </div>
+            </Card>
+            <Card className="p-4 hover:shadow-md transition-shadow cursor-pointer">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <BarChart3 className="h-5 w-5 text-blue-600" />
+                </div>
+                <div>
+                  <h3 className="font-medium text-gray-900">View Impact Report</h3>
+                  <p className="text-sm text-gray-500">See your donation impact</p>
+                </div>
+                <ExternalLink className="h-4 w-4 text-gray-400 ml-auto" />
+              </div>
+            </Card>
+            <Card className="p-4 hover:shadow-md transition-shadow cursor-pointer">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                  <FileText className="h-5 w-5 text-purple-600" />
+                </div>
+                <div>
+                  <h3 className="font-medium text-gray-900">Tax Documents</h3>
+                  <p className="text-sm text-gray-500">Download tax receipts</p>
+                </div>
+                <ExternalLink className="h-4 w-4 text-gray-400 ml-auto" />
+              </div>
+            </Card>
+          </div>
+        </main>
+      </div>
     </div>
   )
 }
