@@ -3,7 +3,7 @@
  * Styled to match Figma design with tab-based content switching
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useUser } from '@clerk/clerk-react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -69,7 +69,7 @@ import {
   Send,
   X,
 } from 'lucide-react'
-import { 
+import {
   fetchCBODashboardStats,
   fetchCBORequests,
   checkOnboardingStatus,
@@ -78,6 +78,11 @@ import {
   fetchOrganizationQuestions,
   answerQuestion,
   dismissQuestion,
+  fetchCauseAreas,
+  fetchIdentityCategories,
+  saveOrganizationCauseAreas,
+  saveOrganizationPopulations,
+  supabase,
   type CBODashboardStats,
   type RequestRecord,
   type OrganizationQuestion
@@ -598,11 +603,29 @@ function ProfileContent({
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
+
+  // File upload refs and state
+  const logoInputRef = useRef<HTMLInputElement>(null)
+  const coverInputRef = useRef<HTMLInputElement>(null)
+  const [logoFile, setLogoFile] = useState<File | null>(null)
+  const [logoPreview, setLogoPreview] = useState<string | null>(null)
+  const [coverFile, setCoverFile] = useState<File | null>(null)
+  const [coverPreview, setCoverPreview] = useState<string | null>(null)
+
+  // Cause areas and populations
+  const [allCauseAreas, setAllCauseAreas] = useState<{ id: string; name: string }[]>([])
+  const [allPopulations, setAllPopulations] = useState<{ id: string; name: string }[]>([])
+  const [selectedCauseAreas, setSelectedCauseAreas] = useState<string[]>([])
+  const [selectedPopulations, setSelectedPopulations] = useState<string[]>([])
+
   const [editForm, setEditForm] = useState({
     name: organization?.name || '',
     tagline: organization?.tagline || '',
     mission: organization?.mission || '',
     program_description: organization?.program_description || '',
+    technology_barriers: organization?.technology_barriers || '',
+    service_area_description: organization?.service_area_description || '',
+    organization_type: organization?.organization_type || '',
     email: organization?.email || '',
     phone: organization?.phone || '',
     website: organization?.website || '',
@@ -612,10 +635,33 @@ function ProfileContent({
     zipcode: organization?.zipcode || '',
     year_founded: organization?.year_founded || '',
     organization_size: organization?.organization_size || '',
-    organization_type: organization?.organization_type || '',
     logo_url: organization?.logo_url || '',
     cover_image_url: organization?.cover_image_url || '',
+    // Social links
+    facebook: organization?.social_links?.facebook || '',
+    twitter: organization?.social_links?.twitter || '',
+    instagram: organization?.social_links?.instagram || '',
+    linkedin: organization?.social_links?.linkedin || '',
+    youtube: organization?.social_links?.youtube || '',
+    tiktok: organization?.social_links?.tiktok || '',
   })
+
+  // Load cause areas and populations on mount
+  useEffect(() => {
+    const loadOptions = async () => {
+      try {
+        const [causeAreas, populations] = await Promise.all([
+          fetchCauseAreas(),
+          fetchIdentityCategories()
+        ])
+        setAllCauseAreas(causeAreas)
+        setAllPopulations(populations)
+      } catch (err) {
+        console.error('Error loading options:', err)
+      }
+    }
+    loadOptions()
+  }, [])
 
   // Update form when organization changes
   useEffect(() => {
@@ -625,6 +671,9 @@ function ProfileContent({
         tagline: organization.tagline || '',
         mission: organization.mission || '',
         program_description: organization.program_description || '',
+        technology_barriers: organization.technology_barriers || '',
+        service_area_description: organization.service_area_description || '',
+        organization_type: organization.organization_type || '',
         email: organization.email || '',
         phone: organization.phone || '',
         website: organization.website || '',
@@ -634,10 +683,18 @@ function ProfileContent({
         zipcode: organization.zipcode || '',
         year_founded: organization.year_founded || '',
         organization_size: organization.organization_size || '',
-        organization_type: organization.organization_type || '',
         logo_url: organization.logo_url || '',
         cover_image_url: organization.cover_image_url || '',
+        facebook: organization.social_links?.facebook || '',
+        twitter: organization.social_links?.twitter || '',
+        instagram: organization.social_links?.instagram || '',
+        linkedin: organization.social_links?.linkedin || '',
+        youtube: organization.social_links?.youtube || '',
+        tiktok: organization.social_links?.tiktok || '',
       })
+      // Set selected cause areas and populations
+      setSelectedCauseAreas(organization.cause_areas?.map((ca: any) => ca.id) || [])
+      setSelectedPopulations(organization.populations?.map((p: any) => p.id) || [])
     }
   }, [organization])
 
@@ -656,23 +713,120 @@ function ProfileContent({
   const filledFields = profileFields.filter(Boolean).length
   const completeness = Math.round((filledFields / profileFields.length) * 100)
 
+  // Handle logo file selection
+  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setLogoFile(file)
+      setLogoPreview(URL.createObjectURL(file))
+    }
+  }
+
+  // Handle cover file selection
+  const handleCoverChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setCoverFile(file)
+      setCoverPreview(URL.createObjectURL(file))
+    }
+  }
+
+  // Upload image to Supabase Storage
+  const uploadImage = async (file: File, path: string): Promise<string | null> => {
+    try {
+      const fileExt = file.name.split('.').pop()
+      const fileName = `${path}_${Date.now()}.${fileExt}`
+
+      const { data, error } = await supabase.storage
+        .from('organization-images')
+        .upload(fileName, file, { upsert: true })
+
+      if (error) {
+        console.error('Upload error:', error)
+        // If storage bucket doesn't exist, fall back to data URL
+        return new Promise((resolve) => {
+          const reader = new FileReader()
+          reader.onloadend = () => resolve(reader.result as string)
+          reader.readAsDataURL(file)
+        })
+      }
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('organization-images')
+        .getPublicUrl(data.path)
+
+      return publicUrl
+    } catch (err) {
+      console.error('Upload failed:', err)
+      // Fallback to data URL
+      return new Promise((resolve) => {
+        const reader = new FileReader()
+        reader.onloadend = () => resolve(reader.result as string)
+        reader.readAsDataURL(file)
+      })
+    }
+  }
+
   const handleSave = async () => {
     if (!organization?.id) return
     setIsSaving(true)
     setSaveMessage(null)
 
     try {
+      let logoUrl = editForm.logo_url
+      let coverUrl = editForm.cover_image_url
+
+      // Upload images if new files selected
+      if (logoFile) {
+        const url = await uploadImage(logoFile, `logos/${organization.id}`)
+        if (url) logoUrl = url
+      }
+      if (coverFile) {
+        const url = await uploadImage(coverFile, `covers/${organization.id}`)
+        if (url) coverUrl = url
+      }
+
+      // Prepare update data with social links
+      const updateData = {
+        ...editForm,
+        logo_url: logoUrl,
+        cover_image_url: coverUrl,
+        social_links: {
+          facebook: editForm.facebook || null,
+          twitter: editForm.twitter || null,
+          instagram: editForm.instagram || null,
+          linkedin: editForm.linkedin || null,
+          youtube: editForm.youtube || null,
+          tiktok: editForm.tiktok || null,
+        }
+      }
+
       const { updateOrganization } = await import('@/lib/supabase')
-      const { error } = await updateOrganization(organization.id, editForm)
+      const { error } = await updateOrganization(organization.id, updateData)
 
       if (error) {
         setSaveMessage(`Error: ${error.message}`)
-      } else {
-        setSaveMessage('Profile updated successfully!')
-        setIsEditing(false)
-        onRefresh()
+        return
       }
+
+      // Save cause areas and populations
+      await Promise.all([
+        saveOrganizationCauseAreas(organization.id, selectedCauseAreas.map(id => {
+          const ca = allCauseAreas.find(c => c.id === id)
+          return ca?.name || ''
+        }).filter(Boolean)),
+        saveOrganizationPopulations(organization.id, selectedPopulations)
+      ])
+
+      setSaveMessage('Profile updated successfully!')
+      setIsEditing(false)
+      setLogoFile(null)
+      setLogoPreview(null)
+      setCoverFile(null)
+      setCoverPreview(null)
+      onRefresh()
     } catch (err) {
+      console.error('Save error:', err)
       setSaveMessage('Failed to update profile')
     } finally {
       setIsSaving(false)
@@ -682,6 +836,10 @@ function ProfileContent({
   const handleCancel = () => {
     setIsEditing(false)
     setSaveMessage(null)
+    setLogoFile(null)
+    setLogoPreview(null)
+    setCoverFile(null)
+    setCoverPreview(null)
     // Reset form to original values
     if (organization) {
       setEditForm({
@@ -689,6 +847,9 @@ function ProfileContent({
         tagline: organization.tagline || '',
         mission: organization.mission || '',
         program_description: organization.program_description || '',
+        technology_barriers: organization.technology_barriers || '',
+        service_area_description: organization.service_area_description || '',
+        organization_type: organization.organization_type || '',
         email: organization.email || '',
         phone: organization.phone || '',
         website: organization.website || '',
@@ -698,12 +859,41 @@ function ProfileContent({
         zipcode: organization.zipcode || '',
         year_founded: organization.year_founded || '',
         organization_size: organization.organization_size || '',
-        organization_type: organization.organization_type || '',
         logo_url: organization.logo_url || '',
         cover_image_url: organization.cover_image_url || '',
+        facebook: organization.social_links?.facebook || '',
+        twitter: organization.social_links?.twitter || '',
+        instagram: organization.social_links?.instagram || '',
+        linkedin: organization.social_links?.linkedin || '',
+        youtube: organization.social_links?.youtube || '',
+        tiktok: organization.social_links?.tiktok || '',
       })
+      setSelectedCauseAreas(organization.cause_areas?.map((ca: any) => ca.id) || [])
+      setSelectedPopulations(organization.populations?.map((p: any) => p.id) || [])
     }
   }
+
+  const toggleCauseArea = (id: string) => {
+    setSelectedCauseAreas(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    )
+  }
+
+  const togglePopulation = (id: string) => {
+    setSelectedPopulations(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    )
+  }
+
+  const organizationTypes = [
+    '501(c)(3) Nonprofit',
+    '501(c)(4) Social Welfare',
+    'Religious Organization',
+    'Educational Institution',
+    'Government Agency',
+    'Community Organization',
+    'Other'
+  ]
 
   return (
     <div className="space-y-6">
@@ -770,36 +960,47 @@ function ProfileContent({
         </Alert>
       )}
 
-      {/* Profile Card */}
+      {/* Profile Card with Clickable Images */}
       <Card className="overflow-hidden">
-        {/* Cover Image */}
-        <div className="h-32 bg-gradient-to-br from-[#1b5858]/20 to-[#ea580c]/10 relative">
-          {(isEditing ? editForm.cover_image_url : organization?.cover_image_url) && (
+        {/* Cover Image - Clickable when editing */}
+        <div
+          className={`h-40 bg-gradient-to-br from-[#1b5858]/20 to-[#ea580c]/10 relative ${isEditing ? 'cursor-pointer hover:opacity-90' : ''}`}
+          onClick={() => isEditing && coverInputRef.current?.click()}
+        >
+          {(coverPreview || editForm.cover_image_url || organization?.cover_image_url) && (
             <img
-              src={isEditing ? editForm.cover_image_url : organization.cover_image_url}
+              src={coverPreview || editForm.cover_image_url || organization?.cover_image_url}
               alt="Cover"
               className="w-full h-full object-cover"
             />
           )}
           {isEditing && (
-            <div className="absolute bottom-2 right-2">
-              <Input
-                placeholder="Cover image URL"
-                value={editForm.cover_image_url}
-                onChange={(e) => setEditForm({ ...editForm, cover_image_url: e.target.value })}
-                className="w-64 bg-white/90 text-xs"
-              />
+            <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 hover:opacity-100 transition-opacity">
+              <div className="text-white text-center">
+                <Upload className="h-8 w-8 mx-auto mb-2" />
+                <p className="text-sm font-medium">Click to change cover image</p>
+              </div>
             </div>
           )}
+          <input
+            ref={coverInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleCoverChange}
+            className="hidden"
+          />
         </div>
 
         <div className="p-6 -mt-12 relative">
-          {/* Logo */}
+          {/* Logo - Clickable when editing */}
           <div className="flex items-end gap-4 mb-4">
-            <div className="h-20 w-20 bg-white rounded-xl shadow-lg flex items-center justify-center border-4 border-white overflow-hidden relative">
-              {(isEditing ? editForm.logo_url : organization?.logo_url) ? (
+            <div
+              className={`h-24 w-24 bg-white rounded-xl shadow-lg flex items-center justify-center border-4 border-white overflow-hidden relative ${isEditing ? 'cursor-pointer hover:opacity-90' : ''}`}
+              onClick={() => isEditing && logoInputRef.current?.click()}
+            >
+              {(logoPreview || editForm.logo_url || organization?.logo_url) ? (
                 <img
-                  src={isEditing ? editForm.logo_url : organization.logo_url}
+                  src={logoPreview || editForm.logo_url || organization?.logo_url}
                   alt={organization?.name}
                   className="w-full h-full object-cover"
                 />
@@ -808,7 +1009,19 @@ function ProfileContent({
               ) : (
                 <Building2 className="h-8 w-8 text-[#1b5858]" />
               )}
+              {isEditing && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 hover:opacity-100 transition-opacity rounded-lg">
+                  <Upload className="h-6 w-6 text-white" />
+                </div>
+              )}
             </div>
+            <input
+              ref={logoInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleLogoChange}
+              className="hidden"
+            />
             <div className="flex-1 pb-1">
               {isEditing ? (
                 <div className="space-y-2">
@@ -838,21 +1051,25 @@ function ProfileContent({
             </div>
           </div>
 
-          {/* Logo URL input when editing */}
+          {/* Organization Type when editing */}
           {isEditing && (
             <div className="mb-4">
-              <label className="text-xs text-[#737373]">Logo URL</label>
-              <Input
-                value={editForm.logo_url}
-                onChange={(e) => setEditForm({ ...editForm, logo_url: e.target.value })}
-                placeholder="https://example.com/logo.png"
-                className="text-sm"
-              />
+              <label className="text-xs text-[#737373]">Organization Type</label>
+              <select
+                value={editForm.organization_type}
+                onChange={(e) => setEditForm({ ...editForm, organization_type: e.target.value })}
+                className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-md text-sm"
+              >
+                <option value="">Select type...</option>
+                {organizationTypes.map(type => (
+                  <option key={type} value={type}>{type}</option>
+                ))}
+              </select>
             </div>
           )}
 
           {/* Quick Stats */}
-          <div className="grid grid-cols-3 gap-4 mb-6">
+          <div className="grid grid-cols-3 gap-4 mb-4">
             <div className="text-center p-3 bg-[#f5f5f5] rounded-lg">
               <p className="text-2xl font-semibold text-[#1b5858]">{completeness}%</p>
               <p className="text-xs text-[#737373]">Profile Complete</p>
@@ -892,7 +1109,7 @@ function ProfileContent({
         </div>
       </Card>
 
-      {/* Mission & Description - Editable */}
+      {/* Mission & Programs */}
       <Card className="p-6">
         <h3 className="font-medium mb-4 flex items-center gap-2">
           <Target className="h-5 w-5 text-[#1b5858]" />
@@ -920,6 +1137,26 @@ function ProfileContent({
                 rows={4}
               />
             </div>
+            <div>
+              <label className="text-sm font-medium text-[#737373]">Technology Barriers</label>
+              <Textarea
+                value={editForm.technology_barriers}
+                onChange={(e) => setEditForm({ ...editForm, technology_barriers: e.target.value })}
+                placeholder="Describe the technology challenges your community faces..."
+                className="mt-1"
+                rows={3}
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-[#737373]">Service Area Description</label>
+              <Textarea
+                value={editForm.service_area_description}
+                onChange={(e) => setEditForm({ ...editForm, service_area_description: e.target.value })}
+                placeholder="Describe the geographic area you serve..."
+                className="mt-1"
+                rows={2}
+              />
+            </div>
           </div>
         ) : (
           <div className="space-y-4">
@@ -933,11 +1170,99 @@ function ProfileContent({
                 <p className="text-[#0a0a0a]">{organization.program_description}</p>
               </div>
             )}
+            {organization?.technology_barriers && (
+              <div>
+                <p className="text-sm font-medium text-[#737373] mb-1">Technology Barriers</p>
+                <p className="text-[#0a0a0a]">{organization.technology_barriers}</p>
+              </div>
+            )}
+            {organization?.service_area_description && (
+              <div>
+                <p className="text-sm font-medium text-[#737373] mb-1">Service Area</p>
+                <p className="text-[#0a0a0a]">{organization.service_area_description}</p>
+              </div>
+            )}
           </div>
         )}
       </Card>
 
-      {/* Contact & Location - Editable */}
+      {/* Cause Areas & Populations */}
+      {isEditing && (
+        <Card className="p-6">
+          <h3 className="font-medium mb-4 flex items-center gap-2">
+            <Users className="h-5 w-5 text-[#1b5858]" />
+            Focus Areas & Populations
+          </h3>
+          <div className="space-y-6">
+            <div>
+              <label className="text-sm font-medium text-[#737373] mb-2 block">Cause Areas</label>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                {allCauseAreas.map(ca => (
+                  <label key={ca.id} className="flex items-center gap-2 p-2 border rounded-lg hover:bg-gray-50 cursor-pointer">
+                    <Checkbox
+                      checked={selectedCauseAreas.includes(ca.id)}
+                      onCheckedChange={() => toggleCauseArea(ca.id)}
+                    />
+                    <span className="text-sm">{ca.name}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-[#737373] mb-2 block">Populations Served</label>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                {allPopulations.map(pop => (
+                  <label key={pop.id} className="flex items-center gap-2 p-2 border rounded-lg hover:bg-gray-50 cursor-pointer">
+                    <Checkbox
+                      checked={selectedPopulations.includes(pop.id)}
+                      onCheckedChange={() => togglePopulation(pop.id)}
+                    />
+                    <span className="text-sm">{pop.name}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* Display cause areas and populations when not editing */}
+      {!isEditing && (organization?.cause_areas?.length > 0 || organization?.populations?.length > 0) && (
+        <Card className="p-6">
+          <h3 className="font-medium mb-4 flex items-center gap-2">
+            <Users className="h-5 w-5 text-[#1b5858]" />
+            Focus Areas & Populations
+          </h3>
+          <div className="space-y-4">
+            {organization?.cause_areas?.length > 0 && (
+              <div>
+                <p className="text-sm font-medium text-[#737373] mb-2">Cause Areas</p>
+                <div className="flex flex-wrap gap-2">
+                  {organization.cause_areas.map((ca: any) => (
+                    <Badge key={ca.id} variant="outline" className="bg-[#1b5858]/10 text-[#1b5858] border-[#1b5858]/20">
+                      {ca.name}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+            {organization?.populations?.length > 0 && (
+              <div>
+                <p className="text-sm font-medium text-[#737373] mb-2">Populations Served</p>
+                <div className="flex flex-wrap gap-2">
+                  {organization.populations.map((pop: any) => (
+                    <Badge key={pop.id} variant="outline" className="bg-[#ea580c]/10 text-[#ea580c] border-[#ea580c]/20">
+                      {pop.name}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
+
+      {/* Contact & Location */}
       <div className="grid grid-cols-2 gap-4">
         <Card className="p-5">
           <h4 className="font-medium mb-3 flex items-center gap-2">
@@ -1045,6 +1370,132 @@ function ProfileContent({
           )}
         </Card>
       </div>
+
+      {/* Social Links */}
+      {isEditing && (
+        <Card className="p-6">
+          <h3 className="font-medium mb-4 flex items-center gap-2">
+            <Users className="h-5 w-5 text-[#1b5858]" />
+            Social Media Links
+          </h3>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-[#1877f2] rounded-lg flex items-center justify-center flex-shrink-0">
+                <svg className="h-5 w-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                </svg>
+              </div>
+              <Input
+                value={editForm.facebook}
+                onChange={(e) => setEditForm({ ...editForm, facebook: e.target.value })}
+                placeholder="https://facebook.com/yourpage"
+              />
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-black rounded-lg flex items-center justify-center flex-shrink-0">
+                <svg className="h-5 w-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                </svg>
+              </div>
+              <Input
+                value={editForm.twitter}
+                onChange={(e) => setEditForm({ ...editForm, twitter: e.target.value })}
+                placeholder="https://x.com/yourhandle"
+              />
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-[#833ab4] via-[#fd1d1d] to-[#fcb045] rounded-lg flex items-center justify-center flex-shrink-0">
+                <svg className="h-5 w-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
+                </svg>
+              </div>
+              <Input
+                value={editForm.instagram}
+                onChange={(e) => setEditForm({ ...editForm, instagram: e.target.value })}
+                placeholder="https://instagram.com/yourhandle"
+              />
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-[#0077b5] rounded-lg flex items-center justify-center flex-shrink-0">
+                <svg className="h-5 w-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+                </svg>
+              </div>
+              <Input
+                value={editForm.linkedin}
+                onChange={(e) => setEditForm({ ...editForm, linkedin: e.target.value })}
+                placeholder="https://linkedin.com/company/yourorg"
+              />
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-[#ff0000] rounded-lg flex items-center justify-center flex-shrink-0">
+                <svg className="h-5 w-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                </svg>
+              </div>
+              <Input
+                value={editForm.youtube}
+                onChange={(e) => setEditForm({ ...editForm, youtube: e.target.value })}
+                placeholder="https://youtube.com/@yourchannel"
+              />
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-black rounded-lg flex items-center justify-center flex-shrink-0">
+                <svg className="h-5 w-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/>
+                </svg>
+              </div>
+              <Input
+                value={editForm.tiktok}
+                onChange={(e) => setEditForm({ ...editForm, tiktok: e.target.value })}
+                placeholder="https://tiktok.com/@yourhandle"
+              />
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* Display social links when not editing */}
+      {!isEditing && organization?.social_links && Object.values(organization.social_links).some(Boolean) && (
+        <Card className="p-6">
+          <h3 className="font-medium mb-4 flex items-center gap-2">
+            <Users className="h-5 w-5 text-[#1b5858]" />
+            Social Media
+          </h3>
+          <div className="flex flex-wrap gap-3">
+            {organization.social_links.facebook && (
+              <a href={organization.social_links.facebook} target="_blank" rel="noopener noreferrer" className="w-10 h-10 bg-[#1877f2] rounded-lg flex items-center justify-center hover:opacity-80">
+                <svg className="h-5 w-5 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+              </a>
+            )}
+            {organization.social_links.twitter && (
+              <a href={organization.social_links.twitter} target="_blank" rel="noopener noreferrer" className="w-10 h-10 bg-black rounded-lg flex items-center justify-center hover:opacity-80">
+                <svg className="h-5 w-5 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+              </a>
+            )}
+            {organization.social_links.instagram && (
+              <a href={organization.social_links.instagram} target="_blank" rel="noopener noreferrer" className="w-10 h-10 bg-gradient-to-br from-[#833ab4] via-[#fd1d1d] to-[#fcb045] rounded-lg flex items-center justify-center hover:opacity-80">
+                <svg className="h-5 w-5 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
+              </a>
+            )}
+            {organization.social_links.linkedin && (
+              <a href={organization.social_links.linkedin} target="_blank" rel="noopener noreferrer" className="w-10 h-10 bg-[#0077b5] rounded-lg flex items-center justify-center hover:opacity-80">
+                <svg className="h-5 w-5 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+              </a>
+            )}
+            {organization.social_links.youtube && (
+              <a href={organization.social_links.youtube} target="_blank" rel="noopener noreferrer" className="w-10 h-10 bg-[#ff0000] rounded-lg flex items-center justify-center hover:opacity-80">
+                <svg className="h-5 w-5 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+              </a>
+            )}
+            {organization.social_links.tiktok && (
+              <a href={organization.social_links.tiktok} target="_blank" rel="noopener noreferrer" className="w-10 h-10 bg-black rounded-lg flex items-center justify-center hover:opacity-80">
+                <svg className="h-5 w-5 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/></svg>
+              </a>
+            )}
+          </div>
+        </Card>
+      )}
 
       {/* Profile Completeness Tips - Only show when not editing */}
       {!isEditing && completeness < 100 && (
