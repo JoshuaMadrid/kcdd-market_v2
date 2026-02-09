@@ -587,14 +587,60 @@ function CampaignsContent({ campaigns, onCreateCampaign }: { campaigns: Campaign
   )
 }
 
-// Organization Profile Content
+// Organization Profile Content with Inline Editing
 function ProfileContent({
   organization,
-  onEditProfile
+  onRefresh
 }: {
   organization: any
-  onEditProfile: () => void
+  onRefresh: () => void
 }) {
+  const [isEditing, setIsEditing] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [saveMessage, setSaveMessage] = useState<string | null>(null)
+  const [editForm, setEditForm] = useState({
+    name: organization?.name || '',
+    tagline: organization?.tagline || '',
+    mission: organization?.mission || '',
+    program_description: organization?.program_description || '',
+    email: organization?.email || '',
+    phone: organization?.phone || '',
+    website: organization?.website || '',
+    address: organization?.address || '',
+    city: organization?.city || '',
+    state: organization?.state || '',
+    zipcode: organization?.zipcode || '',
+    year_founded: organization?.year_founded || '',
+    organization_size: organization?.organization_size || '',
+    organization_type: organization?.organization_type || '',
+    logo_url: organization?.logo_url || '',
+    cover_image_url: organization?.cover_image_url || '',
+  })
+
+  // Update form when organization changes
+  useEffect(() => {
+    if (organization) {
+      setEditForm({
+        name: organization.name || '',
+        tagline: organization.tagline || '',
+        mission: organization.mission || '',
+        program_description: organization.program_description || '',
+        email: organization.email || '',
+        phone: organization.phone || '',
+        website: organization.website || '',
+        address: organization.address || '',
+        city: organization.city || '',
+        state: organization.state || '',
+        zipcode: organization.zipcode || '',
+        year_founded: organization.year_founded || '',
+        organization_size: organization.organization_size || '',
+        organization_type: organization.organization_type || '',
+        logo_url: organization.logo_url || '',
+        cover_image_url: organization.cover_image_url || '',
+      })
+    }
+  }, [organization])
+
   // Calculate profile completeness
   const profileFields = [
     organization?.name,
@@ -610,36 +656,151 @@ function ProfileContent({
   const filledFields = profileFields.filter(Boolean).length
   const completeness = Math.round((filledFields / profileFields.length) * 100)
 
+  const handleSave = async () => {
+    if (!organization?.id) return
+    setIsSaving(true)
+    setSaveMessage(null)
+
+    try {
+      const { updateOrganization } = await import('@/lib/supabase')
+      const { error } = await updateOrganization(organization.id, editForm)
+
+      if (error) {
+        setSaveMessage(`Error: ${error.message}`)
+      } else {
+        setSaveMessage('Profile updated successfully!')
+        setIsEditing(false)
+        onRefresh()
+      }
+    } catch (err) {
+      setSaveMessage('Failed to update profile')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleCancel = () => {
+    setIsEditing(false)
+    setSaveMessage(null)
+    // Reset form to original values
+    if (organization) {
+      setEditForm({
+        name: organization.name || '',
+        tagline: organization.tagline || '',
+        mission: organization.mission || '',
+        program_description: organization.program_description || '',
+        email: organization.email || '',
+        phone: organization.phone || '',
+        website: organization.website || '',
+        address: organization.address || '',
+        city: organization.city || '',
+        state: organization.state || '',
+        zipcode: organization.zipcode || '',
+        year_founded: organization.year_founded || '',
+        organization_size: organization.organization_size || '',
+        organization_type: organization.organization_type || '',
+        logo_url: organization.logo_url || '',
+        cover_image_url: organization.cover_image_url || '',
+      })
+    }
+  }
+
   return (
     <div className="space-y-6">
+      {/* Header with Edit/Save buttons */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-semibold text-[#0a0a0a]">Organization Profile</h2>
           <p className="text-sm text-[#737373]">Manage how your organization appears to donors</p>
         </div>
+        <div className="flex items-center gap-2">
+          {organization?.slug && !isEditing && (
+            <Link to={`/organization/${organization.slug}`}>
+              <Button variant="outline" size="sm">
+                <Building2 className="h-4 w-4 mr-1" />
+                View Public Profile
+              </Button>
+            </Link>
+          )}
+          {isEditing ? (
+            <>
+              <Button variant="outline" size="sm" onClick={handleCancel}>
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                className="bg-[#1b5858] hover:bg-[#164444]"
+                onClick={handleSave}
+                disabled={isSaving}
+              >
+                {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+                Save Changes
+              </Button>
+            </>
+          ) : (
+            <Button
+              size="sm"
+              className="bg-[#1b5858] hover:bg-[#164444]"
+              onClick={() => setIsEditing(true)}
+            >
+              <Settings className="h-4 w-4 mr-1" />
+              Edit Profile
+            </Button>
+          )}
+        </div>
       </div>
+
+      {/* Editing Banner */}
+      {isEditing && (
+        <Alert className="bg-amber-50 border-amber-200">
+          <AlertTriangle className="h-4 w-4 text-amber-600" />
+          <AlertTitle className="text-amber-800">Editing Mode</AlertTitle>
+          <AlertDescription className="text-amber-700">
+            Make changes to your profile below. Click "Save Changes" when done.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Save Message */}
+      {saveMessage && (
+        <Alert className={saveMessage.startsWith('Error') ? 'border-red-200 bg-red-50' : 'border-green-200 bg-green-50'}>
+          <AlertDescription className={saveMessage.startsWith('Error') ? 'text-red-700' : 'text-green-700'}>
+            {saveMessage}
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Profile Card */}
       <Card className="overflow-hidden">
         {/* Cover Image */}
         <div className="h-32 bg-gradient-to-br from-[#1b5858]/20 to-[#ea580c]/10 relative">
-          {organization?.cover_image_url && (
+          {(isEditing ? editForm.cover_image_url : organization?.cover_image_url) && (
             <img
-              src={organization.cover_image_url}
+              src={isEditing ? editForm.cover_image_url : organization.cover_image_url}
               alt="Cover"
               className="w-full h-full object-cover"
             />
+          )}
+          {isEditing && (
+            <div className="absolute bottom-2 right-2">
+              <Input
+                placeholder="Cover image URL"
+                value={editForm.cover_image_url}
+                onChange={(e) => setEditForm({ ...editForm, cover_image_url: e.target.value })}
+                className="w-64 bg-white/90 text-xs"
+              />
+            </div>
           )}
         </div>
 
         <div className="p-6 -mt-12 relative">
           {/* Logo */}
           <div className="flex items-end gap-4 mb-4">
-            <div className="h-20 w-20 bg-white rounded-xl shadow-lg flex items-center justify-center border-4 border-white overflow-hidden">
-              {organization?.logo_url ? (
+            <div className="h-20 w-20 bg-white rounded-xl shadow-lg flex items-center justify-center border-4 border-white overflow-hidden relative">
+              {(isEditing ? editForm.logo_url : organization?.logo_url) ? (
                 <img
-                  src={organization.logo_url}
-                  alt={organization.name}
+                  src={isEditing ? editForm.logo_url : organization.logo_url}
+                  alt={organization?.name}
                   className="w-full h-full object-cover"
                 />
               ) : organization?.logo_emoji ? (
@@ -649,14 +810,46 @@ function ProfileContent({
               )}
             </div>
             <div className="flex-1 pb-1">
-              <h3 className="text-xl font-semibold text-[#0a0a0a]">
-                {organization?.name || 'Your Organization'}
-              </h3>
-              {organization?.tagline && (
-                <p className="text-sm text-[#737373]">{organization.tagline}</p>
+              {isEditing ? (
+                <div className="space-y-2">
+                  <Input
+                    value={editForm.name}
+                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                    placeholder="Organization Name"
+                    className="text-lg font-semibold"
+                  />
+                  <Input
+                    value={editForm.tagline}
+                    onChange={(e) => setEditForm({ ...editForm, tagline: e.target.value })}
+                    placeholder="Tagline (e.g., Bridging the digital divide)"
+                    className="text-sm"
+                  />
+                </div>
+              ) : (
+                <>
+                  <h3 className="text-xl font-semibold text-[#0a0a0a]">
+                    {organization?.name || 'Your Organization'}
+                  </h3>
+                  {organization?.tagline && (
+                    <p className="text-sm text-[#737373]">{organization.tagline}</p>
+                  )}
+                </>
               )}
             </div>
           </div>
+
+          {/* Logo URL input when editing */}
+          {isEditing && (
+            <div className="mb-4">
+              <label className="text-xs text-[#737373]">Logo URL</label>
+              <Input
+                value={editForm.logo_url}
+                onChange={(e) => setEditForm({ ...editForm, logo_url: e.target.value })}
+                placeholder="https://example.com/logo.png"
+                className="text-sm"
+              />
+            </div>
+          )}
 
           {/* Quick Stats */}
           <div className="grid grid-cols-3 gap-4 mb-6">
@@ -665,42 +858,196 @@ function ProfileContent({
               <p className="text-xs text-[#737373]">Profile Complete</p>
             </div>
             <div className="text-center p-3 bg-[#f5f5f5] rounded-lg">
-              <p className="text-2xl font-semibold text-[#1b5858]">
-                {organization?.year_founded || '—'}
-              </p>
+              {isEditing ? (
+                <Input
+                  type="number"
+                  value={editForm.year_founded}
+                  onChange={(e) => setEditForm({ ...editForm, year_founded: e.target.value })}
+                  placeholder="2020"
+                  className="text-center text-lg font-semibold h-8"
+                />
+              ) : (
+                <p className="text-2xl font-semibold text-[#1b5858]">
+                  {organization?.year_founded || '—'}
+                </p>
+              )}
               <p className="text-xs text-[#737373]">Founded</p>
             </div>
             <div className="text-center p-3 bg-[#f5f5f5] rounded-lg">
-              <p className="text-2xl font-semibold text-[#1b5858]">
-                {organization?.organization_size || '—'}
-              </p>
+              {isEditing ? (
+                <Input
+                  value={editForm.organization_size}
+                  onChange={(e) => setEditForm({ ...editForm, organization_size: e.target.value })}
+                  placeholder="1-10"
+                  className="text-center text-lg font-semibold h-8"
+                />
+              ) : (
+                <p className="text-2xl font-semibold text-[#1b5858]">
+                  {organization?.organization_size || '—'}
+                </p>
+              )}
               <p className="text-xs text-[#737373]">Team Size</p>
             </div>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex items-center gap-3">
-            {organization?.slug && (
-              <Link to={`/organization/${organization.slug}`}>
-                <Button variant="outline" className="flex-1">
-                  <Building2 className="h-4 w-4 mr-2" />
-                  View Public Profile
-                </Button>
-              </Link>
-            )}
-            <Button
-              className="flex-1 bg-[#1b5858] hover:bg-[#164444]"
-              onClick={onEditProfile}
-            >
-              <Settings className="h-4 w-4 mr-2" />
-              Edit Profile
-            </Button>
           </div>
         </div>
       </Card>
 
-      {/* Profile Completeness Tips */}
-      {completeness < 100 && (
+      {/* Mission & Description - Editable */}
+      <Card className="p-6">
+        <h3 className="font-medium mb-4 flex items-center gap-2">
+          <Target className="h-5 w-5 text-[#1b5858]" />
+          Mission & Programs
+        </h3>
+        {isEditing ? (
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium text-[#737373]">Mission Statement</label>
+              <Textarea
+                value={editForm.mission}
+                onChange={(e) => setEditForm({ ...editForm, mission: e.target.value })}
+                placeholder="Your organization's mission..."
+                className="mt-1"
+                rows={3}
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-[#737373]">Program Description</label>
+              <Textarea
+                value={editForm.program_description}
+                onChange={(e) => setEditForm({ ...editForm, program_description: e.target.value })}
+                placeholder="Describe your programs and services..."
+                className="mt-1"
+                rows={4}
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div>
+              <p className="text-sm font-medium text-[#737373] mb-1">Mission</p>
+              <p className="text-[#0a0a0a]">{organization?.mission || 'No mission set'}</p>
+            </div>
+            {organization?.program_description && (
+              <div>
+                <p className="text-sm font-medium text-[#737373] mb-1">Programs</p>
+                <p className="text-[#0a0a0a]">{organization.program_description}</p>
+              </div>
+            )}
+          </div>
+        )}
+      </Card>
+
+      {/* Contact & Location - Editable */}
+      <div className="grid grid-cols-2 gap-4">
+        <Card className="p-5">
+          <h4 className="font-medium mb-3 flex items-center gap-2">
+            <Mail className="h-4 w-4 text-[#737373]" />
+            Contact Info
+          </h4>
+          {isEditing ? (
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-[#737373]">Email</label>
+                <Input
+                  type="email"
+                  value={editForm.email}
+                  onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                  placeholder="contact@organization.org"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-[#737373]">Phone</label>
+                <Input
+                  value={editForm.phone}
+                  onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                  placeholder="(555) 555-5555"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-[#737373]">Website</label>
+                <Input
+                  value={editForm.website}
+                  onChange={(e) => setEditForm({ ...editForm, website: e.target.value })}
+                  placeholder="https://yourorganization.org"
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-2 text-sm">
+              <p className="text-[#0a0a0a]">{organization?.email || 'No email set'}</p>
+              <p className="text-[#737373]">{organization?.phone || 'No phone set'}</p>
+              {organization?.website && (
+                <a
+                  href={organization.website}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[#1b5858] hover:underline"
+                >
+                  {organization.website}
+                </a>
+              )}
+            </div>
+          )}
+        </Card>
+        <Card className="p-5">
+          <h4 className="font-medium mb-3 flex items-center gap-2">
+            <Building2 className="h-4 w-4 text-[#737373]" />
+            Location
+          </h4>
+          {isEditing ? (
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-[#737373]">Street Address</label>
+                <Input
+                  value={editForm.address}
+                  onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
+                  placeholder="123 Main Street"
+                />
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="text-xs text-[#737373]">City</label>
+                  <Input
+                    value={editForm.city}
+                    onChange={(e) => setEditForm({ ...editForm, city: e.target.value })}
+                    placeholder="Kansas City"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-[#737373]">State</label>
+                  <Input
+                    value={editForm.state}
+                    onChange={(e) => setEditForm({ ...editForm, state: e.target.value })}
+                    placeholder="MO"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-[#737373]">ZIP</label>
+                  <Input
+                    value={editForm.zipcode}
+                    onChange={(e) => setEditForm({ ...editForm, zipcode: e.target.value })}
+                    placeholder="64101"
+                  />
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-1 text-sm">
+              {organization?.address && (
+                <p className="text-[#0a0a0a]">{organization.address}</p>
+              )}
+              <p className="text-[#737373]">
+                {[organization?.city, organization?.state, organization?.zipcode]
+                  .filter(Boolean)
+                  .join(', ') || 'No address set'}
+              </p>
+            </div>
+          )}
+        </Card>
+      </div>
+
+      {/* Profile Completeness Tips - Only show when not editing */}
+      {!isEditing && completeness < 100 && (
         <Card className="p-6">
           <h3 className="font-medium mb-4 flex items-center gap-2">
             <Target className="h-5 w-5 text-[#1b5858]" />
@@ -737,46 +1084,6 @@ function ProfileContent({
           </div>
         </Card>
       )}
-
-      {/* Quick Info Cards */}
-      <div className="grid grid-cols-2 gap-4">
-        <Card className="p-5">
-          <h4 className="font-medium mb-3 flex items-center gap-2">
-            <Mail className="h-4 w-4 text-[#737373]" />
-            Contact Info
-          </h4>
-          <div className="space-y-2 text-sm">
-            <p className="text-[#0a0a0a]">{organization?.email || 'No email set'}</p>
-            <p className="text-[#737373]">{organization?.phone || 'No phone set'}</p>
-            {organization?.website && (
-              <a
-                href={organization.website}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[#1b5858] hover:underline"
-              >
-                {organization.website}
-              </a>
-            )}
-          </div>
-        </Card>
-        <Card className="p-5">
-          <h4 className="font-medium mb-3 flex items-center gap-2">
-            <Building2 className="h-4 w-4 text-[#737373]" />
-            Location
-          </h4>
-          <div className="space-y-1 text-sm">
-            {organization?.address && (
-              <p className="text-[#0a0a0a]">{organization.address}</p>
-            )}
-            <p className="text-[#737373]">
-              {[organization?.city, organization?.state, organization?.zipcode]
-                .filter(Boolean)
-                .join(', ') || 'No address set'}
-            </p>
-          </div>
-        </Card>
-      </div>
     </div>
   )
 }
@@ -1785,7 +2092,7 @@ export function CBODashboard() {
           />
         )
       case 'profile':
-        return <ProfileContent organization={organization} onEditProfile={() => setActiveSection('settings')} />
+        return <ProfileContent organization={organization} onRefresh={fetchData} />
       case 'campaigns':
         return <CampaignsContent campaigns={campaigns} onCreateCampaign={handleCreateCampaign} />
       case 'create-campaign':
