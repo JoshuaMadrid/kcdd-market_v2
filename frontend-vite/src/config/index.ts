@@ -102,26 +102,33 @@ export const routes = {
   home: '/',
   about: '/about',
   requests: '/requests',
-  
+
   // Authentication
   signIn: '/sign-in',
   signUp: '/sign-up',
-  
+
+  // Organization routes (public)
+  organizations: {
+    profile: (id: string) => `/organizations/${id}`,
+  },
+
   // Donor routes
   donor: {
     dashboard: '/donor/dashboard',
     profile: '/donor/profile',
     donations: '/donor/donations',
   },
-  
+
   // CBO routes
   cbo: {
     dashboard: '/cbo/dashboard',
     setup: '/cbo/setup',
+    profile: '/cbo/profile',
+    profileEdit: '/cbo/profile/edit',
     requests: '/cbo/requests',
     newRequest: '/cbo/requests/new',
   },
-  
+
   // Payment routes
   checkout: (requestId: string) => `/checkout/${requestId}`,
   paymentSuccess: '/payment/success',

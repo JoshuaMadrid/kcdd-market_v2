@@ -140,3 +140,121 @@ export const createRequest = async (request: any) => {
   return data
 }
 
+// ============================================
+// ORGANIZATION HELPERS
+// ============================================
+
+// Fetch a single organization by ID with related data
+export const fetchOrganization = async (id: string) => {
+  const { data, error } = await supabase
+    .from('organizations')
+    .select(`
+      *,
+      cause_areas:organization_cause_areas(cause_area:cause_areas(*)),
+      populations:organization_populations(category:identity_categories(*)),
+      user_profile:user_profiles(is_vetted)
+    `)
+    .eq('id', id)
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+// Fetch organization by user ID (for CBO viewing their own org)
+export const fetchOrganizationByUserId = async (userId: string) => {
+  const { data, error } = await supabase
+    .from('organizations')
+    .select(`
+      *,
+      cause_areas:organization_cause_areas(cause_area:cause_areas(*)),
+      populations:organization_populations(category:identity_categories(*))
+    `)
+    .eq('user_id', userId)
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+// Fetch organization's requests
+export const fetchOrganizationRequests = async (organizationId: string) => {
+  const { data, error } = await supabase
+    .from('requests')
+    .select(`
+      *,
+      cause_area:cause_areas(*)
+    `)
+    .eq('organization_id', organizationId)
+    .order('created_at', { ascending: false })
+
+  if (error) throw error
+  return data
+}
+
+// Fetch organization updates
+export const fetchOrganizationUpdates = async (organizationId: string) => {
+  const { data, error } = await supabase
+    .from('organization_updates')
+    .select('*')
+    .eq('organization_id', organizationId)
+    .eq('is_published', true)
+    .order('created_at', { ascending: false })
+
+  if (error) throw error
+  return data
+}
+
+// Fetch organization team members
+export const fetchOrganizationTeamMembers = async (organizationId: string) => {
+  const { data, error } = await supabase
+    .from('organization_team_members')
+    .select('*')
+    .eq('organization_id', organizationId)
+    .eq('is_active', true)
+    .order('display_order', { ascending: true })
+
+  if (error) throw error
+  return data
+}
+
+// Update organization profile
+export const updateOrganization = async (id: string, updates: any) => {
+  const { data, error } = await supabase
+    .from('organizations')
+    .update({
+      ...updates,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+// Create organization update/news post
+export const createOrganizationUpdate = async (update: any) => {
+  const { data, error } = await supabase
+    .from('organization_updates')
+    .insert(update)
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+// Create organization team member
+export const createOrganizationTeamMember = async (member: any) => {
+  const { data, error } = await supabase
+    .from('organization_team_members')
+    .insert(member)
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+

@@ -17,10 +17,13 @@ import { MainLayout } from '@/layouts/MainLayout'
 import { HomePage } from '@/pages/HomePage'
 import { AboutPage } from '@/pages/AboutPage'
 import { RequestsPage } from '@/pages/RequestsPage'
+import { OrganizationProfilePage } from '@/pages/organizations/OrganizationProfilePage'
 import { DonorDashboard } from '@/pages/donor/DashboardPage'
 import { DonorProfile } from '@/pages/donor/ProfilePage'
 import { CBODashboard } from '@/pages/cbo/DashboardPage'
 import { CBOSetup } from '@/pages/cbo/SetupPage'
+import { CBOProfile } from '@/pages/cbo/ProfilePage'
+import { CBOProfileEdit } from '@/pages/cbo/ProfileEditPage'
 import { CBORequests } from '@/pages/cbo/RequestsPage'
 import { NewRequestPage } from '@/pages/cbo/NewRequestPage'
 import { CheckoutPage } from '@/pages/CheckoutPage'
@@ -46,6 +49,7 @@ export function AppRoutes() {
         <Route path={routes.home} element={<HomePage />} />
         <Route path={routes.about} element={<AboutPage />} />
         <Route path={routes.requests} element={<RequestsPage />} />
+        <Route path="/organizations/:id" element={<OrganizationProfilePage />} />
       </Route>
 
       {/* Auth routes */}
@@ -87,6 +91,22 @@ export function AppRoutes() {
           element={
             <ProtectedRoute>
               <CBOSetup />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path={routes.cbo.profile}
+          element={
+            <ProtectedRoute>
+              <CBOProfile />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path={routes.cbo.profileEdit}
+          element={
+            <ProtectedRoute>
+              <CBOProfileEdit />
             </ProtectedRoute>
           }
         />
