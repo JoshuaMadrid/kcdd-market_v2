@@ -114,3 +114,5 @@ backend/supabase/seed_data.template.sql
 backend/supabase/generate-seed.js
 backend/supabase/seed_data.sql
 backend/supabase/seed_data.sql
+frontend-vite/.mcp.json
+backend/supabase/seed_organization_profile.sql
