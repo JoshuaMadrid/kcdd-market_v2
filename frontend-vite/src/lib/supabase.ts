@@ -1210,7 +1210,7 @@ export const fetchDonorYearlySummary = async (userId: string): Promise<DonorYear
 
   // Group by year
   const yearlyData: Record<number, { total: number; count: number }> = {}
-  
+
   for (const req of data || []) {
     if (req.fulfilled_at) {
       const year = new Date(req.fulfilled_at).getFullYear()
@@ -1230,5 +1230,337 @@ export const fetchDonorYearlySummary = async (userId: string): Promise<DonorYear
       tax_deductible: data.total // All donations are tax deductible
     }))
     .sort((a, b) => b.year - a.year)
+}
+
+// ============================================
+// ORGANIZATION PROFILE FUNCTIONS
+// ============================================
+
+export interface OrganizationProfile {
+  id: string
+  user_id: string
+  name: string
+  website: string | null
+  mission: string
+  email: string
+  phone: string | null
+  address: string | null
+  zipcode: string
+  ein: string | null
+  logo_url: string | null
+  logo_emoji: string
+  tagline: string | null
+  organization_type: string | null
+  organization_size: string | null
+  year_founded: number | null
+  technology_barriers: string | null
+  cover_image_url: string | null
+  social_links: Record<string, string> | null
+  program_description: string | null
+  service_area_description: string | null
+  created_at: string
+  updated_at: string
+  cause_areas?: { id: string; name: string }[]
+  populations?: { id: string; name: string }[]
+  user_profile?: { is_vetted: boolean }
+}
+
+export interface OrganizationUpdate {
+  id: string
+  organization_id: string
+  title: string
+  content: string
+  image_url: string | null
+  is_published: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface OrganizationTeamMember {
+  id: string
+  organization_id: string
+  name: string
+  role: string | null
+  bio: string | null
+  photo_url: string | null
+  email: string | null
+  display_order: number
+  is_active: boolean
+  created_at: string
+}
+
+// Fetch organization by ID with related data
+export const fetchOrganizationProfile = async (organizationId: string): Promise<OrganizationProfile | null> => {
+  const { data: org, error } = await supabase
+    .from('organizations')
+    .select(`
+      *,
+      user_profile:user_profiles!organizations_user_id_fkey(is_vetted)
+    `)
+    .eq('id', organizationId)
+    .single()
+
+  if (error) {
+    console.error('Error fetching organization:', error)
+    return null
+  }
+
+  // Fetch cause areas
+  const { data: causeAreaLinks } = await supabase
+    .from('organization_cause_areas')
+    .select('cause_area_id')
+    .eq('organization_id', organizationId)
+
+  let causeAreas: { id: string; name: string }[] = []
+  if (causeAreaLinks && causeAreaLinks.length > 0) {
+    const causeAreaIds = causeAreaLinks.map(ca => ca.cause_area_id)
+    const { data: causes } = await supabase
+      .from('cause_areas')
+      .select('id, name')
+      .in('id', causeAreaIds)
+    causeAreas = causes || []
+  }
+
+  // Fetch populations served
+  const { data: populationLinks } = await (supabase
+    .from('organization_populations') as any)
+    .select('identity_category_id')
+    .eq('organization_id', organizationId)
+
+  let populations: { id: string; name: string }[] = []
+  if (populationLinks && populationLinks.length > 0) {
+    const populationIds = populationLinks.map((p: any) => p.identity_category_id)
+    const { data: pops } = await supabase
+      .from('identity_categories')
+      .select('id, name')
+      .in('id', populationIds)
+    populations = pops || []
+  }
+
+  return {
+    ...org,
+    cause_areas: causeAreas,
+    populations: populations
+  } as OrganizationProfile
+}
+
+// Fetch organization by user ID
+export const fetchOrganizationByUserId = async (userId: string): Promise<OrganizationProfile | null> => {
+  const { data: org, error } = await supabase
+    .from('organizations')
+    .select('id')
+    .eq('user_id', userId)
+    .single()
+
+  if (error || !org) {
+    return null
+  }
+
+  return fetchOrganizationProfile(org.id)
+}
+
+// Fetch organization's requests
+export const fetchOrganizationRequests = async (organizationId: string) => {
+  const { data, error } = await supabase
+    .from('requests')
+    .select(`
+      *,
+      cause_area:cause_areas(id, name)
+    `)
+    .eq('organization_id', organizationId)
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    console.error('Error fetching organization requests:', error)
+    return []
+  }
+
+  return data || []
+}
+
+// Fetch organization updates
+export const fetchOrganizationUpdates = async (organizationId: string): Promise<OrganizationUpdate[]> => {
+  const { data, error } = await (supabase
+    .from('organization_updates') as any)
+    .select('*')
+    .eq('organization_id', organizationId)
+    .eq('is_published', true)
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    console.error('Error fetching organization updates:', error)
+    return []
+  }
+
+  return data || []
+}
+
+// Fetch organization team members
+export const fetchOrganizationTeamMembers = async (organizationId: string): Promise<OrganizationTeamMember[]> => {
+  const { data, error } = await (supabase
+    .from('organization_team_members') as any)
+    .select('*')
+    .eq('organization_id', organizationId)
+    .eq('is_active', true)
+    .order('display_order', { ascending: true })
+
+  if (error) {
+    console.error('Error fetching team members:', error)
+    return []
+  }
+
+  return data || []
+}
+
+// Update organization profile
+export const updateOrganizationProfile = async (
+  organizationId: string,
+  updates: Partial<OrganizationProfile>
+) => {
+  const { data, error } = await supabase
+    .from('organizations')
+    .update({
+      ...updates,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', organizationId)
+    .select()
+    .single()
+
+  if (error) {
+    console.error('Error updating organization:', error)
+    throw error
+  }
+
+  return data
+}
+
+// Create organization update (news post)
+export const createOrganizationUpdate = async (update: {
+  organization_id: string
+  title: string
+  content: string
+  image_url?: string
+}) => {
+  const { data, error } = await (supabase
+    .from('organization_updates') as any)
+    .insert({
+      ...update,
+      is_published: true
+    })
+    .select()
+    .single()
+
+  if (error) {
+    console.error('Error creating organization update:', error)
+    throw error
+  }
+
+  return data
+}
+
+// Create organization team member
+export const createOrganizationTeamMember = async (member: {
+  organization_id: string
+  name: string
+  role?: string
+  bio?: string
+  photo_url?: string
+  email?: string
+  display_order?: number
+}) => {
+  const { data, error } = await (supabase
+    .from('organization_team_members') as any)
+    .insert({
+      ...member,
+      is_active: true
+    })
+    .select()
+    .single()
+
+  if (error) {
+    console.error('Error creating team member:', error)
+    throw error
+  }
+
+  return data
+}
+
+// Update organization team member
+export const updateOrganizationTeamMember = async (
+  memberId: string,
+  updates: Partial<OrganizationTeamMember>
+) => {
+  const { data, error } = await (supabase
+    .from('organization_team_members') as any)
+    .update(updates)
+    .eq('id', memberId)
+    .select()
+    .single()
+
+  if (error) {
+    console.error('Error updating team member:', error)
+    throw error
+  }
+
+  return data
+}
+
+// Delete organization team member (soft delete)
+export const deleteOrganizationTeamMember = async (memberId: string) => {
+  const { error } = await (supabase
+    .from('organization_team_members') as any)
+    .update({ is_active: false })
+    .eq('id', memberId)
+
+  if (error) {
+    console.error('Error deleting team member:', error)
+    throw error
+  }
+}
+
+// Save organization populations
+export const saveOrganizationPopulations = async (organizationId: string, populationIds: string[]) => {
+  // Delete existing populations
+  await (supabase
+    .from('organization_populations') as any)
+    .delete()
+    .eq('organization_id', organizationId)
+
+  if (populationIds.length === 0) return []
+
+  // Insert new populations
+  const records = populationIds.map(id => ({
+    organization_id: organizationId,
+    identity_category_id: id
+  }))
+
+  const { data, error } = await (supabase
+    .from('organization_populations') as any)
+    .insert(records)
+    .select()
+
+  if (error) {
+    console.error('Error saving populations:', error)
+    throw error
+  }
+
+  return data
+}
+
+// Fetch identity categories (for population selection)
+export const fetchIdentityCategories = async () => {
+  const { data, error } = await supabase
+    .from('identity_categories')
+    .select('id, name')
+    .eq('is_active', true)
+    .order('name')
+
+  if (error) {
+    console.error('Error fetching identity categories:', error)
+    return []
+  }
+
+  return data || []
 }
 

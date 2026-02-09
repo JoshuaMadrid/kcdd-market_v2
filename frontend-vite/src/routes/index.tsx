@@ -26,6 +26,9 @@ import { CBODashboard } from '@/pages/cbo/DashboardPage'
 import { CBOSetup } from '@/pages/cbo/SetupPage'
 import { CBORequests } from '@/pages/cbo/RequestsPage'
 import { NewRequestPage } from '@/pages/cbo/NewRequestPage'
+import { CBOProfile } from '@/pages/cbo/ProfilePage'
+import { CBOProfileEdit } from '@/pages/cbo/ProfileEditPage'
+import { OrganizationProfilePage } from '@/pages/organizations/OrganizationProfilePage'
 import { CheckoutPage } from '@/pages/CheckoutPage'
 import { PaymentSuccessPage } from '@/pages/PaymentSuccessPage'
 import { CampaignPage } from '@/pages/CampaignPage'
@@ -134,6 +137,27 @@ export function AppRoutes() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path={routes.cbo.profile}
+          element={
+            <ProtectedRoute>
+              <CBOProfile />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path={routes.cbo.profileEdit}
+          element={
+            <ProtectedRoute>
+              <CBOProfileEdit />
+            </ProtectedRoute>
+          }
+        />
+      </Route>
+
+      {/* Organization routes (public) */}
+      <Route element={<MainLayout />}>
+        <Route path="/organizations/:id" element={<OrganizationProfilePage />} />
       </Route>
 
       {/* Payment routes */}

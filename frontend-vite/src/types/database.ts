@@ -124,6 +124,15 @@ export type Database = {
           ein: string | null
           logo_url: string | null
           logo_emoji: string
+          tagline: string | null
+          organization_type: string | null
+          organization_size: string | null
+          year_founded: number | null
+          technology_barriers: string | null
+          cover_image_url: string | null
+          social_links: Record<string, string> | null
+          program_description: string | null
+          service_area_description: string | null
           created_at: string
           updated_at: string
         }
@@ -140,6 +149,15 @@ export type Database = {
           ein?: string | null
           logo_url?: string | null
           logo_emoji?: string
+          tagline?: string | null
+          organization_type?: string | null
+          organization_size?: string | null
+          year_founded?: number | null
+          technology_barriers?: string | null
+          cover_image_url?: string | null
+          social_links?: Record<string, string> | null
+          program_description?: string | null
+          service_area_description?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -156,8 +174,107 @@ export type Database = {
           ein?: string | null
           logo_url?: string | null
           logo_emoji?: string
+          tagline?: string | null
+          organization_type?: string | null
+          organization_size?: string | null
+          year_founded?: number | null
+          technology_barriers?: string | null
+          cover_image_url?: string | null
+          social_links?: Record<string, string> | null
+          program_description?: string | null
+          service_area_description?: string | null
           created_at?: string
           updated_at?: string
+        }
+      }
+      organization_populations: {
+        Row: {
+          id: string
+          organization_id: string
+          identity_category_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          identity_category_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          identity_category_id?: string
+          created_at?: string
+        }
+      }
+      organization_updates: {
+        Row: {
+          id: string
+          organization_id: string
+          title: string
+          content: string
+          image_url: string | null
+          is_published: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          title: string
+          content: string
+          image_url?: string | null
+          is_published?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          title?: string
+          content?: string
+          image_url?: string | null
+          is_published?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      organization_team_members: {
+        Row: {
+          id: string
+          organization_id: string
+          name: string
+          role: string | null
+          bio: string | null
+          photo_url: string | null
+          email: string | null
+          display_order: number
+          is_active: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          name: string
+          role?: string | null
+          bio?: string | null
+          photo_url?: string | null
+          email?: string | null
+          display_order?: number
+          is_active?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          name?: string
+          role?: string | null
+          bio?: string | null
+          photo_url?: string | null
+          email?: string | null
+          display_order?: number
+          is_active?: boolean
+          created_at?: string
         }
       }
       donor_profiles: {
