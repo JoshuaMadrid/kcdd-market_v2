@@ -76,6 +76,7 @@ jobs:
     
     steps:
       - name: Check job results
+        working-directory: /home/runner/work
         run: |
           if [[ "${{ needs.code-quality.result }}" == "success" ]] && \
              [[ "${{ needs.security.result }}" == "success" ]]; then
