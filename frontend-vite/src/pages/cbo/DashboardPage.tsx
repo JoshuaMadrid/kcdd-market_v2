@@ -63,7 +63,6 @@ import {
   Phone,
   MessageCircle,
   DollarSign,
-  Calendar,
   Download,
   MessageCircleQuestion,
   Send,
@@ -449,7 +448,7 @@ function CampaignsContent({
   onCreateCampaign: () => void
 }) {
   const pendingCampaigns = campaigns.filter((c) => c.status === 'pending')
-  const activeCampaigns = campaigns.filter((c) => c.status === 'active')
+  const _activeCampaigns = campaigns.filter((c) => c.status === 'active')
   const completedCampaigns = campaigns.filter((c) => c.status === 'completed')
 
   return (
@@ -1895,7 +1894,7 @@ function AnalyticsContent({
     // Get last 6 months
     for (let i = 5; i >= 0; i--) {
       const date = new Date(now.getFullYear(), now.getMonth() - i, 1)
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+      const _monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
 
       // Sum fulfilled requests for this month
       const monthTotal = fulfilledRequests
@@ -2308,7 +2307,7 @@ function DocumentsContent({ organization, userId }: { organization: any; userId:
 // Settings Content with full organization editing
 function SettingsContent({
   organization,
-  onOpenModal,
+  onOpenModal: _onOpenModal,
   onRefresh,
 }: {
   organization: any
@@ -2322,7 +2321,7 @@ function SettingsContent({
   // Stripe Connect status
   const {
     status: stripeStatus,
-    loading: stripeLoading,
+    loading: _stripeLoading,
     refetch: refetchStripe,
   } = useStripeConnect(organization?.id)
   const [formData, setFormData] = useState({

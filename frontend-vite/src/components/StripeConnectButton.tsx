@@ -32,7 +32,7 @@ export function StripeConnectButton({
   stripeAccountId,
   chargesEnabled,
   onboardingComplete,
-  onStatusChange,
+  onStatusChange: _onStatusChange,
 }: StripeConnectButtonProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)

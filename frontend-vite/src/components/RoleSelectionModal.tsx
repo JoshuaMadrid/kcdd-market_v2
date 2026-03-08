@@ -9,7 +9,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
-import { Heart, Users, Loader2, ArrowRight, X } from 'lucide-react'
+import { Heart, Users, Loader2, ArrowRight } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { USER_TYPES, type UserType } from '@/constants/userTypes'
 import { routes } from '@/config'

@@ -348,7 +348,7 @@ export function OnboardingModal({ isOpen, onClose, onComplete, userType }: Onboa
                   className="mt-0.5 border-white/50 data-[state=checked]:border-[#c4e5c1] data-[state=checked]:bg-[#c4e5c1]"
                 />
                 <Label htmlFor="updates" className="cursor-pointer text-sm font-medium text-white">
-                  I'd like to receive updates and news from the company.
+                  I&apos;d like to receive updates and news from the company.
                 </Label>
               </div>
 
@@ -361,7 +361,7 @@ export function OnboardingModal({ isOpen, onClose, onComplete, userType }: Onboa
                     {userType === 'cbo' ? (
                       <p>
                         <span className="font-bold">Organizations: </span>
-                        Your account will be reviewed by our team. You'll receive an email once
+                        Your account will be reviewed by our team. You&apos;ll receive an email once
                         approved.
                       </p>
                     ) : (

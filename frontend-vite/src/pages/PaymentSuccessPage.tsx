@@ -10,7 +10,7 @@ import { FileText, Heart, LayoutDashboard } from 'lucide-react'
 
 export function PaymentSuccessPage() {
   const [searchParams] = useSearchParams()
-  const donationType = searchParams.get('type') // 'campaign' or null (request)
+  const _donationType = searchParams.get('type') // 'campaign' or null (request)
 
   return (
     <div className="container max-w-2xl py-8">

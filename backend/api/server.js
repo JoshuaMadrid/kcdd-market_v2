@@ -84,7 +84,7 @@ app.get('/health', (req, res) => {
  */
 app.post('/api/stripe/connect/create-account', async (req, res) => {
   try {
-    const { organizationId, userId } = req.body
+    const { organizationId, userId: _userId } = req.body
 
     if (!organizationId) {
       return res.status(400).json({ error: 'Missing organizationId' })
@@ -799,10 +799,10 @@ async function generateAndStoreReceipt(paymentIntent) {
       requestId,
       campaignId,
       organizationId,
-      organizationName,
+      organizationName: _organizationName,
       donorId,
-      platformFee,
-      organizationAmount,
+      platformFee: _platformFee,
+      organizationAmount: _organizationAmount,
     } = paymentIntent.metadata
 
     // Get organization details
@@ -1111,7 +1111,7 @@ app.post('/api/documents/generate-annual-summary', async (req, res) => {
 
     let docRecord
     if (existing) {
-      const { data, error } = await supabase
+      const { data, error: _updateError } = await supabase
         .from('donor_documents')
         .update(docData)
         .eq('id', existing.id)
@@ -1119,7 +1119,7 @@ app.post('/api/documents/generate-annual-summary', async (req, res) => {
         .single()
       docRecord = data
     } else {
-      const { data, error } = await supabase
+      const { data, error: _insertError } = await supabase
         .from('donor_documents')
         .insert(docData)
         .select()
@@ -1190,7 +1190,7 @@ app.get('/api/documents/list/:donorId', async (req, res) => {
 // ERROR HANDLING
 // ============================================
 
-app.use((err, req, res, next) => {
+app.use((err, req, res, _next) => {
   console.error('Error:', err)
   res.status(500).json({
     error: err.message || 'Internal server error',

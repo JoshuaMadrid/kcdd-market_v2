@@ -29,7 +29,7 @@ export function OrganizationTeamTab({ members }: OrganizationTeamTabProps) {
         <div className="rounded-lg bg-[#f5f5f5] py-12 text-center text-[#737373]">
           <Users className="mx-auto mb-4 h-12 w-12 opacity-50" />
           <p className="text-lg">No team members listed.</p>
-          <p className="mt-2 text-sm">This organization hasn't added team members yet.</p>
+          <p className="mt-2 text-sm">This organization has not added team members yet.</p>
         </div>
       </div>
     )

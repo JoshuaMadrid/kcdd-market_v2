@@ -60,7 +60,7 @@ export function StatsSection({ stats, content, showContent = true }: StatsSectio
                     )}
                   </div>
                 ) : (
-                  <div className="text-[46px] font-bold leading-normal text-white" role="text">
+                  <div className="text-[46px] font-bold leading-normal text-white" aria-live="polite">
                     {stat.prefix}
                     {stat.value}
                     {stat.suffix}

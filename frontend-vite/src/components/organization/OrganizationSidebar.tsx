@@ -6,7 +6,7 @@
 import { MapPin, Globe, Mail, Phone, Users, Calendar, Building2, BadgeCheck } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Card } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
+import { Badge as _Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import type { OrganizationProfile } from '@/lib/supabase'
 

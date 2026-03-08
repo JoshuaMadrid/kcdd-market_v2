@@ -486,9 +486,10 @@ function BrowseRequestsContent({
           return Number(b.amount) - Number(a.amount)
         case 'amount_low':
           return Number(a.amount) - Number(b.amount)
-        case 'urgency':
+        case 'urgency': {
           const urgencyOrder = { high: 0, medium: 1, low: 2 }
           return urgencyOrder[a.urgency] - urgencyOrder[b.urgency]
+        }
         default:
           return 0
       }

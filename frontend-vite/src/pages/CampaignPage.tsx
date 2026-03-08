@@ -23,23 +23,17 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion'
 import {
-  Share2,
   Facebook,
   Twitter,
   Linkedin,
   Mail,
   ArrowLeft,
-  Calendar,
-  Users,
   Target,
   Loader2,
   Pencil,
   Save,
   X,
-  Tag,
   Plus,
-  ChevronDown,
-  ChevronUp,
   MessageSquarePlus,
   HelpCircle,
   Clock,
@@ -686,7 +680,7 @@ export function CampaignPage() {
     }
   }
 
-  const handleShare = (platform: string) => {
+  const _handleShare = (platform: string) => {
     const url = window.location.href
     const title = campaign?.title || 'Support this campaign'
 

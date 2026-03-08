@@ -392,7 +392,7 @@ export function OrganizationProfilePage() {
 
     setSaving(true)
     try {
-      let updates = { ...editForm }
+      const updates = { ...editForm }
 
       // Upload logo if changed
       if (logoFile) {

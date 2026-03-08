@@ -60,7 +60,7 @@ export const subscribeToRequests = (
   callback: (payload: any) => void,
   filters?: { status?: string; organization_id?: string }
 ) => {
-  let channel = supabase
+  const channel = supabase
     .channel('requests-channel')
     .on(
       'postgres_changes',
@@ -2049,7 +2049,7 @@ export const uploadOrganizationDocument = async (
     const fileExt = file.name.split('.').pop()
     const fileName = `${organizationId}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`
 
-    const { data: uploadData, error: uploadError } = await supabase.storage
+    const { data: _uploadData, error: uploadError } = await supabase.storage
       .from('organization-documents')
       .upload(fileName, file)
 

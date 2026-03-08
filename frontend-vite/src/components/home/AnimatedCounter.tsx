@@ -67,7 +67,7 @@ export function AnimatedCounter({ value, duration = 2000, className = '' }: Anim
   }, [isVisible, value, duration])
 
   return (
-    <div ref={countRef} className={className} role="text">
+    <div ref={countRef} className={className} aria-live="polite">
       {count.toLocaleString()}
     </div>
   )

@@ -122,7 +122,7 @@ export function OrganizationCampaignsTab({ requests }: OrganizationCampaignsTabP
           <div className="rounded-lg bg-[#f5f5f5] py-12 text-center text-[#737373]">
             <Target className="mx-auto mb-4 h-12 w-12 opacity-50" />
             <p className="text-lg">No requests yet.</p>
-            <p className="mt-2 text-sm">This organization hasn't posted any technology requests.</p>
+            <p className="mt-2 text-sm">This organization has not posted any technology requests.</p>
           </div>
         ) : (
           <div className="grid gap-4">

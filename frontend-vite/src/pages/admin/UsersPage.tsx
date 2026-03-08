@@ -7,7 +7,7 @@
 
 import { useState, useEffect } from 'react'
 import { useUser } from '@clerk/clerk-react'
-import { Search, Filter, ChevronDown, Check, X, Shield, Building2, User } from 'lucide-react'
+import { Search, Filter, ChevronDown, Check, Shield, Building2, User } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -60,7 +60,7 @@ interface UserProfile {
 }
 
 export function AdminUsersPage() {
-  const { user } = useUser()
+  const { user: _user } = useUser()
   const [users, setUsers] = useState<UserProfile[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
