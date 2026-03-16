@@ -47,7 +47,6 @@ import {
   Heart,
   Eye,
   Edit,
-  Trash2,
   Check,
   X,
   RefreshCw,
@@ -83,12 +82,15 @@ import {
   HelpCircle as HelpCircleIcon,
   type LucideIcon,
 } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
   USER_TYPE_LABELS,
   ORG_TIER_LABELS,
   VERIFICATION_STATUS_LABELS,
+  USER_TYPES,
   ORG_TIERS,
   VERIFICATION_STATUS,
+  type UserType,
   type OrgTier,
   type VerificationStatus,
 } from '@/constants/userTypes'
@@ -472,18 +474,21 @@ function UsersContent({
   loading,
   onUpdateTier,
   onUpdateStatus,
+  onUpdateType,
   onRefresh,
 }: {
   users: UserProfile[]
   loading: boolean
   onUpdateTier: (userId: string, tier: OrgTier) => void
   onUpdateStatus: (userId: string, status: VerificationStatus) => void
+  onUpdateType: (userId: string, type: UserType) => void
   onRefresh: () => void
 }) {
   const [searchQuery, setSearchQuery] = useState('')
   const [filterType, setFilterType] = useState<string | null>(null)
   const [filterStatus, setFilterStatus] = useState<string | null>(null)
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set())
+  const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null)
 
   const filteredUsers = users.filter((user) => {
     const displayName = user.donor_profile?.display_name || user.organization?.name || user.id
@@ -666,7 +671,37 @@ function UsersContent({
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline">{USER_TYPE_LABELS[user.user_type]}</Badge>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-auto p-1">
+                              <Badge
+                                className={
+                                  user.user_type === 'admin'
+                                    ? 'bg-red-100 text-red-700'
+                                    : user.user_type === 'cbo'
+                                      ? 'bg-teal-100 text-teal-700'
+                                      : 'bg-blue-100 text-blue-700'
+                                }
+                              >
+                                {USER_TYPE_LABELS[user.user_type]}
+                              </Badge>
+                              <ChevronDown className="ml-1 h-3 w-3" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent>
+                            <DropdownMenuLabel>Change Type</DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            {Object.entries(USER_TYPES).map(([key, value]) => (
+                              <DropdownMenuItem
+                                key={key}
+                                onClick={() => onUpdateType(user.id, value)}
+                              >
+                                {user.user_type === value && <Check className="mr-2 h-4 w-4" />}
+                                {USER_TYPE_LABELS[value]}
+                              </DropdownMenuItem>
+                            ))}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                       <TableCell>
                         <DropdownMenu>
@@ -737,19 +772,18 @@ function UsersContent({
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setSelectedUser(user)}>
                               <Eye className="mr-2 h-4 w-4" />
                               View Details
                             </DropdownMenuItem>
-                            <DropdownMenuItem>
-                              <Mail className="mr-2 h-4 w-4" />
-                              Send Email
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem className="text-red-600">
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Delete User
-                            </DropdownMenuItem>
+                            {email && (
+                              <DropdownMenuItem
+                                onClick={() => window.open(`mailto:${email}`, '_blank')}
+                              >
+                                <Mail className="mr-2 h-4 w-4" />
+                                Send Email
+                              </DropdownMenuItem>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
@@ -761,6 +795,91 @@ function UsersContent({
           </Table>
         )}
       </Card>
+
+      {/* User Details Dialog */}
+      <Dialog open={!!selectedUser} onOpenChange={(open) => !open && setSelectedUser(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>User Details</DialogTitle>
+          </DialogHeader>
+          {selectedUser && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gray-200">
+                  {selectedUser.user_type === 'cbo' ? (
+                    <Building2 className="h-6 w-6 text-gray-600" />
+                  ) : selectedUser.user_type === 'admin' ? (
+                    <Shield className="h-6 w-6 text-gray-600" />
+                  ) : (
+                    <User className="h-6 w-6 text-gray-600" />
+                  )}
+                </div>
+                <div>
+                  <p className="text-lg font-semibold">
+                    {selectedUser.donor_profile?.display_name ||
+                      selectedUser.organization?.name ||
+                      'Unknown'}
+                  </p>
+                  <p className="text-sm text-[#737373]">
+                    {selectedUser.donor_profile?.email || selectedUser.organization?.email || ''}
+                  </p>
+                </div>
+              </div>
+              <Separator />
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p className="font-medium text-[#737373]">Type</p>
+                  <Badge
+                    className={
+                      selectedUser.user_type === 'admin'
+                        ? 'bg-red-100 text-red-700'
+                        : selectedUser.user_type === 'cbo'
+                          ? 'bg-teal-100 text-teal-700'
+                          : 'bg-blue-100 text-blue-700'
+                    }
+                  >
+                    {USER_TYPE_LABELS[selectedUser.user_type]}
+                  </Badge>
+                </div>
+                <div>
+                  <p className="font-medium text-[#737373]">Tier</p>
+                  <Badge
+                    className={
+                      selectedUser.org_tier === 'large_org'
+                        ? 'bg-purple-100 text-purple-700'
+                        : selectedUser.org_tier === 'small_org'
+                          ? 'bg-blue-100 text-blue-700'
+                          : 'bg-gray-100 text-gray-700'
+                    }
+                  >
+                    {ORG_TIER_LABELS[selectedUser.org_tier]}
+                  </Badge>
+                </div>
+                <div>
+                  <p className="font-medium text-[#737373]">Status</p>
+                  <VerificationBadge status={selectedUser.verification_status} />
+                </div>
+                <div>
+                  <p className="font-medium text-[#737373]">Vetted</p>
+                  <p>{selectedUser.is_vetted ? 'Yes' : 'No'}</p>
+                </div>
+                <div>
+                  <p className="font-medium text-[#737373]">Joined</p>
+                  <p>{new Date(selectedUser.created_at).toLocaleDateString()}</p>
+                </div>
+                <div>
+                  <p className="font-medium text-[#737373]">Last Updated</p>
+                  <p>{new Date(selectedUser.updated_at).toLocaleDateString()}</p>
+                </div>
+              </div>
+              <div className="text-sm">
+                <p className="font-medium text-[#737373]">User ID</p>
+                <p className="break-all font-mono text-xs">{selectedUser.id}</p>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -2782,6 +2901,21 @@ export function AdminDashboard() {
     }
   }
 
+  // Update user type
+  const handleUpdateType = async (userId: string, newType: UserType) => {
+    try {
+      const { error } = await supabase
+        .from('user_profiles')
+        .update({ user_type: newType, updated_at: new Date().toISOString() })
+        .eq('id', userId)
+
+      if (error) throw error
+      setUsers(users.map((u) => (u.id === userId ? { ...u, user_type: newType } : u)))
+    } catch (err) {
+      console.error('Error updating user type:', err)
+    }
+  }
+
   // Update verification status
   const handleUpdateStatus = async (userId: string, newStatus: VerificationStatus) => {
     try {
@@ -2925,6 +3059,7 @@ export function AdminDashboard() {
             loading={loading}
             onUpdateTier={handleUpdateTier}
             onUpdateStatus={handleUpdateStatus}
+            onUpdateType={handleUpdateType}
             onRefresh={fetchData}
           />
         )
