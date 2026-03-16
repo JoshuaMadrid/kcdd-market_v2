@@ -33,8 +33,10 @@ import {
   USER_TYPE_LABELS,
   ORG_TIER_LABELS,
   VERIFICATION_STATUS_LABELS,
+  USER_TYPES,
   ORG_TIERS,
   VERIFICATION_STATUS,
+  type UserType,
   type OrgTier,
   type VerificationStatus,
 } from '@/constants/userTypes'
@@ -146,6 +148,24 @@ export function AdminUsersPage() {
     }
   }
 
+  const updateUserType = async (userId: string, newType: UserType) => {
+    setUpdating(userId)
+    try {
+      const { error } = await supabase
+        .from('user_profiles')
+        .update({ user_type: newType, updated_at: new Date().toISOString() })
+        .eq('id', userId)
+
+      if (error) throw error
+
+      setUsers(users.map((u) => (u.id === userId ? { ...u, user_type: newType } : u)))
+    } catch (err) {
+      console.error('Error updating user type:', err)
+    } finally {
+      setUpdating(null)
+    }
+  }
+
   const filteredUsers = users.filter((user) => {
     // Search filter
     const displayName = user.donor_profile?.display_name || user.organization?.name || user.id
@@ -189,6 +209,19 @@ export function AdminUsersPage() {
         return 'bg-green-100 text-green-800'
       case VERIFICATION_STATUS.PREMIUM:
         return 'bg-orange-100 text-orange-800'
+      default:
+        return 'bg-gray-100 text-gray-800'
+    }
+  }
+
+  const getTypeBadgeColor = (type: string) => {
+    switch (type) {
+      case 'admin':
+        return 'bg-red-100 text-red-800'
+      case 'cbo':
+        return 'bg-teal-100 text-teal-800'
+      case 'donor':
+        return 'bg-blue-100 text-blue-800'
       default:
         return 'bg-gray-100 text-gray-800'
     }
@@ -394,10 +427,39 @@ export function AdminUsersPage() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-2">
-                          {getUserTypeIcon(userProfile.user_type)}
-                          <span>{USER_TYPE_LABELS[userProfile.user_type]}</span>
-                        </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-auto gap-1 p-1"
+                              disabled={updating === userProfile.id}
+                            >
+                              <Badge className={getTypeBadgeColor(userProfile.user_type)}>
+                                <span className="mr-1 inline-flex">
+                                  {getUserTypeIcon(userProfile.user_type)}
+                                </span>
+                                {USER_TYPE_LABELS[userProfile.user_type]}
+                              </Badge>
+                              <ChevronDown className="h-3 w-3" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent>
+                            <DropdownMenuLabel>Change Type</DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            {Object.entries(USER_TYPES).map(([key, value]) => (
+                              <DropdownMenuItem
+                                key={key}
+                                onClick={() => updateUserType(userProfile.id, value)}
+                                className="gap-2"
+                              >
+                                {userProfile.user_type === value && <Check className="h-4 w-4" />}
+                                {getUserTypeIcon(value)}
+                                {USER_TYPE_LABELS[value]}
+                              </DropdownMenuItem>
+                            ))}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                       <TableCell>
                         <DropdownMenu>
