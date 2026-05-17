@@ -13,10 +13,14 @@ import { routes } from '@/config'
 // Layouts
 import { MainLayout } from '@/layouts/MainLayout'
 
+// Guards
+import { AdminRoute } from '@/components/AdminRoute'
+
 // Pages
 import { HomePage } from '@/pages/HomePage'
 import { AboutPage } from '@/pages/AboutPage'
 import { RequestsPage } from '@/pages/RequestsPage'
+import { RequestDetailPage } from '@/pages/RequestDetailPage'
 import { OrganizationProfilePage } from '@/pages/organizations/OrganizationProfilePage'
 import { DonorDashboard } from '@/pages/donor/DashboardPage'
 import { DonorProfile } from '@/pages/donor/ProfilePage'
@@ -28,6 +32,12 @@ import { CBORequests } from '@/pages/cbo/RequestsPage'
 import { NewRequestPage } from '@/pages/cbo/NewRequestPage'
 import { CheckoutPage } from '@/pages/CheckoutPage'
 import { PaymentSuccessPage } from '@/pages/PaymentSuccessPage'
+import { PaymentCancelPage } from '@/pages/PaymentCancelPage'
+import { DonationsPage } from '@/pages/donor/DonationsPage'
+import { AdminDashboard } from '@/pages/admin/DashboardPage'
+import { AdminVettingPage } from '@/pages/admin/VettingPage'
+import { AdminRequestsPage } from '@/pages/admin/RequestsPage'
+import { AdminAuditPage } from '@/pages/admin/AuditPage'
 
 // Protected Route Component
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -49,6 +59,7 @@ export function AppRoutes() {
         <Route path={routes.home} element={<HomePage />} />
         <Route path={routes.about} element={<AboutPage />} />
         <Route path={routes.requests} element={<RequestsPage />} />
+        <Route path="/requests/:id" element={<RequestDetailPage />} />
         <Route path="/organizations/:id" element={<OrganizationProfilePage />} />
       </Route>
 
@@ -71,6 +82,14 @@ export function AppRoutes() {
           element={
             <ProtectedRoute>
               <DonorProfile />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path={routes.donor.donations}
+          element={
+            <ProtectedRoute>
+              <DonationsPage />
             </ProtectedRoute>
           }
         />
@@ -139,6 +158,27 @@ export function AppRoutes() {
           }
         />
         <Route path={routes.paymentSuccess} element={<PaymentSuccessPage />} />
+        <Route path={routes.paymentCancel} element={<PaymentCancelPage />} />
+      </Route>
+
+      {/* Admin routes */}
+      <Route element={<MainLayout />}>
+        <Route
+          path={routes.admin.dashboard}
+          element={<AdminRoute><AdminDashboard /></AdminRoute>}
+        />
+        <Route
+          path={routes.admin.vetting}
+          element={<AdminRoute><AdminVettingPage /></AdminRoute>}
+        />
+        <Route
+          path={routes.admin.requests}
+          element={<AdminRoute><AdminRequestsPage /></AdminRoute>}
+        />
+        <Route
+          path={routes.admin.audit}
+          element={<AdminRoute><AdminAuditPage /></AdminRoute>}
+        />
       </Route>
     </Routes>
   )

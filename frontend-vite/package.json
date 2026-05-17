@@ -1,7 +1,11 @@
 {
   "name": "kcdd-market-frontend-vite",
   "version": "3.0.0",
+  "packageManager": "pnpm@11.1.2",
   "type": "module",
+  "pnpm": {
+    "allowedBuildScripts": ["esbuild", "chromedriver"]
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
@@ -73,4 +77,3 @@
     "vite": "^5.0.12"
   }
 }
-

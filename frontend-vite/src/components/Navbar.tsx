@@ -6,9 +6,12 @@ import { Link } from 'react-router-dom'
 import { UserButton, useUser } from '@clerk/clerk-react'
 import { routes } from '@/config'
 import { Button } from '@/components/ui/button'
+import { NotificationsBell } from '@/components/notifications/NotificationsBell'
+import { useAuthStore } from '@/stores/authStore'
 
 export function Navbar() {
   const { isSignedIn } = useUser()
+  const { userType } = useAuthStore()
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -38,6 +41,12 @@ export function Navbar() {
               <Link to={routes.donor.dashboard}>
                 <Button variant="ghost">Dashboard</Button>
               </Link>
+              {userType === 'admin' && (
+                <Link to={routes.admin.dashboard}>
+                  <Button variant="ghost">Admin</Button>
+                </Link>
+              )}
+              <NotificationsBell />
               <UserButton afterSignOutUrl={routes.home} />
             </>
           ) : (

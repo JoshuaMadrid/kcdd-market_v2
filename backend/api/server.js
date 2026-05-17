@@ -14,6 +14,8 @@ import cors from 'cors'
 import dotenv from 'dotenv'
 import Stripe from 'stripe'
 import { createClient } from '@supabase/supabase-js'
+import { clerkAuth } from './middleware/clerkAuth.js'
+import requestsRouter from './routes/requests.js'
 
 // Load environment variables
 dotenv.config()
@@ -30,7 +32,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
 // Initialize Supabase (with service role key for admin access)
 const supabase = createClient(
   process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY,
+  process.env.SUPABASE_SECRET_KEY,
   {
     auth: {
       autoRefreshToken: false,
@@ -78,20 +80,22 @@ app.get('/health', (req, res) => {
 /**
  * Create Payment Intent
  * POST /api/payments/create-intent
- * 
+ *
  * Body:
  * - requestId: string
- * - amount: number (in cents)
+ * - donorId: string (Clerk user ID)
+ *
+ * Amount is read from the DB — never trusted from the client.
  */
 app.post('/api/payments/create-intent', async (req, res) => {
   try {
-    const { requestId, amount } = req.body
+    const { requestId, donorId } = req.body
 
-    if (!requestId || !amount) {
-      return res.status(400).json({ error: 'Missing requestId or amount' })
+    if (!requestId) {
+      return res.status(400).json({ error: 'Missing requestId' })
     }
 
-    // Verify request exists in database
+    // Verify request exists and read canonical amount from DB
     const { data: request, error: fetchError } = await supabase
       .from('requests')
       .select('*, organization:organizations(*)')
@@ -102,12 +106,17 @@ app.post('/api/payments/create-intent', async (req, res) => {
       return res.status(404).json({ error: 'Request not found' })
     }
 
-    // Create payment intent
+    if (request.status !== 'open') {
+      return res.status(409).json({ error: 'Request is no longer available' })
+    }
+
+    // Create payment intent using the DB amount — never the client-supplied value
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(amount), // Ensure integer
+      amount: Math.round(request.amount * 100),
       currency: 'usd',
       metadata: {
         requestId,
+        donorId: donorId || '',
         organizationId: request.organization_id,
         organizationName: request.organization?.name || 'Unknown',
       },
@@ -180,28 +189,45 @@ app.post(
 // ============================================
 
 async function handlePaymentSucceeded(paymentIntent) {
-  const { requestId, organizationId } = paymentIntent.metadata
+  const { requestId, donorId, organizationId } = paymentIntent.metadata
 
   console.log('Payment succeeded:', {
     paymentIntentId: paymentIntent.id,
     requestId,
+    donorId,
     amount: paymentIntent.amount / 100,
   })
 
-  // Update request status in database
-  const { error } = await supabase
+  // Idempotency: skip if this event was already processed
+  const { error: idempotencyError } = await supabase
+    .from('stripe_events')
+    .insert({
+      event_id: paymentIntent.id,
+      event_type: 'payment_intent.succeeded',
+      payload: paymentIntent,
+    })
+
+  if (idempotencyError) {
+    console.log('Duplicate event ignored:', paymentIntent.id)
+    return
+  }
+
+  // Update request: mark claimed, record donor and payment intent
+  const { error: updateError } = await supabase
     .from('requests')
     .update({
       status: 'claimed',
+      donor_id: donorId || null,
+      payment_intent_id: paymentIntent.id,
       claimed_at: new Date().toISOString(),
     })
     .eq('id', requestId)
 
-  if (error) {
-    console.error('Error updating request:', error)
+  if (updateError) {
+    console.error('Error updating request:', updateError)
   }
 
-  // Create notification for organization
+  // Notify organization
   await supabase.from('request_notifications').insert({
     request_id: requestId,
     notification_type: 'claimed',
@@ -212,22 +238,75 @@ async function handlePaymentSucceeded(paymentIntent) {
 }
 
 async function handlePaymentFailed(paymentIntent) {
+  const { requestId, donorId } = paymentIntent.metadata
+
   console.log('Payment failed:', {
     paymentIntentId: paymentIntent.id,
-    error: paymentIntent.last_payment_error,
+    requestId,
+    error: paymentIntent.last_payment_error?.message,
   })
 
-  // Could send notification to donor about failed payment
+  if (!donorId) return
+
+  await supabase.from('request_notifications').insert({
+    request_id: requestId,
+    notification_type: 'denied',
+    title: 'Payment Failed',
+    message: `Your payment could not be processed. Please try again or use a different card.`,
+    recipient_id: donorId,
+  })
 }
 
 async function handleChargeRefunded(charge) {
+  const paymentIntentId = charge.payment_intent
+
   console.log('Charge refunded:', {
     chargeId: charge.id,
+    paymentIntentId,
     amount: charge.amount_refunded / 100,
   })
 
-  // Handle refund logic here
+  if (!paymentIntentId) return
+
+  // Find the request by payment_intent_id
+  const { data: request } = await supabase
+    .from('requests')
+    .select('id, organization_id, donor_id')
+    .eq('payment_intent_id', paymentIntentId)
+    .single()
+
+  if (!request) {
+    console.log('No request found for payment intent:', paymentIntentId)
+    return
+  }
+
+  // Reopen the request
+  await supabase
+    .from('requests')
+    .update({
+      status: 'open',
+      donor_id: null,
+      claimed_at: null,
+      payment_intent_id: null,
+      refunded_at: new Date().toISOString(),
+    })
+    .eq('id', request.id)
+
+  // Notify the CBO that the donation was refunded
+  await supabase.from('request_notifications').insert({
+    request_id: request.id,
+    notification_type: 'edited',
+    title: 'Donation Refunded',
+    message: `A donor's payment was refunded. Your request is now open again.`,
+    recipient_id: request.organization_id,
+  })
 }
+
+// ============================================
+// REQUEST LIFECYCLE ENDPOINTS
+// ============================================
+
+app.use('/api/requests', clerkAuth, requestsRouter)
 
 // ============================================
 // ERROR HANDLING

@@ -13,7 +13,7 @@
 const requiredEnvVars = [
   'VITE_CLERK_PUBLISHABLE_KEY',
   'VITE_SUPABASE_URL',
-  'VITE_SUPABASE_ANON_KEY',
+  'VITE_SUPABASE_PUBLISHABLE_KEY',
   'VITE_STRIPE_PUBLISHABLE_KEY',
   'VITE_API_URL',
 ] as const
@@ -41,7 +41,7 @@ export const clerkConfig = {
 // ============================================
 export const supabaseConfig = {
   url: import.meta.env.VITE_SUPABASE_URL || '',
-  anonKey: import.meta.env.VITE_SUPABASE_ANON_KEY || '',
+  publishableKey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '',
   // Supabase Dashboard: https://app.supabase.com
   // Docs: https://supabase.com/docs/reference/javascript/introduction
 }
@@ -68,9 +68,8 @@ export const apiConfig = {
       webhook: '/api/payments/webhook',
     },
     requests: {
-      list: '/api/requests',
-      claim: '/api/requests/claim',
       fulfill: '/api/requests/fulfill',
+      deny: '/api/requests/deny',
     },
   },
 }
@@ -102,6 +101,7 @@ export const routes = {
   home: '/',
   about: '/about',
   requests: '/requests',
+  requestDetail: (id: string) => `/requests/${id}`,
 
   // Authentication
   signIn: '/sign-in',
@@ -127,6 +127,14 @@ export const routes = {
     profileEdit: '/cbo/profile/edit',
     requests: '/cbo/requests',
     newRequest: '/cbo/requests/new',
+  },
+
+  // Admin routes
+  admin: {
+    dashboard: '/admin/dashboard',
+    vetting: '/admin/vetting',
+    requests: '/admin/requests',
+    audit: '/admin/audit',
   },
 
   // Payment routes

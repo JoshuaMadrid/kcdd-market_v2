@@ -1,6 +1,7 @@
 {
   "name": "kcdd-market-api",
   "version": "1.0.0",
+  "packageManager": "pnpm@11.1.2",
   "description": "KCDD Market Backend API for Stripe payments and webhooks",
   "main": "server.js",
   "type": "module",

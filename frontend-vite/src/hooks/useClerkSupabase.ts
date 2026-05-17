@@ -11,10 +11,12 @@
 
 import { useAuth } from '@clerk/clerk-react'
 import { useEffect } from 'react'
-import { setSupabaseAuth } from '@/lib/supabase'
+import { setSupabaseAuth, fetchUserProfile } from '@/lib/supabase'
+import { useAuthStore } from '@/stores/authStore'
 
 export const useClerkSupabase = () => {
   const { getToken, isLoaded, userId } = useAuth()
+  const { setUserType, reset } = useAuthStore()
 
   useEffect(() => {
     const syncAuth = async () => {
@@ -22,16 +24,18 @@ export const useClerkSupabase = () => {
 
       if (userId) {
         try {
-          // Get Clerk token with Supabase claims
-          // This requires setting up a JWT template in Clerk Dashboard
           const token = await getToken({ template: 'supabase' })
           await setSupabaseAuth(token)
+          // Populate userType in authStore so admin nav link is shown immediately
+          const profile: any = await fetchUserProfile(userId).catch(() => null)
+          if (profile?.user_type) setUserType(profile.user_type)
         } catch (error) {
           console.error('Error syncing Clerk token with Supabase:', error)
           await setSupabaseAuth(null)
         }
       } else {
         await setSupabaseAuth(null)
+        reset()
       }
     }
 

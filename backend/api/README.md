@@ -96,7 +96,7 @@ STRIPE_WEBHOOK_SECRET=whsec_xxxxx
 
 # Supabase
 SUPABASE_URL=http://localhost:54321
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+SUPABASE_SECRET_KEY=sb_secret_...
 
 # CORS
 ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173

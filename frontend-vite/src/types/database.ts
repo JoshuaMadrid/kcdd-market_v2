@@ -240,11 +240,13 @@ export type Database = {
           status: 'open' | 'claimed' | 'fulfilled' | 'denied'
           donor_note: string | null
           denial_reason: string | null
+          payment_intent_id: string | null
           created_at: string
           updated_at: string
           claimed_at: string | null
           fulfilled_at: string | null
           denied_at: string | null
+          refunded_at: string | null
         }
         Insert: {
           id?: string
@@ -260,11 +262,13 @@ export type Database = {
           status?: 'open' | 'claimed' | 'fulfilled' | 'denied'
           donor_note?: string | null
           denial_reason?: string | null
+          payment_intent_id?: string | null
           created_at?: string
           updated_at?: string
           claimed_at?: string | null
           fulfilled_at?: string | null
           denied_at?: string | null
+          refunded_at?: string | null
         }
         Update: {
           id?: string
@@ -280,11 +284,157 @@ export type Database = {
           status?: 'open' | 'claimed' | 'fulfilled' | 'denied'
           donor_note?: string | null
           denial_reason?: string | null
+          payment_intent_id?: string | null
           created_at?: string
           updated_at?: string
           claimed_at?: string | null
           fulfilled_at?: string | null
           denied_at?: string | null
+          refunded_at?: string | null
+        }
+      }
+      organization_cause_areas: {
+        Row: {
+          id: string
+          organization_id: string
+          cause_area_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          cause_area_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          cause_area_id?: string
+          created_at?: string
+        }
+      }
+      request_challenge_categories: {
+        Row: {
+          id: string
+          request_id: string
+          challenge_category_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          request_id: string
+          challenge_category_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          request_id?: string
+          challenge_category_id?: string
+          created_at?: string
+        }
+      }
+      request_identity_categories: {
+        Row: {
+          id: string
+          request_id: string
+          identity_category_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          request_id: string
+          identity_category_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          request_id?: string
+          identity_category_id?: string
+          created_at?: string
+        }
+      }
+      fulfillment_records: {
+        Row: {
+          id: string
+          request_id: string
+          donor_id: string
+          fulfillment_method: string | null
+          tracking_number: string | null
+          notes: string | null
+          confirmed_by_cbo: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          request_id: string
+          donor_id: string
+          fulfillment_method?: string | null
+          tracking_number?: string | null
+          notes?: string | null
+          confirmed_by_cbo?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          request_id?: string
+          donor_id?: string
+          fulfillment_method?: string | null
+          tracking_number?: string | null
+          notes?: string | null
+          confirmed_by_cbo?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      request_history: {
+        Row: {
+          id: string
+          request_id: string
+          changed_by_id: string | null
+          old_status: string | null
+          new_status: string
+          note: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          request_id: string
+          changed_by_id?: string | null
+          old_status?: string | null
+          new_status: string
+          note?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          request_id?: string
+          changed_by_id?: string | null
+          old_status?: string | null
+          new_status?: string
+          note?: string | null
+          created_at?: string
+        }
+      }
+      stripe_events: {
+        Row: {
+          event_id: string
+          event_type: string
+          payload: Record<string, unknown> | null
+          received_at: string
+        }
+        Insert: {
+          event_id: string
+          event_type: string
+          payload?: Record<string, unknown> | null
+          received_at?: string
+        }
+        Update: {
+          event_id?: string
+          event_type?: string
+          payload?: Record<string, unknown> | null
+          received_at?: string
         }
       }
       request_notifications: {

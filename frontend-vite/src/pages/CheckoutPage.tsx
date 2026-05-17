@@ -12,7 +12,8 @@ import { CardElement, useStripe, useElements } from '@stripe/react-stripe-js'
 import { useUser } from '@clerk/clerk-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
-import { createPaymentIntent, toStripeAmount } from '@/lib/stripe'
+import { Skeleton } from '@/components/ui/skeleton'
+import { createPaymentIntent } from '@/lib/stripe'
 import { supabase } from '@/lib/supabase'
 import { formatCurrency } from '@/lib/utils'
 import { routes } from '@/config'
@@ -64,11 +65,8 @@ export function CheckoutPage() {
     setError(null)
 
     try {
-      // Create payment intent
-      const clientSecret = await createPaymentIntent(
-        requestId,
-        toStripeAmount(request.amount)
-      )
+      // Create payment intent — backend reads amount from DB, never from client
+      const clientSecret = await createPaymentIntent(requestId, user?.id || '')
 
       // Confirm payment
       const cardElement = elements.getElement(CardElement)
@@ -91,17 +89,7 @@ export function CheckoutPage() {
       }
 
       if (paymentIntent && paymentIntent.status === 'succeeded') {
-        // Update request status
-        await supabase
-          .from('requests')
-          .update({
-            status: 'claimed',
-            donor_id: user?.id,
-            claimed_at: new Date().toISOString(),
-          })
-          .eq('id', requestId)
-
-        // Redirect to success page
+        // Webhook handles DB update — just navigate to success
         navigate(routes.paymentSuccess)
       }
     } catch (err: any) {
@@ -114,8 +102,19 @@ export function CheckoutPage() {
 
   if (loading) {
     return (
-      <div className="container py-8">
-        <p>Loading...</p>
+      <div className="container py-8 max-w-lg mx-auto">
+        <Skeleton className="h-8 w-48 mb-6" />
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-6 w-3/4" />
+            <Skeleton className="h-4 w-1/2 mt-2" />
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-2/3" />
+            <Skeleton className="h-10 w-full mt-4" />
+          </CardContent>
+        </Card>
       </div>
     )
   }

@@ -46,7 +46,7 @@ export function OrganizationUpdatesTab({
         {/* Vertical line */}
         <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-[#f5f5f5]" />
 
-        {updates.map((update, index) => (
+        {updates.map((update) => (
           <div key={update.id} className="relative pl-12 pb-8 last:pb-0">
             {/* Timeline dot */}
             <div className="absolute left-2.5 top-1 w-3 h-3 rounded-full bg-[#ea580c] border-2 border-white" />

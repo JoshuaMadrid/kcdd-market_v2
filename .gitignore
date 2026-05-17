@@ -105,3 +105,15 @@ backend/volumes/db/data/
 .firebase/
 .expo/
 .expo-shared/
+
+# ============================================
+# Claude
+# ============================================
+_scripts
+.claude
+00.PLAN.md
+00.TASKS.md
+00.STATUS.md
+00.architecture.md
+_docs
+LOCAL_DEV.md

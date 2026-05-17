@@ -23,11 +23,12 @@ export const getStripe = () => {
 }
 
 /**
- * Create a payment intent for a request
+ * Create a payment intent for a request.
+ * Amount is read from the DB server-side — never sent from the client.
  */
 export const createPaymentIntent = async (
   requestId: string,
-  amount: number
+  donorId: string
 ): Promise<string> => {
   const response = await fetch(`${apiConfig.baseUrl}${apiConfig.endpoints.payments.createIntent}`, {
     method: 'POST',
@@ -36,7 +37,7 @@ export const createPaymentIntent = async (
     },
     body: JSON.stringify({
       requestId,
-      amount,
+      donorId,
     }),
   })
 

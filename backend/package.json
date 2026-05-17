@@ -1,0 +1,11 @@
+{
+  "name": "kcdd-market-backend",
+  "version": "1.0.0",
+  "packageManager": "pnpm@11.1.2",
+  "devDependencies": {
+    "supabase": "latest"
+  },
+  "pnpm": {
+    "allowedBuildScripts": ["supabase"]
+  }
+}

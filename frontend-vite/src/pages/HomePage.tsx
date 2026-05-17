@@ -2,19 +2,38 @@
  * Home Page
  */
 
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { routes } from '@/config'
+import { routes, apiConfig } from '@/config'
 import { Button } from '@/components/ui/button'
 
 export function HomePage() {
+  const [apiStatus, setApiStatus] = useState<'checking' | 'ok' | 'error'>('checking')
+
+  useEffect(() => {
+    fetch(`${apiConfig.baseUrl}/health`)
+      .then((r) => (r.ok ? setApiStatus('ok') : setApiStatus('error')))
+      .catch(() => setApiStatus('error'))
+  }, [])
+
+  const bannerColor =
+    apiStatus === 'ok'
+      ? 'bg-gradient-to-r from-green-500 to-emerald-600'
+      : apiStatus === 'error'
+      ? 'bg-gradient-to-r from-amber-500 to-orange-600'
+      : 'bg-gradient-to-r from-slate-500 to-slate-600'
+
+  const apiLabel =
+    apiStatus === 'ok' ? 'API: OK' : apiStatus === 'error' ? 'API: Offline' : 'API: Checking…'
+
   return (
     <div className="flex flex-col">
       {/* Dev Status Banner */}
-      <div className="bg-gradient-to-r from-green-500 to-emerald-600 text-white">
+      <div className={`${bannerColor} text-white`}>
         <div className="container py-3 text-center">
           <p className="text-sm font-semibold flex items-center justify-center gap-2">
             <span className="inline-block h-2 w-2 rounded-full bg-white animate-pulse"></span>
-            System Running | Frontend: OK | Database: OK | API: Needs Setup
+            System Running | Frontend: OK | Database: OK | {apiLabel}
             <span className="inline-block h-2 w-2 rounded-full bg-white animate-pulse"></span>
           </p>
         </div>

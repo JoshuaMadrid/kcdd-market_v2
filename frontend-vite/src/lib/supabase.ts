@@ -16,7 +16,7 @@ import type { Database } from '@/types/database'
 // Create Supabase client
 export const supabase = createClient<Database>(
   supabaseConfig.url,
-  supabaseConfig.anonKey,
+  supabaseConfig.publishableKey,
   {
     auth: {
       persistSession: false, // We use Clerk for auth
@@ -30,11 +30,11 @@ export const supabase = createClient<Database>(
  * Call this after user signs in with Clerk
  */
 export const setSupabaseAuth = async (clerkToken: string | null) => {
+  const client = supabase as any
   if (clerkToken) {
-    // Set the authorization header for all future requests
-    supabase.rest.headers['Authorization'] = `Bearer ${clerkToken}`
+    client.rest.headers['Authorization'] = `Bearer ${clerkToken}`
   } else {
-    delete supabase.rest.headers['Authorization']
+    delete client.rest.headers['Authorization']
   }
 }
 
@@ -42,7 +42,7 @@ export const setSupabaseAuth = async (clerkToken: string | null) => {
  * Helper to check if user is authenticated with Supabase
  */
 export const isSupabaseAuthenticated = (): boolean => {
-  return !!supabase.rest.headers['Authorization']
+  return !!(supabase as any).rest.headers['Authorization']
 }
 
 /**
@@ -83,8 +83,26 @@ export const subscribeToRequests = (
  * Helper functions for common database operations
  */
 
+// Fetch a single request by ID with all related data
+export const fetchRequestById = async (id: string): Promise<any> => {
+  const { data, error } = await (supabase as any)
+    .from('requests')
+    .select(`
+      *,
+      organization:organizations(id, name, mission, logo_emoji, logo_url, zipcode, website),
+      cause_area:cause_areas(id, name),
+      challenge_categories:request_challenge_categories(category:challenge_categories(id, name)),
+      identity_categories:request_identity_categories(category:identity_categories(id, name))
+    `)
+    .eq('id', id)
+    .single()
+
+  if (error) throw error
+  return data
+}
+
 // Fetch all open requests
-export const fetchOpenRequests = async () => {
+export const fetchOpenRequests = async (): Promise<any[]> => {
   const { data, error } = await supabase
     .from('requests')
     .select(`
@@ -96,7 +114,43 @@ export const fetchOpenRequests = async () => {
     .order('created_at', { ascending: false })
 
   if (error) throw error
-  return data
+  return data as any[]
+}
+
+const PAGE_SIZE = 12
+
+export const fetchFilteredRequests = async (params: {
+  search?: string
+  causeAreaId?: string
+  urgency?: string
+  page?: number
+}): Promise<{ data: any[]; count: number }> => {
+  const { search, causeAreaId, urgency, page = 0 } = params
+  let query = (supabase as any)
+    .from('requests')
+    .select('*, organization:organizations(*), cause_area:cause_areas(*)', { count: 'exact' })
+    .eq('status', 'open')
+    .order('created_at', { ascending: false })
+    .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
+
+  if (search) query = query.ilike('description', `%${search}%`)
+  if (causeAreaId) query = query.eq('cause_area_id', causeAreaId)
+  if (urgency) query = query.eq('urgency', urgency)
+
+  const { data, error, count } = await query
+  if (error) throw error
+  return { data: data ?? [], count: count ?? 0 }
+}
+
+export const fetchCauseAreas = async () => {
+  const { data, error } = await supabase
+    .from('cause_areas')
+    .select('id, name')
+    .eq('is_active', true)
+    .order('name')
+
+  if (error) throw error
+  return data ?? []
 }
 
 // Fetch user profile
@@ -112,8 +166,8 @@ export const fetchUserProfile = async (userId: string) => {
 }
 
 // Claim a request
-export const claimRequest = async (requestId: string, donorId: string) => {
-  const { data, error } = await supabase
+export const claimRequest = async (requestId: string, donorId: string): Promise<any> => {
+  const { data, error } = await (supabase as any)
     .from('requests')
     .update({
       status: 'claimed',
@@ -129,8 +183,8 @@ export const claimRequest = async (requestId: string, donorId: string) => {
 }
 
 // Create a new request
-export const createRequest = async (request: any) => {
-  const { data, error } = await supabase
+export const createRequest = async (request: any): Promise<any> => {
+  const { data, error } = await (supabase as any)
     .from('requests')
     .insert(request)
     .select()
@@ -145,8 +199,8 @@ export const createRequest = async (request: any) => {
 // ============================================
 
 // Fetch a single organization by ID with related data
-export const fetchOrganization = async (id: string) => {
-  const { data, error } = await supabase
+export const fetchOrganization = async (id: string): Promise<any> => {
+  const { data, error } = await (supabase as any)
     .from('organizations')
     .select(`
       *,
@@ -162,8 +216,8 @@ export const fetchOrganization = async (id: string) => {
 }
 
 // Fetch organization by user ID (for CBO viewing their own org)
-export const fetchOrganizationByUserId = async (userId: string) => {
-  const { data, error } = await supabase
+export const fetchOrganizationByUserId = async (userId: string): Promise<any> => {
+  const { data, error } = await (supabase as any)
     .from('organizations')
     .select(`
       *,
@@ -178,7 +232,7 @@ export const fetchOrganizationByUserId = async (userId: string) => {
 }
 
 // Fetch organization's requests
-export const fetchOrganizationRequests = async (organizationId: string) => {
+export const fetchOrganizationRequests = async (organizationId: string): Promise<any[]> => {
   const { data, error } = await supabase
     .from('requests')
     .select(`
@@ -189,7 +243,7 @@ export const fetchOrganizationRequests = async (organizationId: string) => {
     .order('created_at', { ascending: false })
 
   if (error) throw error
-  return data
+  return (data as any) ?? []
 }
 
 // Fetch organization updates
@@ -219,8 +273,8 @@ export const fetchOrganizationTeamMembers = async (organizationId: string) => {
 }
 
 // Update organization profile
-export const updateOrganization = async (id: string, updates: any) => {
-  const { data, error } = await supabase
+export const updateOrganization = async (id: string, updates: any): Promise<any> => {
+  const { data, error } = await (supabase as any)
     .from('organizations')
     .update({
       ...updates,
@@ -229,6 +283,97 @@ export const updateOrganization = async (id: string, updates: any) => {
     .eq('id', id)
     .select()
     .single()
+
+  if (error) throw error
+  return data
+}
+
+// Create a new organization (CBO setup)
+export const createOrganization = async (org: any): Promise<any> => {
+  const { data, error } = await (supabase as any)
+    .from('organizations')
+    .insert(org)
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+// Create a request plus its category junction rows atomically
+export const createRequestWithCategories = async (
+  request: any,
+  challengeCategoryIds: string[],
+  identityCategoryIds: string[]
+): Promise<any> => {
+  const db = supabase as any
+
+  const { data: newRequest, error: reqError } = await db
+    .from('requests')
+    .insert(request)
+    .select()
+    .single()
+
+  if (reqError) throw reqError
+
+  if (challengeCategoryIds.length > 0) {
+    const { error } = await db.from('request_challenge_categories').insert(
+      challengeCategoryIds.map((id) => ({
+        request_id: newRequest.id,
+        challenge_category_id: id,
+      }))
+    )
+    if (error) throw error
+  }
+
+  if (identityCategoryIds.length > 0) {
+    const { error } = await db.from('request_identity_categories').insert(
+      identityCategoryIds.map((id) => ({
+        request_id: newRequest.id,
+        identity_category_id: id,
+      }))
+    )
+    if (error) throw error
+  }
+
+  return newRequest
+}
+
+// Fetch all requests where user was the donor
+export const fetchDonorRequests = async (userId: string): Promise<any[]> => {
+  const { data, error } = await (supabase as any)
+    .from('requests')
+    .select('*, organization:organizations(name, logo_url, logo_emoji)')
+    .eq('donor_id', userId)
+    .order('claimed_at', { ascending: false })
+
+  if (error) throw error
+  return data ?? []
+}
+
+// Upsert donor profile (creates on first save, updates on subsequent saves)
+export const upsertDonorProfile = async (userId: string, updates: any): Promise<any> => {
+  const { data, error } = await (supabase as any)
+    .from('donor_profiles')
+    .upsert({
+      user_id: userId,
+      ...updates,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'user_id' })
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+// Fetch donor profile by user ID
+export const fetchDonorProfile = async (userId: string): Promise<any> => {
+  const { data, error } = await (supabase as any)
+    .from('donor_profiles')
+    .select('*')
+    .eq('user_id', userId)
+    .maybeSingle()
 
   if (error) throw error
   return data
@@ -256,5 +401,94 @@ export const createOrganizationTeamMember = async (member: any) => {
 
   if (error) throw error
   return data
+}
+
+// Fetch notifications for a user (most recent first)
+export const fetchNotifications = async (userId: string) => {
+  const { data, error } = await supabase
+    .from('request_notifications')
+    .select('*')
+    .eq('recipient_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(50)
+
+  if (error) throw error
+  return data ?? []
+}
+
+// Mark a single notification as read
+export const markNotificationRead = async (notificationId: string) => {
+  const { error } = await (supabase as any)
+    .from('request_notifications')
+    .update({ is_read: true })
+    .eq('id', notificationId)
+
+  if (error) throw error
+}
+
+// Mark all notifications for a user as read
+export const markAllNotificationsRead = async (userId: string) => {
+  const { error } = await (supabase as any)
+    .from('request_notifications')
+    .update({ is_read: true })
+    .eq('recipient_id', userId)
+    .eq('is_read', false)
+
+  if (error) throw error
+}
+
+// ============================================
+// ADMIN HELPERS
+// ============================================
+
+// Fetch all organizations (admin: vetting queue)
+export const fetchAllOrganizations = async (): Promise<any[]> => {
+  const { data, error } = await supabase
+    .from('organizations')
+    .select('*')
+    .order('created_at', { ascending: false })
+
+  if (error) throw error
+  return data ?? []
+}
+
+// Update org vetting status
+export const updateOrganizationVetting = async (
+  orgId: string,
+  is_vetted: boolean,
+  vetting_note?: string
+): Promise<any> => {
+  const { data, error } = await (supabase as any)
+    .from('organizations')
+    .update({ is_vetted, vetting_note: vetting_note ?? null })
+    .eq('id', orgId)
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+// Fetch all requests for admin moderation
+export const fetchAllRequestsAdmin = async (): Promise<any[]> => {
+  const { data, error } = await (supabase as any)
+    .from('requests')
+    .select('*, organization:organizations(name, logo_url)')
+    .order('created_at', { ascending: false })
+
+  if (error) throw error
+  return data ?? []
+}
+
+// Fetch all request history rows (audit log)
+export const fetchRequestHistory = async (): Promise<any[]> => {
+  const { data, error } = await supabase
+    .from('request_history')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(200)
+
+  if (error) throw error
+  return data ?? []
 }
 

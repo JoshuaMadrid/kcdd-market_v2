@@ -1,55 +1,163 @@
-/**
- * Requests Browse Page
- */
-
-import { useEffect, useState } from 'react'
-import { fetchOpenRequests } from '@/lib/supabase'
+import { useEffect, useState, useCallback } from 'react'
+import { Link } from 'react-router-dom'
+import { Search, ChevronLeft, ChevronRight } from 'lucide-react'
+import { fetchFilteredRequests, fetchCauseAreas } from '@/lib/supabase'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { formatCurrency, formatRelativeTime } from '@/lib/utils'
-import { Link } from 'react-router-dom'
+import { routes } from '@/config'
+
+const PAGE_SIZE = 12
+
+const urgencyVariant = (u: string) =>
+  u === 'high' ? 'destructive' : u === 'medium' ? 'default' : 'secondary'
+
+function RequestCardSkeleton() {
+  return (
+    <Card className="flex flex-col">
+      <CardHeader>
+        <Skeleton className="h-5 w-3/4 mb-2" />
+        <Skeleton className="h-4 w-1/2" />
+      </CardHeader>
+      <CardContent className="flex-1 space-y-2">
+        <Skeleton className="h-4 w-full" />
+        <Skeleton className="h-4 w-2/3" />
+        <Skeleton className="h-4 w-1/2" />
+      </CardContent>
+      <CardContent>
+        <Skeleton className="h-9 w-full" />
+      </CardContent>
+    </Card>
+  )
+}
 
 export function RequestsPage() {
   const [requests, setRequests] = useState<any[]>([])
+  const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [causeAreas, setCauseAreas] = useState<any[]>([])
+
+  const [search, setSearch] = useState('')
+  const [searchInput, setSearchInput] = useState('')
+  const [causeAreaId, setCauseAreaId] = useState('')
+  const [urgency, setUrgency] = useState('')
+  const [page, setPage] = useState(0)
+
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const { data, count } = await fetchFilteredRequests({ search, causeAreaId, urgency, page })
+      setRequests(data)
+      setTotal(count)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setLoading(false)
+    }
+  }, [search, causeAreaId, urgency, page])
+
+  useEffect(() => { load() }, [load])
 
   useEffect(() => {
-    const loadRequests = async () => {
-      try {
-        const data = await fetchOpenRequests()
-        setRequests(data || [])
-      } catch (error) {
-        console.error('Error loading requests:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    loadRequests()
+    fetchCauseAreas().then(setCauseAreas).catch(console.error)
   }, [])
 
-  if (loading) {
-    return (
-      <div className="container py-8">
-        <p>Loading requests...</p>
-      </div>
-    )
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault()
+    setSearch(searchInput)
+    setPage(0)
+  }
+
+  const handleCauseArea = (val: string) => {
+    setCauseAreaId(val === 'all' ? '' : val)
+    setPage(0)
+  }
+
+  const handleUrgency = (val: string) => {
+    setUrgency(val === 'all' ? '' : val)
+    setPage(0)
   }
 
   return (
     <div className="container py-8">
-      <div className="mb-8">
+      <div className="mb-6">
         <h1 className="text-3xl font-bold tracking-tight">Technology Requests</h1>
         <p className="text-muted-foreground mt-2">
           Browse active equipment requests from verified Kansas City organizations
         </p>
       </div>
 
-      {requests.length === 0 ? (
+      {/* Filters */}
+      <div className="sticky top-16 z-10 bg-background/95 backdrop-blur py-3 mb-6 border-b flex flex-col sm:flex-row gap-3">
+        <form onSubmit={handleSearch} className="flex gap-2 flex-1">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              className="pl-9"
+              placeholder="Search requests…"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+            />
+          </div>
+          <Button type="submit" variant="secondary">Search</Button>
+        </form>
+
+        <div className="flex gap-2 shrink-0">
+          <Select value={causeAreaId || 'all'} onValueChange={handleCauseArea}>
+            <SelectTrigger className="w-44">
+              <SelectValue placeholder="Cause area" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All causes</SelectItem>
+              {causeAreas.map((c) => (
+                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={urgency || 'all'} onValueChange={handleUrgency}>
+            <SelectTrigger className="w-36">
+              <SelectValue placeholder="Urgency" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All urgency</SelectItem>
+              <SelectItem value="high">High</SelectItem>
+              <SelectItem value="medium">Medium</SelectItem>
+              <SelectItem value="low">Low</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {/* Results count */}
+      {!loading && (
+        <p className="text-sm text-muted-foreground mb-4">
+          {total} {total === 1 ? 'request' : 'requests'} found
+        </p>
+      )}
+
+      {/* Grid */}
+      {loading ? (
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => <RequestCardSkeleton key={i} />)}
+        </div>
+      ) : requests.length === 0 ? (
         <Card>
-          <CardContent className="py-8 text-center">
-            <p className="text-muted-foreground">No open requests at this time.</p>
+          <CardContent className="py-12 text-center">
+            <p className="text-muted-foreground">No requests match your filters.</p>
+            <Button
+              variant="ghost"
+              className="mt-3"
+              onClick={() => { setSearch(''); setSearchInput(''); setCauseAreaId(''); setUrgency(''); setPage(0) }}
+            >
+              Clear filters
+            </Button>
           </CardContent>
         </Card>
       ) : (
@@ -57,17 +165,30 @@ export function RequestsPage() {
           {requests.map((request) => (
             <Card key={request.id} className="flex flex-col">
               <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div>
-                    <CardTitle className="line-clamp-2">{request.description}</CardTitle>
-                    <CardDescription className="mt-2">
-                      {request.organization?.name}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="line-clamp-2 text-base">
+                      <Link
+                        to={routes.requestDetail(request.id)}
+                        className="hover:underline"
+                      >
+                        {request.description}
+                      </Link>
+                    </CardTitle>
+                    <CardDescription className="mt-1">
+                      {request.organization?.id ? (
+                        <Link
+                          to={routes.organizations.profile(request.organization.id)}
+                          className="hover:underline"
+                        >
+                          {request.organization.name}
+                        </Link>
+                      ) : (
+                        request.organization?.name
+                      )}
                     </CardDescription>
                   </div>
-                  <Badge variant={
-                    request.urgency === 'high' ? 'destructive' :
-                    request.urgency === 'medium' ? 'default' : 'secondary'
-                  }>
+                  <Badge variant={urgencyVariant(request.urgency) as any}>
                     {request.urgency}
                   </Badge>
                 </div>
@@ -99,7 +220,33 @@ export function RequestsPage() {
           ))}
         </div>
       )}
+
+      {/* Pagination */}
+      {!loading && totalPages > 1 && (
+        <div className="flex items-center justify-center gap-3 mt-8">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setPage((p) => Math.max(0, p - 1))}
+            disabled={page === 0}
+          >
+            <ChevronLeft className="h-4 w-4" />
+            Previous
+          </Button>
+          <span className="text-sm text-muted-foreground">
+            Page {page + 1} of {totalPages}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+            disabled={page >= totalPages - 1}
+          >
+            Next
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
     </div>
   )
 }
-

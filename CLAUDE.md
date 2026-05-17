@@ -1,0 +1,237 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Project Overview
+
+KC Digital Drive Market v3 — a full-stack marketplace for technology equipment donations between donors and community-based organizations (CBOs). Built with React + Vite (frontend) and Express.js (backend), using Supabase for the database and Clerk for authentication.
+
+## Development Commands
+
+## Package Manager
+
+**Always use `pnpm`** for this project — never `npm` or `yarn`.
+
+### Local Development (3 terminals)
+```bash
+# Terminal 1: Supabase/PostgreSQL via Docker
+cd backend && docker-compose up -d
+
+# Terminal 2: Express API server (port 4000)
+cd backend/api && pnpm dev
+
+# Terminal 3: Vite frontend (port 3000)
+cd frontend-vite && pnpm dev
+```
+
+### Frontend (`frontend-vite/`)
+```bash
+pnpm dev             # Dev server on port 3000
+pnpm build           # tsc && vite build
+pnpm lint            # ESLint
+pnpm lint:fix        # Auto-fix lint issues
+pnpm format          # Prettier
+pnpm type-check      # TypeScript validation
+pnpm test:a11y       # Accessibility tests (axe-core)
+```
+
+### Backend (`backend/api/`)
+```bash
+pnpm start           # Run server (port 4000)
+pnpm dev             # Auto-reload with node --watch
+pnpm lint            # ESLint
+```
+
+### Database (Supabase CLI)
+```bash
+cd backend && supabase db push      # Apply migrations to local DB
+cd backend && supabase db reset     # Reset local DB (wipes data, re-runs all migrations + seed)
+cd backend && supabase start        # Start local Supabase stack
+```
+
+### Local Access Points
+- Frontend: http://localhost:3000
+- Backend API: http://localhost:4000/health
+- Supabase Studio: http://localhost:54323
+- Email testing (Inbucket): http://localhost:54324
+
+## Architecture
+
+### Stack
+- **Frontend**: React 18 + Vite + TypeScript + Tailwind CSS + shadcn/ui
+- **Routing**: React Router v6
+- **Auth**: Clerk (JWT) synced to Supabase via custom hook
+- **Database**: Supabase (PostgreSQL 15) with Row-Level Security
+- **Payments**: Stripe (frontend Elements + backend webhooks)
+- **State**: Zustand (installed; stores added in Phase 5)
+- **Forms**: React Hook Form + Zod validation
+- **Backend**: Express.js (payment + request lifecycle handling)
+
+### Directory Structure
+```
+frontend-vite/src/
+├── App.tsx              # Root with Clerk + Supabase + Router providers
+├── config/index.ts      # Centralized config for all env vars + feature flags
+├── routes/index.tsx     # All React Router v6 route definitions
+├── layouts/             # MainLayout (wraps pages with Navbar)
+├── pages/
+│   ├── organizations/   # Public org profiles
+│   ├── donor/           # Donor dashboard, profile, donations
+│   └── cbo/             # CBO dashboard, requests, profile management
+├── components/
+│   ├── ui/              # 24 shadcn/ui components (Radix-based)
+│   ├── organization/    # Organization profile sub-components
+│   ├── requests/        # FulfillDialog, DenyDialog
+│   └── notifications/   # NotificationsBell, NotificationsList
+├── hooks/
+│   ├── useClerkSupabase.ts   # Syncs Clerk user → Supabase user_profiles
+│   └── useNotifications.ts   # In-app notification feed (Phase 5)
+├── stores/              # Zustand stores (Phase 5)
+├── lib/
+│   ├── supabase.ts      # Supabase client + all DB helper functions
+│   ├── stripe.ts        # Stripe Promise init + createPaymentIntent
+│   ├── api.ts           # Authenticated fetch wrapper for backend API (Phase 4)
+│   └── utils.ts         # Helpers (cn, formatCurrency, etc.)
+└── types/database.ts    # TypeScript types matching DB schema
+
+backend/
+├── api/
+│   ├── server.js                # Express server: payments + webhook
+│   ├── middleware/clerkAuth.js  # Clerk JWT verification (Phase 4)
+│   └── routes/requests.js      # POST /fulfill, POST /deny (Phase 4)
+└── supabase/
+    ├── migrations/      # SQL migration files (run in order)
+    ├── config.toml      # Supabase CLI config
+    └── seed.sql         # DB seed data (taxonomy reference tables)
+```
+
+### Authentication Flow
+1. User signs in via Clerk
+2. Custom `useClerkSupabase` hook syncs Clerk user to Supabase `user_profiles` table
+3. Frontend uses Supabase anon key for data queries (RLS enforces access)
+4. Backend uses service role key for webhook/admin operations
+
+### Payment Flow
+1. Donor initiates donation → frontend calls `POST /api/payments/create-intent` with `requestId` + `donorId`
+2. Backend reads canonical `amount` from DB (never from client body) → creates Stripe PaymentIntent with metadata
+3. Frontend renders Stripe CardElement for card entry
+4. On success, Stripe sends webhook → `POST /api/payments/webhook`
+5. Backend verifies signature, checks idempotency via `stripe_events` table, updates `requests` (status=claimed, donor_id, payment_intent_id), notifies CBO via `request_notifications`
+
+### Request Lifecycle
+```
+open → claimed (via Stripe webhook on payment_intent.succeeded)
+claimed → fulfilled (CBO action: POST /api/requests/fulfill)
+claimed → denied (CBO action: POST /api/requests/deny)
+open → denied (CBO action: POST /api/requests/deny)
+claimed → open (automatic: on charge.refunded webhook)
+```
+
+### Database Schema (key tables)
+- `user_profiles` — extends Supabase auth, stores `user_type` (donor/cbo/admin)
+- `donor_profiles` — donor-specific data (display_name, bio, max_per_request, etc.)
+- `organizations` — CBO organization profiles (logo_url, mission, contact, etc.)
+- `requests` — equipment donation requests with status enum + payment_intent_id
+- `request_notifications` — in-app notification log (recipient_id, is_read)
+- `fulfillment_records` — tracks completed donations with method + tracking
+- `request_history` — audit log of status transitions
+- `stripe_events` — idempotency guard for webhook events
+- Junction tables: `organization_cause_areas`, `request_challenge_categories`, `request_identity_categories`
+
+All tables use RLS; migrations are in `backend/supabase/migrations/`.
+
+**Important column names (after migration `20260427000000_schema_reconcile.sql`):**
+- `organizations.logo_url` (was `logo` in initial migration)
+- `request_notifications.recipient_id` (was `user_id`)
+- `request_notifications.is_read` (was `read`)
+
+## Environment Variables
+
+**Frontend (`frontend-vite/.env.local`):**
+```
+VITE_CLERK_PUBLISHABLE_KEY=
+VITE_SUPABASE_URL=
+VITE_SUPABASE_ANON_KEY=
+VITE_STRIPE_PUBLISHABLE_KEY=
+VITE_API_URL=http://localhost:4000
+VITE_APP_NAME=KC Digital Drive Market
+VITE_ENVIRONMENT=development
+VITE_ENABLE_PAYMENTS=true
+VITE_ENABLE_REALTIME=true
+```
+
+**Backend (`backend/api/.env`):**
+```
+STRIPE_SECRET_KEY=
+STRIPE_WEBHOOK_SECRET=
+SUPABASE_URL=
+SUPABASE_SERVICE_ROLE_KEY=
+CLERK_SECRET_KEY=
+PORT=4000
+ALLOWED_ORIGINS=http://localhost:3000
+```
+
+All frontend env vars are accessed through `frontend-vite/src/config/index.ts`.
+
+## Key Conventions
+
+- **Path alias**: `@/` maps to `frontend-vite/src/` — use this for all imports
+- **Component library**: Use existing shadcn/ui components from `src/components/ui/` before creating new ones
+- **Config**: All feature flags and environment access go through `src/config/index.ts`
+- **TypeScript**: Strict mode — `noUnusedLocals` and `noUnusedParameters` enforced
+- **Supabase queries**: Use helpers from `src/lib/supabase.ts`; never use service role key in frontend
+- **Amount handling**: Never trust `amount` from client body — always read from DB in backend
+- **Notifications**: Insert into `request_notifications` with `recipient_id` (not `user_id`)
+- **Migrations**: Never edit existing migration files — always add a new migration file
+
+## Implementation Roadmap
+
+### Phase 1 — Schema Reconciliation (DONE)
+Fix column mismatches between initial migration, backend code, and frontend types.
+- Migration: `20260427000000_schema_reconcile.sql`
+- Fixed: `organizations.logo→logo_url`, `request_notifications.user_id→recipient_id`, `read→is_read`
+- Fixed: `donor_profiles` missing 7 columns, taxonomy tables missing `is_active`
+- Fixed: Backend `create-intent` now reads amount from DB; records `donor_id` in metadata
+- Fixed: Webhook handler has idempotency guard via `stripe_events` table
+- Fixed: `handlePaymentFailed` and `handleChargeRefunded` now notify relevant parties
+
+### Phase 2 — CBO Core Flow (TODO)
+- `cbo/SetupPage.tsx` — org creation form with `createOrganization()` helper
+- `cbo/NewRequestPage.tsx` — full request form (description, amount, urgency, cause area, categories)
+- `cbo/RequestsPage.tsx` — fetch + render org requests with status badges
+- `cbo/DashboardPage.tsx` — real stats computed from org's requests
+- New component: `OrganizationForm.tsx` shared between setup and profile edit
+- New supabase helpers: `createOrganization`, `createRequestWithCategories` (DONE in Phase 1 prep)
+
+### Phase 3 — Donor Flow (TODO)
+- `donor/DashboardPage.tsx` — real stats from `fetchDonorRequests()`
+- `donor/DonationsPage.tsx` — full donations history with status filter
+- `donor/ProfilePage.tsx` — editable form using `upsertDonorProfile()`
+- `PaymentCancelPage.tsx` — cancel page for payment flow
+- Add routes: `/donor/donations`, `/payment/cancel`
+- New supabase helpers: `fetchDonorRequests`, `upsertDonorProfile`, `fetchDonorProfile` (DONE in Phase 1 prep)
+
+### Phase 4 — Backend Endpoints + Auth Middleware (TODO)
+- `backend/api/middleware/clerkAuth.js` — Clerk JWT verification
+- `backend/api/routes/requests.js` — `POST /api/requests/fulfill` + `POST /api/requests/deny`
+- `frontend-vite/src/lib/api.ts` — authenticated fetch wrapper
+- `FulfillDialog.tsx` + `DenyDialog.tsx` — CBO action dialogs
+- Wire dialogs into `cbo/RequestsPage.tsx`
+
+### Phase 5 — UX Polish (TODO)
+- Pagination + search + filter on `/requests` browse page
+- In-app notifications bell (useNotifications hook + NotificationsBell + NotificationsList)
+- Zustand stores (notificationsStore, authStore)
+- ErrorBoundary component wrapping routes
+- Skeleton loaders replacing "Loading..." text
+- Live health check on HomePage
+- `.env.example` files for both frontend and backend
+
+## CI/CD
+
+GitHub Actions in `.github/workflows/`:
+- `frontend-ci.yml` — lint, type-check, a11y tests on PRs
+- `backend-ci.yml` — lint and quality checks
+- `pr-checks.yml` — PR label validation
+
+Production deploys frontend to Vercel, backend as Express server, database on Supabase Cloud.
