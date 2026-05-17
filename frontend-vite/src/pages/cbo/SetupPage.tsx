@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useUser } from '@clerk/clerk-react'
+import { useUser, useAuth } from '@clerk/clerk-react'
 import { Loader2 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -8,7 +8,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { createOrganization, fetchOrganizationByUserId, supabase } from '@/lib/supabase'
+import { createOrganization, fetchOrganizationByUserId } from '@/lib/supabase'
+import { api } from '@/lib/api'
 import { routes } from '@/config'
 
 const organizationTypes = [
@@ -23,6 +24,7 @@ const organizationTypes = [
 
 export function CBOSetup() {
   const { user } = useUser()
+  const { getToken } = useAuth()
   const navigate = useNavigate()
   const [checking, setChecking] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -73,10 +75,8 @@ export function CBOSetup() {
         logo_emoji: '🏢',
       })
 
-      await (supabase as any)
-        .from('user_profiles')
-        .update({ user_type: 'cbo' })
-        .eq('id', user.id)
+      // Update user_type via backend (bypasses RLS trigger restriction)
+      await api.post('/api/users/become-cbo', {}, getToken)
 
       navigate(routes.cbo.profile)
     } catch (err: any) {

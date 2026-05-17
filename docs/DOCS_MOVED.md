@@ -1,3 +1,5 @@
+> ⚠️ DEPRECATED — Redirect notice from a past reorganization. The move is complete; this file serves no purpose.
+
 # 📚 Documentation Has Moved!
 
 All documentation files have been organized into the `docs/` folder for better organization.

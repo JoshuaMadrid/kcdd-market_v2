@@ -1,3 +1,5 @@
+> ⚠️ DEPRECATED — One-time cleanup summary, no longer needed. See `CLAUDE.md` for current project structure.
+
 # ✅ Project Cleanup Complete!
 
 All files have been organized into their proper locations.

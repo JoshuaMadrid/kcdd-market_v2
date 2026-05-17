@@ -83,8 +83,8 @@ export function AdminAuditPage() {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm">
                       <span className="font-medium">{entry.new_status}</span>
-                      {entry.previous_status && (
-                        <span className="text-muted-foreground"> from {entry.previous_status}</span>
+                      {entry.old_status && (
+                        <span className="text-muted-foreground"> from {entry.old_status}</span>
                       )}
                     </p>
                     <p className="text-xs text-muted-foreground truncate">

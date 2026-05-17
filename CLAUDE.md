@@ -97,12 +97,23 @@ frontend-vite/src/
 backend/
 ├── api/
 │   ├── server.js                # Express server: payments + webhook
-│   ├── middleware/clerkAuth.js  # Clerk JWT verification (Phase 4)
-│   └── routes/requests.js      # POST /fulfill, POST /deny (Phase 4)
+│   ├── middleware/clerkAuth.js  # Clerk JWT verification
+│   └── routes/
+│       ├── requests.js          # POST /fulfill, POST /deny
+│       └── users.js             # POST /become-cbo (bypasses RLS trigger)
 └── supabase/
     ├── migrations/      # SQL migration files (run in order)
     ├── config.toml      # Supabase CLI config
     └── seed.sql         # DB seed data (taxonomy reference tables)
+
+_docs/                   # Project documentation and history (canonical doc folder)
+├── status.md            # Implementation status by phase
+├── plan.md              # Feature roadmap and phase definitions
+├── tasks.md             # Task list with acceptance criteria
+├── architecture.md      # Architecture decisions
+├── setup.md             # Local dev setup guide
+├── deployment.md        # Deployment notes
+└── stripe-webhook.md    # Stripe webhook flow documentation
 ```
 
 ### Authentication Flow
@@ -112,8 +123,8 @@ backend/
 4. Backend uses service role key for webhook/admin operations
 
 ### Payment Flow
-1. Donor initiates donation → frontend calls `POST /api/payments/create-intent` with `requestId` + `donorId`
-2. Backend reads canonical `amount` from DB (never from client body) → creates Stripe PaymentIntent with metadata
+1. Donor initiates donation → frontend calls `POST /api/payments/create-intent` with `requestId` + Clerk JWT header
+2. Backend resolves `donorId` from JWT, reads canonical `amount` from DB (never from client body) → creates Stripe PaymentIntent with metadata
 3. Frontend renders Stripe CardElement for card entry
 4. On success, Stripe sends webhook → `POST /api/payments/webhook`
 5. Backend verifies signature, checks idempotency via `stripe_events` table, updates `requests` (status=claimed, donor_id, payment_intent_id), notifies CBO via `request_notifications`
@@ -165,7 +176,7 @@ VITE_ENABLE_REALTIME=true
 STRIPE_SECRET_KEY=
 STRIPE_WEBHOOK_SECRET=
 SUPABASE_URL=
-SUPABASE_SERVICE_ROLE_KEY=
+SUPABASE_SECRET_KEY=
 CLERK_SECRET_KEY=
 PORT=4000
 ALLOWED_ORIGINS=http://localhost:3000
@@ -184,48 +195,21 @@ All frontend env vars are accessed through `frontend-vite/src/config/index.ts`.
 - **Notifications**: Insert into `request_notifications` with `recipient_id` (not `user_id`)
 - **Migrations**: Never edit existing migration files — always add a new migration file
 
-## Implementation Roadmap
+## Documentation
 
-### Phase 1 — Schema Reconciliation (DONE)
-Fix column mismatches between initial migration, backend code, and frontend types.
-- Migration: `20260427000000_schema_reconcile.sql`
-- Fixed: `organizations.logo→logo_url`, `request_notifications.user_id→recipient_id`, `read→is_read`
-- Fixed: `donor_profiles` missing 7 columns, taxonomy tables missing `is_active`
-- Fixed: Backend `create-intent` now reads amount from DB; records `donor_id` in metadata
-- Fixed: Webhook handler has idempotency guard via `stripe_events` table
-- Fixed: `handlePaymentFailed` and `handleChargeRefunded` now notify relevant parties
+All project documentation lives in `_docs/`. Do not create doc files elsewhere.
 
-### Phase 2 — CBO Core Flow (TODO)
-- `cbo/SetupPage.tsx` — org creation form with `createOrganization()` helper
-- `cbo/NewRequestPage.tsx` — full request form (description, amount, urgency, cause area, categories)
-- `cbo/RequestsPage.tsx` — fetch + render org requests with status badges
-- `cbo/DashboardPage.tsx` — real stats computed from org's requests
-- New component: `OrganizationForm.tsx` shared between setup and profile edit
-- New supabase helpers: `createOrganization`, `createRequestWithCategories` (DONE in Phase 1 prep)
+| File | Contents |
+|------|----------|
+| `_docs/status.md` | Phase-by-phase implementation status (source of truth) |
+| `_docs/plan.md` | Feature roadmap and phase definitions |
+| `_docs/tasks.md` | Task list with acceptance criteria |
+| `_docs/architecture.md` | Architecture decisions |
+| `_docs/setup.md` | Local dev setup guide |
+| `_docs/deployment.md` | Deployment notes |
+| `_docs/stripe-webhook.md` | Stripe webhook flow documentation |
 
-### Phase 3 — Donor Flow (TODO)
-- `donor/DashboardPage.tsx` — real stats from `fetchDonorRequests()`
-- `donor/DonationsPage.tsx` — full donations history with status filter
-- `donor/ProfilePage.tsx` — editable form using `upsertDonorProfile()`
-- `PaymentCancelPage.tsx` — cancel page for payment flow
-- Add routes: `/donor/donations`, `/payment/cancel`
-- New supabase helpers: `fetchDonorRequests`, `upsertDonorProfile`, `fetchDonorProfile` (DONE in Phase 1 prep)
-
-### Phase 4 — Backend Endpoints + Auth Middleware (TODO)
-- `backend/api/middleware/clerkAuth.js` — Clerk JWT verification
-- `backend/api/routes/requests.js` — `POST /api/requests/fulfill` + `POST /api/requests/deny`
-- `frontend-vite/src/lib/api.ts` — authenticated fetch wrapper
-- `FulfillDialog.tsx` + `DenyDialog.tsx` — CBO action dialogs
-- Wire dialogs into `cbo/RequestsPage.tsx`
-
-### Phase 5 — UX Polish (TODO)
-- Pagination + search + filter on `/requests` browse page
-- In-app notifications bell (useNotifications hook + NotificationsBell + NotificationsList)
-- Zustand stores (notificationsStore, authStore)
-- ErrorBoundary component wrapping routes
-- Skeleton loaders replacing "Loading..." text
-- Live health check on HomePage
-- `.env.example` files for both frontend and backend
+**Phases 1–6 are complete.** See `_docs/status.md` for the full breakdown. Next up: Phase 7 (CBO Content Management), Phase 8 (Policy Guardrails).
 
 ## CI/CD
 

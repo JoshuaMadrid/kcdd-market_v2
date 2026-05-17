@@ -458,6 +458,15 @@ export const updateOrganizationVetting = async (
   is_vetted: boolean,
   vetting_note?: string
 ): Promise<any> => {
+  // Fetch org first to get user_id for the user_profiles update
+  const { data: org, error: fetchError } = await (supabase as any)
+    .from('organizations')
+    .select('id, user_id')
+    .eq('id', orgId)
+    .single()
+
+  if (fetchError) throw fetchError
+
   const { data, error } = await (supabase as any)
     .from('organizations')
     .update({ is_vetted, vetting_note: vetting_note ?? null })
@@ -466,6 +475,15 @@ export const updateOrganizationVetting = async (
     .single()
 
   if (error) throw error
+
+  // RLS for public browse checks user_profiles.is_vetted — keep in sync
+  if (org.user_id) {
+    await (supabase as any)
+      .from('user_profiles')
+      .update({ is_vetted })
+      .eq('id', org.user_id)
+  }
+
   return data
 }
 

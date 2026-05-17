@@ -16,6 +16,7 @@ import Stripe from 'stripe'
 import { createClient } from '@supabase/supabase-js'
 import { clerkAuth } from './middleware/clerkAuth.js'
 import requestsRouter from './routes/requests.js'
+import usersRouter from './routes/users.js'
 
 // Load environment variables
 dotenv.config()
@@ -87,9 +88,10 @@ app.get('/health', (req, res) => {
  *
  * Amount is read from the DB — never trusted from the client.
  */
-app.post('/api/payments/create-intent', async (req, res) => {
+app.post('/api/payments/create-intent', clerkAuth, async (req, res) => {
   try {
-    const { requestId, donorId } = req.body
+    const { requestId } = req.body
+    const donorId = req.auth.userId
 
     if (!requestId) {
       return res.status(400).json({ error: 'Missing requestId' })
@@ -118,6 +120,7 @@ app.post('/api/payments/create-intent', async (req, res) => {
         requestId,
         donorId: donorId || '',
         organizationId: request.organization_id,
+        organizationUserId: request.organization?.user_id || '',
         organizationName: request.organization?.name || 'Unknown',
       },
       description: `Donation for: ${request.description}`,
@@ -189,7 +192,7 @@ app.post(
 // ============================================
 
 async function handlePaymentSucceeded(paymentIntent) {
-  const { requestId, donorId, organizationId } = paymentIntent.metadata
+  const { requestId, donorId, organizationId, organizationUserId } = paymentIntent.metadata
 
   console.log('Payment succeeded:', {
     paymentIntentId: paymentIntent.id,
@@ -227,13 +230,13 @@ async function handlePaymentSucceeded(paymentIntent) {
     console.error('Error updating request:', updateError)
   }
 
-  // Notify organization
+  // Notify organization — recipient_id must be a user_profiles.id (Clerk user ID)
   await supabase.from('request_notifications').insert({
     request_id: requestId,
     notification_type: 'claimed',
     title: 'Donation Received!',
     message: `A donor has claimed your request with a $${(paymentIntent.amount / 100).toFixed(2)} donation.`,
-    recipient_id: organizationId,
+    recipient_id: organizationUserId || organizationId,
   })
 }
 
@@ -268,10 +271,10 @@ async function handleChargeRefunded(charge) {
 
   if (!paymentIntentId) return
 
-  // Find the request by payment_intent_id
+  // Find the request by payment_intent_id (include org's user_id for notification)
   const { data: request } = await supabase
     .from('requests')
-    .select('id, organization_id, donor_id')
+    .select('id, organization_id, donor_id, organization:organizations(user_id)')
     .eq('payment_intent_id', paymentIntentId)
     .single()
 
@@ -292,13 +295,13 @@ async function handleChargeRefunded(charge) {
     })
     .eq('id', request.id)
 
-  // Notify the CBO that the donation was refunded
+  // Notify the CBO — recipient_id must be a user_profiles.id (Clerk user ID)
   await supabase.from('request_notifications').insert({
     request_id: request.id,
     notification_type: 'edited',
     title: 'Donation Refunded',
     message: `A donor's payment was refunded. Your request is now open again.`,
-    recipient_id: request.organization_id,
+    recipient_id: request.organization?.user_id || request.organization_id,
   })
 }
 
@@ -307,6 +310,7 @@ async function handleChargeRefunded(charge) {
 // ============================================
 
 app.use('/api/requests', clerkAuth, requestsRouter)
+app.use('/api/users', clerkAuth, usersRouter)
 
 // ============================================
 // ERROR HANDLING

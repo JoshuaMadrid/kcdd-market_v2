@@ -22,23 +22,26 @@ export const getStripe = () => {
   return stripePromise
 }
 
+type GetToken = (options?: { template?: string }) => Promise<string | null>
+
 /**
  * Create a payment intent for a request.
  * Amount is read from the DB server-side — never sent from the client.
+ * donorId is resolved server-side from the Clerk JWT.
  */
 export const createPaymentIntent = async (
   requestId: string,
-  donorId: string
+  getToken: GetToken
 ): Promise<string> => {
+  const token = await getToken({ template: 'supabase' })
+
   const response = await fetch(`${apiConfig.baseUrl}${apiConfig.endpoints.payments.createIntent}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: JSON.stringify({
-      requestId,
-      donorId,
-    }),
+    body: JSON.stringify({ requestId }),
   })
 
   if (!response.ok) {

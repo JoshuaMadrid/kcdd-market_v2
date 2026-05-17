@@ -1,3 +1,5 @@
+> ⚠️ DEPRECATED — Historical record of a one-time cleanup event. No longer relevant to ongoing development.
+
 # 📦 Archived Files - What Changed
 
 This document tracks what files were archived and why.

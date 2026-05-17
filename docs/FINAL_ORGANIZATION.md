@@ -1,3 +1,5 @@
+> ⚠️ DEPRECATED — One-time organization summary. No actionable content; safe to ignore.
+
 # ✅ Final Project Organization
 
 All documentation files are now properly organized!

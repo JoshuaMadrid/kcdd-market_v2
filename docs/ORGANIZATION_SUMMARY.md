@@ -1,3 +1,5 @@
+> ⚠️ DEPRECATED — Historical organization log. Changes described here are long settled; see `CLAUDE.md` for current structure.
+
 # 📁 Project Organization Summary
 
 This document tracks recent organizational changes to the project structure.

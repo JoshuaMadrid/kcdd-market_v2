@@ -9,7 +9,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { CardElement, useStripe, useElements } from '@stripe/react-stripe-js'
-import { useUser } from '@clerk/clerk-react'
+import { useUser, useAuth } from '@clerk/clerk-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -24,6 +24,7 @@ export function CheckoutPage() {
   const stripe = useStripe()
   const elements = useElements()
   const { user } = useUser()
+  const { getToken } = useAuth()
 
   const [request, setRequest] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -65,8 +66,8 @@ export function CheckoutPage() {
     setError(null)
 
     try {
-      // Create payment intent — backend reads amount from DB, never from client
-      const clientSecret = await createPaymentIntent(requestId, user?.id || '')
+      // Create payment intent — backend reads amount from DB, donorId from JWT
+      const clientSecret = await createPaymentIntent(requestId, getToken)
 
       // Confirm payment
       const cardElement = elements.getElement(CardElement)
