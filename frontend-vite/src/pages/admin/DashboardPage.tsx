@@ -61,6 +61,7 @@ import {
   ExternalLink,
   User,
   LogIn,
+  Plus,
 } from 'lucide-react'
 import {
   supabase,
@@ -520,6 +521,7 @@ function UsersContent({
   onDeleteUser,
   onImpersonate,
   onRefresh,
+  onCreateUser,
 }: {
   users: UserProfile[]
   loading: boolean
@@ -529,6 +531,13 @@ function UsersContent({
   onDeleteUser: (userId: string) => Promise<void>
   onImpersonate: (userId: string, userType: UserType, displayName: string) => void
   onRefresh: () => void
+  onCreateUser: (input: {
+    user_type: UserType
+    name: string
+    email: string
+    org_tier: OrgTier
+    verification_status: VerificationStatus
+  }) => Promise<void>
 }) {
   const [searchQuery, setSearchQuery] = useState('')
   const [filterType, setFilterType] = useState<string | null>(null)
@@ -540,6 +549,16 @@ function UsersContent({
     name: string
   } | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [addUserOpen, setAddUserOpen] = useState(false)
+  const [addUserForm, setAddUserForm] = useState({
+    user_type: 'donor' as UserType,
+    name: '',
+    email: '',
+    org_tier: ORG_TIERS.INDIVIDUAL as OrgTier,
+    verification_status: VERIFICATION_STATUS.UNVERIFIED as VerificationStatus,
+  })
+  const [creatingUser, setCreatingUser] = useState(false)
+  const [addUserError, setAddUserError] = useState<string | null>(null)
 
   const filteredUsers = users.filter((user) => {
     const displayName = user.donor_profile?.display_name || user.organization?.name || user.id
@@ -573,6 +592,10 @@ function UsersContent({
           <p className="text-sm text-[#737373]">{users.length} total users</p>
         </div>
         <div className="flex items-center gap-2">
+          <Button size="sm" onClick={() => setAddUserOpen(true)}>
+            <Plus className="mr-1 h-4 w-4" />
+            Add User
+          </Button>
           <Button variant="outline" size="sm" onClick={onRefresh}>
             <RefreshCw className="mr-1 h-4 w-4" />
             Refresh
@@ -692,9 +715,17 @@ function UsersContent({
                 </TableRow>
               ) : (
                 filteredUsers.map((user) => {
+                  // Orphaned profiles (no donor row, no org row) still need to
+                  // be identifiable so an admin can clean them up. Surface the
+                  // Clerk/user_profile id tail in place of "Unknown" and the
+                  // tombstone-style "no email on file" for missing email.
+                  const idTail = user.id.length > 10 ? `…${user.id.slice(-8)}` : user.id
                   const displayName =
-                    user.donor_profile?.display_name || user.organization?.name || 'Unknown'
-                  const email = user.donor_profile?.email || user.organization?.email || ''
+                    user.donor_profile?.display_name ||
+                    user.organization?.name ||
+                    `User ${idTail}`
+                  const email =
+                    user.donor_profile?.email || user.organization?.email || 'no email on file'
 
                   return (
                     <TableRow key={user.id}>
@@ -989,6 +1020,172 @@ function UsersContent({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Add User Dialog — admin manual user creation. No Clerk account is
+          created; the synthetic user_profiles row is only useful for seeding
+          test scenarios during user testing. */}
+      <Dialog
+        open={addUserOpen}
+        onOpenChange={(open) => {
+          setAddUserOpen(open)
+          if (!open) {
+            setAddUserError(null)
+            setAddUserForm({
+              user_type: 'donor',
+              name: '',
+              email: '',
+              org_tier: ORG_TIERS.INDIVIDUAL,
+              verification_status: VERIFICATION_STATUS.UNVERIFIED,
+            })
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle>Add User</DialogTitle>
+          </DialogHeader>
+
+          <form
+            className="space-y-4"
+            onSubmit={async (e) => {
+              e.preventDefault()
+              setAddUserError(null)
+              if (!addUserForm.name.trim() && addUserForm.user_type !== 'admin') {
+                setAddUserError('Name is required')
+                return
+              }
+              if (!addUserForm.email.trim() && addUserForm.user_type !== 'admin') {
+                setAddUserError('Email is required')
+                return
+              }
+              setCreatingUser(true)
+              try {
+                await onCreateUser({
+                  user_type: addUserForm.user_type,
+                  name: addUserForm.name.trim(),
+                  email: addUserForm.email.trim(),
+                  org_tier:
+                    addUserForm.user_type === 'cbo'
+                      ? addUserForm.org_tier
+                      : ORG_TIERS.INDIVIDUAL,
+                  verification_status: addUserForm.verification_status,
+                })
+                setAddUserOpen(false)
+              } catch (err) {
+                setAddUserError(err instanceof Error ? err.message : 'Failed to create user')
+              } finally {
+                setCreatingUser(false)
+              }
+            }}
+          >
+            <div>
+              <label className="mb-1 block text-sm font-medium">User type</label>
+              <div className="flex gap-2">
+                {(['donor', 'cbo', 'admin'] as const).map((t) => (
+                  <Button
+                    key={t}
+                    type="button"
+                    variant={addUserForm.user_type === t ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setAddUserForm((f) => ({ ...f, user_type: t }))}
+                  >
+                    {USER_TYPE_LABELS[t]}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium">
+                {addUserForm.user_type === 'cbo' ? 'Organization name' : 'Display name'}
+              </label>
+              <Input
+                value={addUserForm.name}
+                onChange={(e) => setAddUserForm((f) => ({ ...f, name: e.target.value }))}
+                placeholder={
+                  addUserForm.user_type === 'cbo' ? 'Acme Community Org' : 'Jane Donor'
+                }
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium">Email</label>
+              <Input
+                type="email"
+                value={addUserForm.email}
+                onChange={(e) => setAddUserForm((f) => ({ ...f, email: e.target.value }))}
+                placeholder="user@example.com"
+              />
+            </div>
+
+            {addUserForm.user_type === 'cbo' && (
+              <div>
+                <label className="mb-1 block text-sm font-medium">Tier</label>
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(ORG_TIER_LABELS).map(([key, label]) => (
+                    <Button
+                      key={key}
+                      type="button"
+                      variant={addUserForm.org_tier === key ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() =>
+                        setAddUserForm((f) => ({ ...f, org_tier: key as OrgTier }))
+                      }
+                    >
+                      {label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div>
+              <label className="mb-1 block text-sm font-medium">Verification status</label>
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(VERIFICATION_STATUS_LABELS).map(([key, label]) => (
+                  <Button
+                    key={key}
+                    type="button"
+                    variant={addUserForm.verification_status === key ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() =>
+                      setAddUserForm((f) => ({
+                        ...f,
+                        verification_status: key as VerificationStatus,
+                      }))
+                    }
+                  >
+                    {label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            {addUserError && <p className="text-sm text-red-600">{addUserError}</p>}
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setAddUserOpen(false)}
+                disabled={creatingUser}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={creatingUser}>
+                {creatingUser ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  'Create user'
+                )}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -3004,6 +3201,60 @@ export function AdminDashboard() {
     }
   }
 
+  // Manually create a test user from the admin UI. There's no Clerk signup
+  // behind these — id is a synthetic "manual_<uuid>" so it can't collide
+  // with a real Clerk subject. Useful for seeding test scenarios mid-session.
+  const handleCreateUser = async (input: {
+    user_type: UserType
+    name: string
+    email: string
+    org_tier: OrgTier
+    verification_status: VerificationStatus
+  }) => {
+    const newId = `manual_${crypto.randomUUID()}`
+    const now = new Date().toISOString()
+    try {
+      const { error: profileErr } = await supabase.from('user_profiles').insert({
+        id: newId,
+        user_type: input.user_type,
+        org_tier: input.org_tier,
+        verification_status: input.verification_status,
+        is_vetted: input.verification_status !== VERIFICATION_STATUS.UNVERIFIED,
+        created_at: now,
+        updated_at: now,
+      })
+      if (profileErr) throw profileErr
+
+      if (input.user_type === 'cbo') {
+        const { error: orgErr } = await supabase.from('organizations').insert({
+          id: crypto.randomUUID(),
+          user_id: newId,
+          name: input.name,
+          email: input.email,
+          created_at: now,
+          updated_at: now,
+        })
+        if (orgErr) throw orgErr
+      } else if (input.user_type === 'donor') {
+        const { error: donorErr } = await supabase.from('donor_profiles').insert({
+          id: crypto.randomUUID(),
+          user_id: newId,
+          display_name: input.name,
+          email: input.email,
+          created_at: now,
+          updated_at: now,
+        })
+        if (donorErr) throw donorErr
+      }
+      // For 'admin' type, user_profiles row alone is enough.
+
+      await fetchData()
+    } catch (err) {
+      console.error('Error creating user:', err)
+      throw err
+    }
+  }
+
   // Delete user and all related data
   const handleDeleteUser = async (userId: string) => {
     try {
@@ -3252,6 +3503,7 @@ export function AdminDashboard() {
             onDeleteUser={handleDeleteUser}
             onImpersonate={handleImpersonate}
             onRefresh={fetchData}
+            onCreateUser={handleCreateUser}
           />
         )
       case 'organizations':
