@@ -4,7 +4,7 @@
  */
 
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { UserButton, useUser, SignInButton } from '@clerk/clerk-react'
+import { UserButton, useUser, SignInButton, SignUpButton } from '@clerk/clerk-react'
 import { routes } from '@/config'
 import { Button } from '@/components/ui/button'
 import {
@@ -13,7 +13,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Circle, ChevronDown, LayoutDashboard, Heart, Building2, Shield } from 'lucide-react'
+import { ChevronDown, LayoutDashboard, Heart, Building2, Shield } from 'lucide-react'
 import { useUserType } from '@/hooks/useClerkSupabase'
 
 export function Navbar() {
@@ -148,6 +148,15 @@ export function Navbar() {
             <>
               <SignInButton mode="modal">
                 <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-9 rounded-full px-4 text-[hsl(var(--brand-primary))] hover:bg-[hsl(var(--brand-primary)/0.08)]"
+                >
+                  Sign in
+                </Button>
+              </SignInButton>
+              <SignInButton mode="modal">
+                <Button
                   variant="outline"
                   size="sm"
                   className="h-9 rounded-full border-[hsl(var(--brand-primary))] px-4 text-[hsl(var(--brand-primary))] hover:bg-[hsl(var(--brand-primary))] hover:text-white"
@@ -155,15 +164,15 @@ export function Navbar() {
                   For Organizations
                 </Button>
               </SignInButton>
-              <SignInButton mode="modal">
+              <SignUpButton mode="modal">
                 <Button
                   size="sm"
                   className="h-9 gap-2 rounded-full bg-[hsl(var(--brand-primary))] px-4 text-white hover:bg-[hsl(var(--brand-primary)/0.9)]"
                 >
-                  <Circle className="h-4 w-4 fill-white" />
-                  Login
+                  <Heart className="h-4 w-4 fill-white" />
+                  Donate
                 </Button>
-              </SignInButton>
+              </SignUpButton>
             </>
           )}
         </div>
