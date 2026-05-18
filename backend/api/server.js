@@ -443,9 +443,13 @@ app.post('/api/payments/create-campaign-intent', async (req, res) => {
       return res.status(404).json({ error: 'Campaign not found' })
     }
 
-    // Check if organization can accept payments
+    // Check if organization can accept payments. Dev convenience:
+    // STRIPE_BYPASS_CONNECT=true lets us run test-mode donations without
+    // having a Connect account set up. Money goes to the platform balance
+    // directly (no destination/application_fee). Test mode only.
+    const bypassConnect = process.env.STRIPE_BYPASS_CONNECT === 'true'
     const org = campaign.organization
-    if (!org?.stripe_account_id || !org?.stripe_charges_enabled) {
+    if (!bypassConnect && (!org?.stripe_account_id || !org?.stripe_charges_enabled)) {
       return res.status(400).json({
         error: 'Organization not ready to accept payments',
         code: 'STRIPE_NOT_CONNECTED',
@@ -471,30 +475,33 @@ app.post('/api/payments/create-campaign-intent', async (req, res) => {
     const platformFee = Math.round(amountCents * (feePercent / 100)) + feeFixed
     const organizationAmount = amountCents - platformFee
 
-    // Create payment intent with destination charge
-    const paymentIntent = await stripe.paymentIntents.create({
+    // Create payment intent. When Connect is set up, route via destination
+    // charge to the org. In bypass mode (dev/test only) just create a direct
+    // PaymentIntent against the platform account.
+    const intentParams = {
       amount: amountCents,
       currency: 'usd',
-      application_fee_amount: platformFee,
-      transfer_data: {
-        destination: org.stripe_account_id,
-      },
       metadata: {
         campaignId,
         campaignTitle: campaign.title,
-        organizationId: org.id,
-        organizationName: org.name,
+        organizationId: org?.id || '',
+        organizationName: org?.name || '',
         donorId: donorId || 'anonymous',
         platformFee: platformFee.toString(),
         organizationAmount: organizationAmount.toString(),
       },
       description: `Campaign donation: ${campaign.title}`,
-    })
+    }
+    if (!bypassConnect) {
+      intentParams.application_fee_amount = platformFee
+      intentParams.transfer_data = { destination: org.stripe_account_id }
+    }
+    const paymentIntent = await stripe.paymentIntents.create(intentParams)
 
     // Create payment transaction record
     const { error: txError } = await supabase.from('payment_transactions').insert({
       campaign_id: campaignId,
-      organization_id: org.id,
+      organization_id: org?.id || null,
       donor_id: donorId || 'anonymous',
       stripe_payment_intent_id: paymentIntent.id,
       amount_total: amountCents,
@@ -514,7 +521,7 @@ app.post('/api/payments/create-campaign-intent', async (req, res) => {
       amount: amountCents / 100,
       platformFee: platformFee / 100,
       orgAmount: organizationAmount / 100,
-      destination: org.stripe_account_id,
+      destination: org?.stripe_account_id || '(bypass)',
     })
 
     res.json({
