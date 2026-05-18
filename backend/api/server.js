@@ -825,7 +825,7 @@ async function generateAndStoreReceipt(paymentIntent) {
       const { data: donor } = await supabase
         .from('user_profiles')
         .select('first_name, last_name, email')
-        .eq('user_id', donorId)
+        .eq('id', donorId)
         .single()
 
       if (donor) {
@@ -948,6 +948,62 @@ async function generateAndStoreReceipt(paymentIntent) {
     console.error('Error generating receipt:', error)
     return null
   }
+}
+
+/**
+ * Dev-only: trigger receipt generation for an existing fulfilled request
+ * without going through Stripe. Useful for validating the PDF + storage +
+ * donor_documents pipeline when Stripe Connect platform enrollment isn't
+ * yet done.
+ *
+ * POST /api/dev/generate-test-receipt
+ * Body: { requestId, donorId, amount? }
+ */
+if (process.env.NODE_ENV !== 'production') {
+  app.post('/api/dev/generate-test-receipt', async (req, res) => {
+    try {
+      const { requestId, donorId, amount } = req.body
+      if (!requestId || !donorId) {
+        return res.status(400).json({ error: 'requestId and donorId required' })
+      }
+
+      const { data: request, error: reqError } = await supabase
+        .from('requests')
+        .select('id, organization_id, amount, description')
+        .eq('id', requestId)
+        .single()
+      if (reqError || !request) {
+        return res.status(404).json({ error: 'Request not found' })
+      }
+
+      const cents = Math.round((Number(amount) || Number(request.amount) || 0) * 100)
+      if (cents <= 0) {
+        return res.status(400).json({ error: 'Invalid amount' })
+      }
+
+      const fakeIntent = {
+        id: `pi_test_${Date.now()}`,
+        amount: cents,
+        metadata: {
+          requestId,
+          campaignId: null,
+          organizationId: request.organization_id,
+          donorId,
+        },
+      }
+
+      const doc = await generateAndStoreReceipt(fakeIntent)
+      if (!doc) {
+        return res
+          .status(500)
+          .json({ error: 'Receipt generation returned null — check server logs' })
+      }
+      res.json({ document: doc })
+    } catch (err) {
+      console.error('Test receipt error:', err)
+      res.status(500).json({ error: err.message })
+    }
+  })
 }
 
 /**

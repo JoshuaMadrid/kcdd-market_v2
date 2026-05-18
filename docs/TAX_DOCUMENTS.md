@@ -97,3 +97,15 @@ These live in `/cbo/dashboard → Documents` (the `organization_documents` table
 - Backend at `:4000` is required for `/donor/documents` actions (download URL + annual summary generation). Either run the backend in dev or stub these for local development.
 - Consider an end-of-year reminder email to donors prompting them to download their annual summary. Nice-to-have, not legally required.
 - For non-cash donations $500+ the IRS requires Form 8283 — currently out of scope because KCDD only accepts cash donations.
+
+## Pipeline verification — 2026-05-17
+
+Validated the **non-Stripe** half of the receipt pipeline end-to-end with the backend running locally:
+
+1. Applied the missing `stripe_connect` migration (org `stripe_account_id` columns + `payment_transactions` + `stripe_connect_events` tables).
+2. Added a dev-only endpoint `POST /api/dev/generate-test-receipt` that wraps `generateAndStoreReceipt(fakeIntent)` so we can exercise the PDF + storage + DB row chain without a real Stripe Connect account.
+3. Fixed a latent bug in `generateAndStoreReceipt`: donor lookup used `.eq('user_id', donorId)` but `user_profiles` PK is `id` — receipts were stamped "Anonymous Donor" even when a donor was attached.
+4. Called the dev endpoint for a seeded fulfilled request (`req-fulfilled-1` → `$450` → KC Youth Education) attributed to Sarah's user id. Got back a `donor_documents` row + a signed URL.
+5. Confirmed the PDF is real: `curl` of the signed URL returns `Content-Type: application/pdf`, 2614 bytes, valid PDF 1.3, 1 page.
+
+The Stripe Connect half (PaymentIntent → webhook → `generateAndStoreReceipt`) still needs the platform to enable Connect at https://dashboard.stripe.com/connect — that's a one-time Stripe-side step. Once done, end-to-end Stripe test mode with card `4242 4242 4242 4242` will exercise the same `generateAndStoreReceipt` we just validated, and the receipt will appear at `/donor/documents` automatically.
