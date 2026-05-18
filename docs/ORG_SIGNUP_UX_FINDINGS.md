@@ -376,3 +376,74 @@ Owner-identification on these tables is now enforced at the application layer (`
 - `campaign_questions_clerk_friendly_policies`
 
 (Plus the storage bucket rows themselves, inserted via direct SQL.)
+
+---
+
+# JWT Bridge Fully Wired — 2026-05-17 (later)
+
+After the previous round shipped the *code* side of the Clerk → Supabase bridge but kept it disabled by env flag, I walked through the dashboard config end-to-end with the user driving via Chrome MCP.
+
+## Steps actually completed
+
+1. **Supabase project (`psskoseofieludonkekb`) → Auth → Third Party Auth → Add provider → Clerk.** Domain: `https://tidy-dane-63.clerk.accounts.dev`. Confirmation toast: *"Successfully created a new Clerk integration."*
+2. **`.env.local`** — added `VITE_ENABLE_CLERK_SUPABASE_BRIDGE=true`.
+3. **Vercel** (`joshua-madrids-projects/kcdd-market-v2`) → Settings → Environment Variables → added the same flag for Production + Preview, then Redeployed. Toast: *"Deployment created."*
+4. **Local dev server restarted** so Vite reads the new env at boot.
+
+## Verified end-to-end
+
+Created a `public.whoami()` SQL function returning JWT claims and called it from the browser via supabase-js. Response after the bridge was enabled:
+
+```json
+{
+  "auth_role": "anon",
+  "jwt_claims": {
+    "iss": "https://tidy-dane-63.clerk.accounts.dev",
+    "sub": "user_3DsC7vptwUi02SCF8iYd2PqLAog",
+    "exp": 1779067921,
+    "iat": 1779067861,
+    "azp": "http://localhost:3000",
+    "sid": "sess_3DsHDkFi9kickP7QL3KcXN3PGf2",
+    "role": "anon"
+  }
+}
+```
+
+Supabase is reading and trusting the Clerk JWT. `auth_role` stays `anon` (this is TPA's design — role is anon, identity comes from the JWT sub).
+
+## `clerk_user_id()` helper
+
+Because `auth.uid()` returns UUID and chokes on Clerk's `user_…` ids, I added:
+
+```sql
+CREATE FUNCTION public.clerk_user_id() RETURNS text
+LANGUAGE sql STABLE
+AS $$ SELECT (current_setting('request.jwt.claims', true)::jsonb)->>'sub' $$;
+```
+
+Use this in RLS instead of `auth.uid()` for any comparison against TEXT columns (`organizations.user_id`, `user_profiles.id`, etc).
+
+## Re-tightened RLS (now strictly owner-scoped)
+
+Migration `clerk_user_id_helper_and_tightened_rls_v2` replaced the permissive policies that I'd added during the dashboard-config gap:
+
+| Table | Policy |
+|-------|--------|
+| `campaign_questions` | `SELECT` only if org owner OR question is public+answered; `UPDATE` only if org owner |
+| `organization_team_members` | `INSERT` / `UPDATE` / `DELETE` only if org owner; existing `SELECT WHERE is_active=true` retained |
+| `organization_updates` | `INSERT` / `UPDATE` / `DELETE` only if org owner; existing public-read retained |
+
+All gate on `organization_id IN (SELECT id FROM organizations WHERE user_id = public.clerk_user_id())`.
+
+Spot-checked live: owner reset a question to pending → Questions tab fetched it (RLS allowed) → owner answered it → Team Add David Lee succeeded → Team(3) badge updated.
+
+## Migrations applied this round
+
+- `add_whoami_diagnostic_function` (kept for future debugging)
+- `whoami_claims_jsonb`
+- `clerk_user_id_helper_and_tightened_rls_v2`
+
+## Anything left
+
+- The hard-coded `auth.uid()::text` checks in older policies (e.g., `campaigns` table) still won't match Clerk ids if anyone re-introduces a restrictive policy. Future RLS for Clerk-identified resources should use `public.clerk_user_id()` instead.
+- The user_profiles RLS hasn't been re-tightened to owner-only for SELECT — the role-selection / onboarding code still hits user_profiles before the org exists, so a permissive policy may be intentional. Audit before tightening.
