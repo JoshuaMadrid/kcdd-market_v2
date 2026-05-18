@@ -243,11 +243,18 @@ export function RequestsPage() {
                     {/* Campaign Image */}
                     <div className="relative aspect-video overflow-hidden bg-[#f5f5f5]">
                       {campaign.image_url ? (
-                        <img
-                          src={campaign.image_url}
-                          alt={campaign.title}
-                          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                        />
+                        <>
+                          <img
+                            src={campaign.image_url}
+                            alt={campaign.title}
+                            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                          />
+                          {campaign.image_url.includes('kcdd_placeholder=1') && (
+                            <span className="pointer-events-none absolute right-2 top-2 z-10 rounded bg-black/60 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white">
+                              Placeholder photo
+                            </span>
+                          )}
+                        </>
                       ) : (
                         <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#1b5858] to-[#103032]">
                           {campaign.logo_url ? (

@@ -29,7 +29,16 @@ export function OrganizationHero({
       {/* Cover Image */}
       <div className="h-[300px] w-full overflow-hidden rounded-[10px] bg-[#f5f5f5]">
         {coverImageUrl ? (
-          <img src={coverImageUrl} alt={`${name} cover`} className="h-full w-full object-cover" />
+          <div className="relative h-full w-full">
+            <img src={coverImageUrl} alt={`${name} cover`} className="h-full w-full object-cover" />
+            {coverImageUrl.includes('kcdd_placeholder=1') && (
+              <div className="pointer-events-none absolute inset-0 flex items-end justify-end p-3">
+                <span className="rounded bg-black/60 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-white">
+                  Placeholder photo
+                </span>
+              </div>
+            )}
+          </div>
         ) : (
           <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#ea580c]/10 to-[#1b5858]/10">
             <ImagePlus className="h-16 w-16 text-[#737373] opacity-30" />

@@ -1398,9 +1398,11 @@ export interface OrganizationTeamMember {
   created_at: string
 }
 
-// Fetch organization by ID with related data
+// Fetch organization by ID or slug with related data.
+// Callers pass either the row's primary key (e.g. "org-harvesters") or the
+// public slug (e.g. "harvesters") — we look up by whichever matches.
 export const fetchOrganizationProfile = async (
-  organizationId: string
+  organizationIdOrSlug: string
 ): Promise<OrganizationProfile | null> => {
   const { data: org, error } = await supabase
     .from('organizations')
@@ -1410,13 +1412,15 @@ export const fetchOrganizationProfile = async (
       user_profile:user_profiles!organizations_user_id_fkey(is_vetted)
     `
     )
-    .eq('id', organizationId)
-    .single()
+    .or(`id.eq.${organizationIdOrSlug},slug.eq.${organizationIdOrSlug}`)
+    .maybeSingle()
 
-  if (error) {
-    console.error('Error fetching organization:', error)
+  if (error || !org) {
+    if (error) console.error('Error fetching organization:', error)
     return null
   }
+
+  const organizationId = (org as any).id
 
   // Fetch cause areas
   const { data: causeAreaLinks } = await supabase

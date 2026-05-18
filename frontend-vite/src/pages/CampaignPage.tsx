@@ -138,6 +138,33 @@ interface OutlineItem {
   level: number
 }
 
+// Pull a YouTube video ID out of a watch/embed/short/youtu.be URL.
+// Returns null when src is not a YouTube URL (regular image).
+function parseYouTubeId(src: string): string | null {
+  try {
+    const u = new URL(src)
+    const host = u.hostname.replace(/^www\./, '')
+    if (host === 'youtu.be') return u.pathname.slice(1) || null
+    if (host.endsWith('youtube.com') || host.endsWith('youtube-nocookie.com')) {
+      if (u.pathname === '/watch') return u.searchParams.get('v')
+      const m = u.pathname.match(/^\/(?:embed|shorts)\/([\w-]+)/)
+      if (m) return m[1]
+    }
+  } catch {
+    /* not a URL */
+  }
+  return null
+}
+
+// Render trusted story HTML stored in campaigns.story_content.
+// We render markdown-y story bodies and rich-text-editor HTML the same way:
+// the field is HTML so we pass it through, but we only convert newline-only
+// content (no tags) into <br> so plain-text stories still look right.
+function renderStoryHtml(content: string): string {
+  const looksLikeHtml = /<\/?[a-z][\s\S]*?>/i.test(content)
+  return looksLikeHtml ? content : content.replace(/\n/g, '<br />')
+}
+
 interface SubmittedQuestion {
   id: string
   question: string
@@ -858,22 +885,44 @@ export function CampaignPage() {
           <div className="flex gap-5">
             {/* Main Image and Gallery */}
             <div className="w-[824px] flex-shrink-0 space-y-3">
-              {/* Main Display Image */}
-              <div className="h-[460px] w-full overflow-hidden rounded-[10px] bg-[#f5f5f5]">
-                {selectedImage || campaign.image_url ? (
-                  <img
-                    src={selectedImage || campaign.image_url || ''}
-                    alt={campaign.title}
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center">
-                    <div className="flex flex-col items-center text-[#737373]">
-                      <Target className="mb-2 h-16 w-16 opacity-50" />
-                      <span className="text-sm">Campaign Media</span>
-                    </div>
-                  </div>
-                )}
+              {/* Main Display Image (or embedded YouTube video) */}
+              <div className="relative h-[460px] w-full overflow-hidden rounded-[10px] bg-[#f5f5f5]">
+                {(() => {
+                  const src = selectedImage || campaign.image_url || ''
+                  if (!src) {
+                    return (
+                      <div className="flex h-full w-full items-center justify-center">
+                        <div className="flex flex-col items-center text-[#737373]">
+                          <Target className="mb-2 h-16 w-16 opacity-50" />
+                          <span className="text-sm">Campaign Media</span>
+                        </div>
+                      </div>
+                    )
+                  }
+                  const ytId = parseYouTubeId(src)
+                  if (ytId) {
+                    return (
+                      <iframe
+                        className="h-full w-full"
+                        src={`https://www.youtube-nocookie.com/embed/${ytId}`}
+                        title={campaign.title}
+                        frameBorder={0}
+                        allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                      />
+                    )
+                  }
+                  return (
+                    <>
+                      <img src={src} alt={campaign.title} className="h-full w-full object-cover" />
+                      {src.includes('kcdd_placeholder=1') && (
+                        <span className="pointer-events-none absolute right-3 top-3 z-10 rounded bg-black/60 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-white">
+                          Placeholder photo
+                        </span>
+                      )}
+                    </>
+                  )
+                })()}
               </div>
 
               {/* Image Thumbnails */}
@@ -1231,7 +1280,7 @@ export function CampaignPage() {
                     <div
                       className="prose prose-lg max-w-none text-[#0a0a0a]"
                       dangerouslySetInnerHTML={{
-                        __html: campaign.story_content.replace(/\n/g, '<br />'),
+                        __html: renderStoryHtml(campaign.story_content),
                       }}
                     />
                   ) : (

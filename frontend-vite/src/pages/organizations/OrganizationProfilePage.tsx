@@ -242,18 +242,20 @@ export function OrganizationProfilePage() {
     setError(null)
 
     try {
-      // Fetch all data in parallel
-      const [org, reqs, upds, team] = await Promise.all([
-        fetchOrganizationProfile(id),
-        fetchOrganizationRequests(id),
-        fetchOrganizationUpdates(id),
-        fetchOrganizationTeamMembers(id),
-      ])
+      // The route param can be either the org id or its public slug; resolve
+      // the org first so the dependent fetches use the real id.
+      const org = await fetchOrganizationProfile(id)
 
       if (!org) {
         setError('Organization not found')
         return
       }
+
+      const [reqs, upds, team] = await Promise.all([
+        fetchOrganizationRequests(org.id),
+        fetchOrganizationUpdates(org.id),
+        fetchOrganizationTeamMembers(org.id),
+      ])
 
       // Approval gate: only the owner can see an unvetted org's profile.
       // RLS should handle this server-side, but the app uses Clerk (not
