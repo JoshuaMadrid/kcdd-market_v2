@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
+import { useUser } from '@clerk/clerk-react'
 import { ArrowLeft, MapPin, Calendar, ExternalLink, Package } from 'lucide-react'
 import { fetchRequestById } from '@/lib/supabase'
 import { Badge } from '@/components/ui/badge'
@@ -45,6 +46,7 @@ function DetailSkeleton() {
 
 export function RequestDetailPage() {
   const { id } = useParams<{ id: string }>()
+  const { user } = useUser()
   const [request, setRequest] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -84,6 +86,13 @@ export function RequestDetailPage() {
   const challengeCategories: any[] = request.challenge_categories?.map((c: any) => c.category) ?? []
   const identityCategories: any[] = request.identity_categories?.map((c: any) => c.category) ?? []
   const isOpen = request.status === 'open'
+  const isOwnPledge =
+    request.status === 'claimed' &&
+    request.donation_type === 'in_kind' &&
+    request.donor_id === user?.id
+  const ownPledgeStatus: 'pending' | 'accepted' | null = isOwnPledge
+    ? (request.in_kind_pledge?.pledge_status ?? null)
+    : null
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-8">
@@ -389,12 +398,22 @@ export function RequestDetailPage() {
                 </div>
               ) : (
                 <div className="text-center">
-                  <Badge
-                    variant={statusVariant(request.status) as any}
-                    className="capitalize text-sm px-3 py-1"
-                  >
-                    {request.status === 'claimed' ? 'Already claimed' : request.status}
-                  </Badge>
+                  {isOwnPledge && ownPledgeStatus === 'pending' ? (
+                    <Badge className="bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-100/80 text-sm px-3 py-1">
+                      Your pledge — awaiting review
+                    </Badge>
+                  ) : isOwnPledge && ownPledgeStatus === 'accepted' ? (
+                    <Badge className="bg-green-100 text-green-800 border-green-300 hover:bg-green-100/80 text-sm px-3 py-1">
+                      Your pledge — accepted! Coordinating delivery
+                    </Badge>
+                  ) : (
+                    <Badge
+                      variant={statusVariant(request.status) as any}
+                      className="capitalize text-sm px-3 py-1"
+                    >
+                      {request.status === 'claimed' ? 'Already claimed' : request.status}
+                    </Badge>
+                  )}
                   {request.status === 'denied' && request.denial_reason && (
                     <p className="text-xs text-muted-foreground mt-3 text-left">
                       {request.denial_reason}

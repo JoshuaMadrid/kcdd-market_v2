@@ -96,7 +96,8 @@ export const fetchRequestById = async (id: string): Promise<any> => {
       organization:organizations(id, name, mission, logo_emoji, logo_url, zipcode, website),
       cause_area:cause_areas(id, name),
       challenge_categories:request_challenge_categories(category:challenge_categories(id, name)),
-      identity_categories:request_identity_categories(category:identity_categories(id, name))
+      identity_categories:request_identity_categories(category:identity_categories(id, name)),
+      in_kind_pledge:in_kind_pledges!requests_pledge_id_fkey(pledge_status)
     `)
     .eq('id', id)
     .single()
@@ -364,6 +365,25 @@ export const fetchInKindPledgeForRequest = async (
 
   if (error) throw error
   return data ?? null
+}
+
+/**
+ * Phase 8.5 polish: fetch in-kind pledges this donor submitted that were rejected.
+ * After rejection, `requests.donor_id` is NULL so `fetchDonorRequests` no longer
+ * returns these — query `in_kind_pledges` directly.
+ */
+export const fetchDonorRejectedPledges = async (userId: string): Promise<any[]> => {
+  const { data, error } = await (supabase as any)
+    .from('in_kind_pledges')
+    .select(
+      'id, request_id, device_breakdown, donor_notes, pledge_status, created_at, request:requests(id, description, status, organization:organizations(name, logo_url, logo_emoji))'
+    )
+    .eq('donor_id', userId)
+    .eq('pledge_status', 'rejected')
+    .order('created_at', { ascending: false })
+
+  if (error) throw error
+  return data ?? []
 }
 
 // Fetch all requests where user was the donor

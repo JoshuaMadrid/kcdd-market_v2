@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { fetchDonorRequests } from '@/lib/supabase'
+import { fetchDonorRequests, fetchDonorRejectedPledges } from '@/lib/supabase'
 import { formatCurrency } from '@/lib/utils'
 
 type StatusFilter = 'all' | 'open' | 'claimed' | 'fulfilled' | 'denied'
@@ -33,13 +33,20 @@ const pledgeStatusLabel: Record<string, string> = {
 export function DonationsPage() {
   const { user } = useUser()
   const [donations, setDonations] = useState<any[]>([])
+  const [rejectedPledges, setRejectedPledges] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<StatusFilter>('all')
 
   useEffect(() => {
     if (!user) return
-    fetchDonorRequests(user.id)
-      .then(setDonations)
+    Promise.all([
+      fetchDonorRequests(user.id),
+      fetchDonorRejectedPledges(user.id),
+    ])
+      .then(([d, r]) => {
+        setDonations(d)
+        setRejectedPledges(r)
+      })
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [user])
@@ -180,6 +187,43 @@ export function DonationsPage() {
           )}
         </CardContent>
       </Card>
+
+      {rejectedPledges.length > 0 && (
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle className="text-lg">Past Pledges — Declined</CardTitle>
+            <CardDescription>
+              In-kind device pledges that were not accepted by the organization.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="divide-y">
+              {rejectedPledges.map((p) => (
+                <div key={p.id} className="flex items-center justify-between gap-4 py-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium">
+                      {p.request?.organization?.name ?? 'Unknown Organization'}
+                    </p>
+                    <p className="text-sm text-muted-foreground truncate mt-0.5">
+                      {p.request?.description ?? 'Request no longer available'}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {new Date(p.created_at).toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                      })}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <Badge variant="destructive">Pledge rejected</Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }
