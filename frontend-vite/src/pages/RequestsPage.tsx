@@ -19,7 +19,9 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { formatCurrency, formatRelativeTime } from '@/lib/utils'
-import { Search, Target, Users, Loader2, X, Filter } from 'lucide-react'
+import { Search, Target, Users, Loader2, X, Filter, ChevronLeft, ChevronRight } from 'lucide-react'
+
+const PAGE_SIZE = 15
 
 interface Campaign {
   id: string
@@ -54,12 +56,13 @@ export function RequestsPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [showTagFilter, setShowTagFilter] = useState(false)
+  const [page, setPage] = useState(1)
 
   useEffect(() => {
     const loadData = async () => {
       try {
         const [campaignsData, causeAreasData] = await Promise.all([
-          getActiveCampaigns(50),
+          getActiveCampaigns(200),
           supabase.from('cause_areas').select('id, name').order('name'),
         ])
 
@@ -74,6 +77,12 @@ export function RequestsPage() {
 
     loadData()
   }, [])
+
+  // Reset to page 1 whenever the filter/search changes so users don't
+  // land on an empty page after narrowing results.
+  useEffect(() => {
+    setPage(1)
+  }, [searchQuery, selectedTags])
 
   const getCauseAreaNames = (causeAreaIds: string[]) => {
     return causeAreas
@@ -220,10 +229,28 @@ export function RequestsPage() {
           </div>
         )}
 
-        {/* Results Count */}
-        <div className="mb-4 text-sm text-[#737373]">
-          Showing {filteredCampaigns.length} campaign{filteredCampaigns.length !== 1 ? 's' : ''}
-        </div>
+        {/* Results Count + Page indicator */}
+        {(() => {
+          const totalPages = Math.max(1, Math.ceil(filteredCampaigns.length / PAGE_SIZE))
+          const safePage = Math.min(page, totalPages)
+          const startIdx = (safePage - 1) * PAGE_SIZE
+          const endIdx = Math.min(filteredCampaigns.length, startIdx + PAGE_SIZE)
+          return (
+            <div className="mb-4 flex items-center justify-between text-sm text-[#737373]">
+              <span>
+                Showing {filteredCampaigns.length === 0 ? 0 : startIdx + 1}
+                {filteredCampaigns.length > 0 ? `–${endIdx}` : ''} of{' '}
+                {filteredCampaigns.length} campaign
+                {filteredCampaigns.length !== 1 ? 's' : ''}
+              </span>
+              {totalPages > 1 && (
+                <span>
+                  Page {safePage} of {totalPages}
+                </span>
+              )}
+            </div>
+          )
+        })()}
 
         {/* Campaigns Grid */}
         <div>
@@ -239,7 +266,15 @@ export function RequestsPage() {
             </Card>
           ) : (
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {filteredCampaigns.map((campaign) => (
+              {filteredCampaigns
+                .slice(
+                  (Math.min(page, Math.max(1, Math.ceil(filteredCampaigns.length / PAGE_SIZE))) -
+                    1) *
+                    PAGE_SIZE,
+                  Math.min(page, Math.max(1, Math.ceil(filteredCampaigns.length / PAGE_SIZE))) *
+                    PAGE_SIZE
+                )
+                .map((campaign) => (
                 <Link key={campaign.id} to={`/campaign/${campaign.slug}`} className="group">
                   <Card className="flex h-full flex-col overflow-hidden border-[#e5e5e5] transition-shadow duration-200 hover:shadow-lg">
                     {/* Campaign Image */}
@@ -347,6 +382,79 @@ export function RequestsPage() {
             </div>
           )}
         </div>
+
+        {/* Pagination controls */}
+        {(() => {
+          const totalPages = Math.max(1, Math.ceil(filteredCampaigns.length / PAGE_SIZE))
+          if (totalPages <= 1) return null
+          const safePage = Math.min(page, totalPages)
+          const goTo = (p: number) => {
+            setPage(p)
+            window.scrollTo({ top: 0, behavior: 'smooth' })
+          }
+          // Compact window of up to 7 page numbers centered on current page,
+          // with ellipses for the gaps.
+          const pages: (number | 'gap')[] = []
+          const add = (v: number | 'gap') => {
+            if (pages[pages.length - 1] !== v) pages.push(v)
+          }
+          for (let p = 1; p <= totalPages; p++) {
+            if (p === 1 || p === totalPages || Math.abs(p - safePage) <= 1) {
+              add(p)
+            } else if (Math.abs(p - safePage) === 2) {
+              add('gap')
+            }
+          }
+          return (
+            <nav
+              className="mt-10 flex flex-wrap items-center justify-center gap-2"
+              aria-label="Pagination"
+            >
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={safePage === 1}
+                onClick={() => goTo(safePage - 1)}
+                className="gap-1"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Previous
+              </Button>
+              {pages.map((p, i) =>
+                p === 'gap' ? (
+                  <span key={`gap-${i}`} className="px-2 text-sm text-[#737373]">
+                    …
+                  </span>
+                ) : (
+                  <Button
+                    key={p}
+                    variant={p === safePage ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => goTo(p)}
+                    aria-current={p === safePage ? 'page' : undefined}
+                    className={
+                      p === safePage
+                        ? 'min-w-[40px] bg-[#1b5858] hover:bg-[#164444]'
+                        : 'min-w-[40px]'
+                    }
+                  >
+                    {p}
+                  </Button>
+                )
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={safePage === totalPages}
+                onClick={() => goTo(safePage + 1)}
+                className="gap-1"
+              >
+                Next
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </nav>
+          )
+        })()}
       </div>
     </div>
   )
