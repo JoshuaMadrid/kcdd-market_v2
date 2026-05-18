@@ -1208,56 +1208,6 @@ function TransfersContent({
   )
 }
 
-// Verification Status Content
-function VerificationContent() {
-  return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-xl font-semibold text-[#0a0a0a]">Verification Status</h2>
-        <p className="text-sm text-[#737373]">Your account verification and compliance status</p>
-      </div>
-
-      <Card className="p-6">
-        <div className="mb-6 flex items-center gap-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
-            <CheckCircle2 className="h-6 w-6 text-green-600" />
-          </div>
-          <div>
-            <h3 className="font-semibold text-green-600">Account Verified</h3>
-            <p className="text-sm text-[#737373]">
-              Your account is fully verified and in good standing
-            </p>
-          </div>
-        </div>
-
-        <div className="space-y-4">
-          <div className="flex items-center justify-between rounded-lg bg-gray-50 p-3">
-            <div className="flex items-center gap-3">
-              <CheckCircle2 className="h-5 w-5 text-green-500" />
-              <span>Email Verified</span>
-            </div>
-            <span className="text-sm text-[#737373]">Completed</span>
-          </div>
-          <div className="flex items-center justify-between rounded-lg bg-gray-50 p-3">
-            <div className="flex items-center gap-3">
-              <CheckCircle2 className="h-5 w-5 text-green-500" />
-              <span>Identity Verification</span>
-            </div>
-            <span className="text-sm text-[#737373]">Completed</span>
-          </div>
-          <div className="flex items-center justify-between rounded-lg bg-gray-50 p-3">
-            <div className="flex items-center gap-3">
-              <CheckCircle2 className="h-5 w-5 text-green-500" />
-              <span>Payment Method Added</span>
-            </div>
-            <span className="text-sm text-[#737373]">Completed</span>
-          </div>
-        </div>
-      </Card>
-    </div>
-  )
-}
-
 // Tax Documents Content
 function DocumentsContent({
   documents,
@@ -1630,15 +1580,13 @@ export function DonorDashboard() {
   const getHeaderTitle = () => {
     switch (activeSection) {
       case 'campaign':
-        return 'Donations'
+        return 'My Donations'
       case 'browse':
         return 'Browse Requests'
       case 'updates':
         return 'Updates & Proof'
       case 'transfers':
-        return 'Payouts / Transfers'
-      case 'verification':
-        return 'Verification Status'
+        return 'Payment History'
       case 'documents':
         return 'Tax Documents'
       case 'settings':
@@ -1682,8 +1630,6 @@ export function DonorDashboard() {
         return <UpdatesContent donations={donations} stats={stats} />
       case 'transfers':
         return <TransfersContent donations={donations} stats={stats} />
-      case 'verification':
-        return <VerificationContent />
       case 'documents':
         return <DocumentsContent documents={documents} loading={documentsLoading} />
       case 'settings':
@@ -1736,7 +1682,7 @@ export function DonorDashboard() {
               }`}
             >
               <LayoutDashboard className="h-4 w-4 flex-shrink-0" />
-              {sidebarOpen && <span className="text-sm">My Campaign</span>}
+              {sidebarOpen && <span className="text-sm">My Donations</span>}
             </button>
 
             <button
@@ -1772,19 +1718,7 @@ export function DonorDashboard() {
               }`}
             >
               <FileText className="h-4 w-4 flex-shrink-0" />
-              {sidebarOpen && <span className="text-sm">Payouts / Transfers</span>}
-            </button>
-
-            <button
-              onClick={() => setActiveSection('verification')}
-              className={`flex w-full items-center gap-2 whitespace-nowrap rounded-lg px-2 py-2 transition-colors ${
-                activeSection === 'verification'
-                  ? 'bg-[#1b5858] text-white'
-                  : 'text-[#0a0a0a] hover:bg-gray-100'
-              }`}
-            >
-              <ShieldCheck className="h-4 w-4 flex-shrink-0" />
-              {sidebarOpen && <span className="text-sm">Verification Status</span>}
+              {sidebarOpen && <span className="text-sm">Payment History</span>}
             </button>
           </nav>
 

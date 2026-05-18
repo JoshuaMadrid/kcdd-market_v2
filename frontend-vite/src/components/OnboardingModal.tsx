@@ -14,7 +14,7 @@
  * ========================================
  */
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useUser } from '@clerk/clerk-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -79,6 +79,19 @@ export function OnboardingModal({ isOpen, onClose, onComplete, userType }: Onboa
     wantsUpdates: false,
     causeAreas: [],
   })
+
+  // Prefill display name for donors from Clerk profile when modal opens.
+  useEffect(() => {
+    if (!isOpen) return
+    if (formData.name) return
+    if (userType !== 'donor') return
+    const first = user?.firstName?.trim()
+    const last = user?.lastName?.trim()
+    const fromName = [first, last].filter(Boolean).join(' ')
+    const fromEmail = user?.primaryEmailAddress?.emailAddress?.split('@')[0]
+    const guess = fromName || fromEmail
+    if (guess) setFormData((prev) => ({ ...prev, name: guess }))
+  }, [isOpen, userType, user, formData.name])
 
   const totalSteps = 2 // Both user types get 2 steps
 
@@ -288,54 +301,67 @@ export function OnboardingModal({ isOpen, onClose, onComplete, userType }: Onboa
                 />
               </div>
 
-              {/* Website & EIN Row */}
-              <div className="flex gap-2.5">
-                <div className="flex flex-1 flex-col gap-2">
-                  <Label htmlFor="website" className="text-sm font-medium text-white">
-                    Website
-                  </Label>
-                  <Input
-                    id="website"
-                    type="url"
-                    value={formData.website}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, website: e.target.value }))}
-                    placeholder="https://example.org"
-                    className="h-9 rounded-lg border-[#1b5858] bg-[#183c3f] text-white placeholder:text-white/50"
-                  />
+              {/* Website + EIN for orgs only; donors just see Phone */}
+              {userType === 'cbo' ? (
+                <div className="flex gap-2.5">
+                  <div className="flex flex-1 flex-col gap-2">
+                    <Label htmlFor="website" className="text-sm font-medium text-white">
+                      Website
+                    </Label>
+                    <Input
+                      id="website"
+                      type="url"
+                      value={formData.website}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, website: e.target.value }))}
+                      placeholder="https://example.org"
+                      className="h-9 rounded-lg border-[#1b5858] bg-[#183c3f] text-white placeholder:text-white/50"
+                    />
+                  </div>
+                  <div className="flex flex-1 flex-col gap-2">
+                    <Label htmlFor="ein" className="text-sm font-medium text-white">
+                      EIN (TAX ID)
+                    </Label>
+                    <Input
+                      id="ein"
+                      value={formData.ein}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, ein: e.target.value }))}
+                      placeholder="XX-XXXXXXX"
+                      className="h-9 rounded-lg border-[#1b5858] bg-[#183c3f] text-white placeholder:text-white/50"
+                    />
+                  </div>
                 </div>
-                <div className="flex flex-1 flex-col gap-2">
+              ) : (
+                <div className="flex flex-col gap-2">
                   <Label htmlFor="ein" className="text-sm font-medium text-white">
-                    {userType === 'cbo' ? 'EIN (TAX ID)' : 'Phone (Optional)'}
+                    Phone (Optional)
                   </Label>
                   <Input
                     id="ein"
                     value={formData.ein}
                     onChange={(e) => setFormData((prev) => ({ ...prev, ein: e.target.value }))}
-                    placeholder={userType === 'cbo' ? 'XX-XXXXXXX' : '(555) 123-4567'}
+                    placeholder="(555) 123-4567"
                     className="h-9 rounded-lg border-[#1b5858] bg-[#183c3f] text-white placeholder:text-white/50"
                   />
                 </div>
-              </div>
+              )}
 
-              {/* Description/Bio */}
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="description" className="text-sm font-medium text-white">
-                  {userType === 'cbo' ? 'Description of Organization:' : 'Bio (Optional):'}
-                </Label>
-                <Textarea
-                  id="description"
-                  value={formData.description}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, description: e.target.value }))
-                  }
-                  placeholder={
-                    userType === 'cbo'
-                      ? 'Tell us about your organization and its mission...'
-                      : 'Tell us a bit about yourself...'
-                  }
-                  className="min-h-[80px] resize-none rounded-lg border-[#1b5858] bg-[#183c3f] text-white placeholder:text-white/50"
-                />
-              </div>
+              {/* Description (CBO only — donors don't need a bio for tax receipts) */}
+              {userType === 'cbo' && (
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="description" className="text-sm font-medium text-white">
+                    Description of Organization:
+                  </Label>
+                  <Textarea
+                    id="description"
+                    value={formData.description}
+                    onChange={(e) =>
+                      setFormData((prev) => ({ ...prev, description: e.target.value }))
+                    }
+                    placeholder="Tell us about your organization and its mission..."
+                    className="min-h-[80px] resize-none rounded-lg border-[#1b5858] bg-[#183c3f] text-white placeholder:text-white/50"
+                  />
+                </div>
+              )}
 
               {/* Newsletter Checkbox */}
               <div className="flex items-start gap-2">
