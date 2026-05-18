@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
+import { useUser } from '@clerk/clerk-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
@@ -37,12 +38,14 @@ interface RequestWithCauseArea extends Request {
 
 export function OrganizationProfilePage() {
   const { id } = useParams<{ id: string }>()
+  const { user } = useUser()
   const [organization, setOrganization] = useState<OrganizationWithRelations | null>(null)
   const [requests, setRequests] = useState<RequestWithCauseArea[]>([])
   const [updates, setUpdates] = useState<OrganizationUpdate[]>([])
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState('about')
 
   useEffect(() => {
     async function loadData() {
@@ -100,6 +103,7 @@ export function OrganizationProfilePage() {
   }
 
   const openRequestCount = requests.filter((r) => r.status === 'open').length
+  const isOwner = Boolean(user?.id && organization.user_id === user.id)
 
   return (
     <div className="max-w-[1200px] mx-auto">

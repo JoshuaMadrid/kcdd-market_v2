@@ -13,6 +13,8 @@ interface OrganizationSidebarProps {
   causeAreas?: Array<{ cause_area: CauseArea }>
   requestCount?: number
   isVetted?: boolean
+  isOwner?: boolean
+  onSupportClick?: () => void
 }
 
 export function OrganizationSidebar({
@@ -20,6 +22,8 @@ export function OrganizationSidebar({
   causeAreas = [],
   requestCount = 0,
   isVetted = false,
+  isOwner = false,
+  onSupportClick,
 }: OrganizationSidebarProps) {
   return (
     <Card className="border-[#f5f5f5] rounded-[10px] sticky top-6">
@@ -143,10 +147,16 @@ export function OrganizationSidebar({
           </div>
         )}
 
-        {/* CTA Button */}
-        <Button className="w-full bg-[#ea580c] hover:bg-[#dc4c06] text-white rounded-full">
-          Support This Organization
-        </Button>
+        {/* CTA Button — hidden for org owners (no self-support) */}
+        {!isOwner && (
+          <Button
+            className="w-full bg-[#ea580c] hover:bg-[#dc4c06] text-white rounded-full"
+            onClick={onSupportClick}
+            disabled={requestCount === 0}
+          >
+            {requestCount === 0 ? 'No Active Requests' : 'Support This Organization'}
+          </Button>
+        )}
       </CardContent>
     </Card>
   )
