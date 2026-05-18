@@ -113,8 +113,8 @@ export function AppRoutes() {
       </Route>
 
       {/* Auth routes */}
-      <Route path={routes.signIn} element={<SignIn routing="path" path={routes.signIn} />} />
-      <Route path={routes.signUp} element={<SignUp routing="path" path={routes.signUp} />} />
+      <Route path={`${routes.signIn}/*`} element={<SignIn routing="path" path={routes.signIn} />} />
+      <Route path={`${routes.signUp}/*`} element={<SignUp routing="path" path={routes.signUp} />} />
 
       {/* Role Selection is now a modal in App.tsx, not a separate route */}
 

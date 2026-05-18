@@ -229,23 +229,44 @@ export const saveOrganizationOnboarding = async (
     }
   }
 
-  // Upsert organization
+  // Check if org already exists for this user
+  const { data: existing } = await supabase
+    .from('organizations')
+    .select('id')
+    .eq('user_id', userId)
+    .maybeSingle()
+
+  const orgPayload = {
+    user_id: userId,
+    name: data.name,
+    website: data.website,
+    ein: data.ein,
+    mission: data.mission,
+    email: data.email,
+    logo_url: logoUrl,
+    updated_at: new Date().toISOString(),
+  }
+
+  // Approval gate: new orgs are not vetted by default. Admin must set
+  // user_profiles.is_vetted=true before this org becomes publicly visible.
+  if (existing) {
+    const { data: orgData, error } = await supabase
+      .from('organizations')
+      .update(orgPayload)
+      .eq('user_id', userId)
+      .select()
+      .single()
+    if (error) throw error
+    return orgData
+  }
+
   const { data: orgData, error } = await supabase
     .from('organizations')
-    .upsert(
-      {
-        user_id: userId,
-        name: data.name,
-        website: data.website,
-        ein: data.ein,
-        mission: data.mission,
-        email: data.email,
-        logo_url: logoUrl,
-        zipcode: data.zipcode || null, // Use provided zipcode or null
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'user_id' }
-    )
+    .insert({
+      ...orgPayload,
+      id: crypto.randomUUID(),
+      zipcode: '',
+    })
     .select()
     .single()
 
@@ -737,6 +758,7 @@ export const createNewRequest = async (request: {
     .from('requests')
     .insert({
       ...request,
+      id: crypto.randomUUID(),
       status: 'open',
     })
     .select()

@@ -398,10 +398,10 @@ export function OnboardingModal({ isOpen, onClose, onComplete, userType }: Onboa
                       key={area}
                       type="button"
                       onClick={() => toggleCauseArea(area)}
-                      className={`h-9 rounded-lg px-4 text-sm font-medium shadow-sm transition-all ${
+                      className={`h-9 rounded-lg px-4 text-sm font-semibold shadow-sm transition-all ${
                         isSelected
-                          ? 'bg-[#f5f5f5] text-[#171717]'
-                          : 'border border-[#e5e5e5] bg-transparent text-white hover:bg-white/10'
+                          ? 'bg-white text-[#0a0a0a] ring-2 ring-white/70'
+                          : 'border-2 border-white/50 bg-transparent text-white hover:border-white/80 hover:bg-white/10'
                       }`}
                     >
                       {area}
