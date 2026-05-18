@@ -447,3 +447,35 @@ Spot-checked live: owner reset a question to pending → Questions tab fetched i
 
 - The hard-coded `auth.uid()::text` checks in older policies (e.g., `campaigns` table) still won't match Clerk ids if anyone re-introduces a restrictive policy. Future RLS for Clerk-identified resources should use `public.clerk_user_id()` instead.
 - The user_profiles RLS hasn't been re-tightened to owner-only for SELECT — the role-selection / onboarding code still hits user_profiles before the org exists, so a permissive policy may be intentional. Audit before tightening.
+
+---
+
+# Admin Dashboard Walkthrough — 2026-05-17
+
+Signed in as the platform admin (`hello@joshuamadrid.com`) and exercised every section.
+
+## Pass
+
+- **Overview** at `/admin` — stats accurate after the backfill (Total Users 23, Orgs 15, Open Requests 14, Donations $7,853, Verified Users 11). Recent Activity feed wired to real signups (Alex / Sarah Chen / Test Donor). Quick Actions clickable.
+- **Users** — table renders, `Type` / `Tier` / `Status` dropdowns all work end-to-end. Verified Alex via the Status dropdown and saw the count tick 10 → 11. Type dropdown shows Donor / Recipient Organization / Administrator.
+- **Organizations** — 15 cards, search + status filter, View / Edit buttons per card. Test Community Foundation correctly shows "Verified" after the backfill.
+- **Requests** — All(35) / Open(14) / Claimed(7) / Fulfilled(14) / Denied(0). The $85 Employment First KC request shows "Claimed" — confirms our donor checkout flow updated the request status.
+- **Reports** — empty state ("No Reports") with Pending/Reviewing/Resolved tabs. No campaigns reported yet, page renders cleanly.
+- **Analytics** — real User Growth + Donation Trends charts. May donations show $5,000 (our test request) + 4 May signups; matches reality.
+- **Row kebab menu** — View Details / Impersonate / Send Email / Delete User.
+- **Impersonate** — clicked on Alex's row → orange `Impersonating Alex (donor)` banner at top with `Stop Impersonating` button → redirected to `/donor/dashboard` showing Alex's real data ($1,484 lifetime, 6 fulfilled, 6 causes). Stop Impersonating cleanly restored the admin view.
+
+## 🚨 Finding (FIXED): `is_vetted` vs `verification_status` desync
+
+The admin UI's Status column reads from `user_profiles.verification_status` (string: `'unverified' | 'verified'`), while the public-visibility RLS, organization profile gate, and earlier admin SQL paths read/write `user_profiles.is_vetted` (boolean). The admin UsersPage's toggle correctly writes both. But:
+- Earlier in this session I flipped `is_vetted` directly via Supabase MCP without touching `verification_status` → 10 users were silently out of sync.
+- Result on the admin dashboard before the fix: every user (including Test Community Foundation, which I'd just approved end-to-end) showed `Unverified`, and the `Verified Users` stat read 0.
+
+Backfill migration `backfill_verification_status_from_is_vetted` synced both directions. New writes from RoleSelectionModal and the admin UI already touch both columns, so the migration should be a no-op on fresh databases going forward.
+
+## Smaller notes (not fixed this round)
+
+- `/admin` (the in-app DashboardPage with the embedded Users section) and `/admin/users` (the standalone UsersPage component) are two different UIs that overlap. Pick one canonical surface or delete the duplicate.
+- The Overview's `Verified Users` stat is computed off `verification_status='verified'` — after the backfill it reads 11 correctly; before it was 0.
+- "Send Email" in the row kebab and "Export Data" in Quick Actions weren't tested; if they're wired, document the destination/format.
+- Admin dashboard sidebar still shows the always-on "Important Notice Banner" marquee — same noise as the public site; remove before prod.
