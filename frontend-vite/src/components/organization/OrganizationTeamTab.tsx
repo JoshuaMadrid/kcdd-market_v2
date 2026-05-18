@@ -1,6 +1,7 @@
-import { Mail, Users } from 'lucide-react'
+import { Mail, Users, Plus } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Button } from '@/components/ui/button'
 import type { Database } from '@/types/database'
 
 type TeamMember = Database['public']['Tables']['organization_team_members']['Row']
@@ -8,11 +9,15 @@ type TeamMember = Database['public']['Tables']['organization_team_members']['Row
 interface OrganizationTeamTabProps {
   teamMembers: TeamMember[]
   isLoading?: boolean
+  isOwner?: boolean
+  onAddMember?: () => void
 }
 
 export function OrganizationTeamTab({
   teamMembers,
   isLoading = false,
+  isOwner = false,
+  onAddMember,
 }: OrganizationTeamTabProps) {
   if (isLoading) {
     return (
@@ -30,18 +35,43 @@ export function OrganizationTeamTab({
         <CardContent className="p-8 text-center">
           <Users className="h-12 w-12 mx-auto text-[#737373] mb-3" />
           <h3 className="text-lg font-medium text-[#0a0a0a] mb-1">
-            No Team Members Listed
+            {isOwner ? 'Add your first team member' : 'No Team Members Listed'}
           </h3>
-          <p className="text-sm text-[#737373]">
-            Team information will be added soon.
+          <p className="text-sm text-[#737373] mb-4">
+            {isOwner
+              ? 'Introduce staff or volunteers to build trust with donors.'
+              : 'Team information will be added soon.'}
           </p>
+          {isOwner && onAddMember && (
+            <Button
+              size="sm"
+              onClick={onAddMember}
+              className="bg-[#ea580c] hover:bg-[#dc4c06] text-white"
+            >
+              <Plus className="h-4 w-4 mr-1" />
+              Add Team Member
+            </Button>
+          )}
         </CardContent>
       </Card>
     )
   }
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="space-y-4">
+      {isOwner && onAddMember && (
+        <div className="flex justify-end">
+          <Button
+            size="sm"
+            onClick={onAddMember}
+            className="bg-[#ea580c] hover:bg-[#dc4c06] text-white"
+          >
+            <Plus className="h-4 w-4 mr-1" />
+            Add Team Member
+          </Button>
+        </div>
+      )}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {teamMembers.map((member) => {
         const initials = member.name
           .split(' ')
@@ -94,6 +124,7 @@ export function OrganizationTeamTab({
           </Card>
         )
       })}
+      </div>
     </div>
   )
 }

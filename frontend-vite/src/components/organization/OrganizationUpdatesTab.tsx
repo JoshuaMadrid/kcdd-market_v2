@@ -1,5 +1,6 @@
-import { Calendar, Newspaper } from 'lucide-react'
+import { Calendar, Newspaper, Plus } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import type { Database } from '@/types/database'
 
 type OrganizationUpdate = Database['public']['Tables']['organization_updates']['Row']
@@ -7,11 +8,15 @@ type OrganizationUpdate = Database['public']['Tables']['organization_updates']['
 interface OrganizationUpdatesTabProps {
   updates: OrganizationUpdate[]
   isLoading?: boolean
+  isOwner?: boolean
+  onPostUpdate?: () => void
 }
 
 export function OrganizationUpdatesTab({
   updates,
   isLoading = false,
+  isOwner = false,
+  onPostUpdate,
 }: OrganizationUpdatesTabProps) {
   if (isLoading) {
     return (
@@ -29,11 +34,23 @@ export function OrganizationUpdatesTab({
         <CardContent className="p-8 text-center">
           <Newspaper className="h-12 w-12 mx-auto text-[#737373] mb-3" />
           <h3 className="text-lg font-medium text-[#0a0a0a] mb-1">
-            No Updates Yet
+            {isOwner ? 'Share your first update' : 'No Updates Yet'}
           </h3>
-          <p className="text-sm text-[#737373]">
-            Check back later for news and updates from this organization.
+          <p className="text-sm text-[#737373] mb-4">
+            {isOwner
+              ? 'Post news, milestones, or progress to engage donors and visitors.'
+              : 'Check back later for news and updates from this organization.'}
           </p>
+          {isOwner && onPostUpdate && (
+            <Button
+              size="sm"
+              onClick={onPostUpdate}
+              className="bg-[#ea580c] hover:bg-[#dc4c06] text-white"
+            >
+              <Plus className="h-4 w-4 mr-1" />
+              Post Update
+            </Button>
+          )}
         </CardContent>
       </Card>
     )
@@ -41,6 +58,19 @@ export function OrganizationUpdatesTab({
 
   return (
     <div className="space-y-6">
+      {isOwner && onPostUpdate && (
+        <div className="flex justify-end">
+          <Button
+            size="sm"
+            onClick={onPostUpdate}
+            className="bg-[#ea580c] hover:bg-[#dc4c06] text-white"
+          >
+            <Plus className="h-4 w-4 mr-1" />
+            Post Update
+          </Button>
+        </div>
+      )}
+
       {/* Timeline */}
       <div className="relative">
         {/* Vertical line */}

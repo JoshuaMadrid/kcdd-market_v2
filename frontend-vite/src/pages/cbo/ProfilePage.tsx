@@ -17,6 +17,8 @@ import {
   OrganizationCampaignsTab,
   OrganizationUpdatesTab,
   OrganizationTeamTab,
+  PostUpdateDialog,
+  AddTeamMemberDialog,
 } from '@/components/organization'
 import {
   fetchOrganizationByUserId,
@@ -51,6 +53,8 @@ export function CBOProfile() {
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [updateDialogOpen, setUpdateDialogOpen] = useState(false)
+  const [teamDialogOpen, setTeamDialogOpen] = useState(false)
 
   useEffect(() => {
     async function loadData() {
@@ -180,11 +184,19 @@ export function CBOProfile() {
               </TabsContent>
 
               <TabsContent value="updates" className="mt-0">
-                <OrganizationUpdatesTab updates={updates} />
+                <OrganizationUpdatesTab
+                  updates={updates}
+                  isOwner
+                  onPostUpdate={() => setUpdateDialogOpen(true)}
+                />
               </TabsContent>
 
               <TabsContent value="team" className="mt-0">
-                <OrganizationTeamTab teamMembers={teamMembers} />
+                <OrganizationTeamTab
+                  teamMembers={teamMembers}
+                  isOwner
+                  onAddMember={() => setTeamDialogOpen(true)}
+                />
               </TabsContent>
             </Tabs>
           </div>
@@ -203,6 +215,20 @@ export function CBOProfile() {
 
       {/* Bottom spacing */}
       <div className="h-20" />
+
+      <PostUpdateDialog
+        organizationId={organization.id}
+        open={updateDialogOpen}
+        onOpenChange={setUpdateDialogOpen}
+        onSuccess={(newUpdate) => setUpdates((prev) => [newUpdate, ...prev])}
+      />
+      <AddTeamMemberDialog
+        organizationId={organization.id}
+        currentCount={teamMembers.length}
+        open={teamDialogOpen}
+        onOpenChange={setTeamDialogOpen}
+        onSuccess={(newMember) => setTeamMembers((prev) => [...prev, newMember])}
+      />
     </div>
   )
 }
