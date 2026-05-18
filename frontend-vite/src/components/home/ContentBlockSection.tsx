@@ -197,11 +197,16 @@ export function ContentBlockSection({ data, imagePosition = 'left' }: ContentBlo
   // Image component
   const imageElement = (
     <figure
-      className="h-[390px] w-full overflow-hidden rounded-[10px] lg:flex-1"
+      className="relative h-[390px] w-full overflow-hidden rounded-[10px] lg:flex-1"
       style={!imageUrl ? { backgroundColor: imageBackgroundColor } : undefined}
       aria-label={imageAlt}
     >
       {imageUrl && <img src={imageUrl} alt={imageAlt} className="h-full w-full object-cover" />}
+      {imageUrl?.includes('kcdd_placeholder=1') && (
+        <span className="pointer-events-none absolute right-3 top-3 rounded bg-black/60 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-white">
+          Placeholder photo
+        </span>
+      )}
     </figure>
   )
 

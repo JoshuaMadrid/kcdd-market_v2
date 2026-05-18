@@ -1,31 +1,23 @@
-/**
- * Home Page Features Data
- * Location: src/data/homeFeatures.ts
- *
- * Centralized data for homepage features
- * Can be easily modified or replaced with API calls
- */
-
-import { FileText, Heart, BarChart3 } from 'lucide-react'
+import { Laptop, HandHeart, PackageCheck } from 'lucide-react'
 import { Feature } from '@/components/home/FeaturesSection'
 
 export const homeFeatures: Feature[] = [
   {
-    icon: FileText,
-    title: 'CBOs Submit Requests',
+    icon: Laptop,
+    title: 'Submit a Tech Need',
     description:
-      "Community-based organizations submit detailed technology equipment requests, explaining their needs and the impact they'll create.",
+      'A verified org or individual posts a specific request — make, model, quantity, and the human story behind it. Our team reviews within 48 hours.',
   },
   {
-    icon: Heart,
-    title: 'Donors Claim Requests',
+    icon: HandHeart,
+    title: 'Donors Pick a Device to Fund',
     description:
-      'Generous donors browse through requests and claim the ones that align with their interests and capacity to help.',
+      'Browse open requests, find one that fits your budget, and fund it. Every gift is tagged to a single device with a serial number.',
   },
   {
-    icon: BarChart3,
-    title: 'Fulfillment Tracking',
+    icon: PackageCheck,
+    title: 'KC DIME Ships and Follows Up',
     description:
-      'We track the entire fulfillment process and measure the real impact on Kansas City communities.',
+      'We wipe, re-image, label, and ship. At 30 and 90 days post-delivery, we check in on the recipient and pass the update back to the donor.',
   },
 ]

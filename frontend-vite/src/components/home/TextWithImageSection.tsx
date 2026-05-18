@@ -75,10 +75,15 @@ export function TextWithImageSection({ data, imagePosition = 'right' }: TextWith
 
   const imageElement = (
     <div
-      className="h-[390px] flex-1 overflow-hidden rounded-[10px]"
+      className="relative h-[390px] flex-1 overflow-hidden rounded-[10px]"
       style={!imageUrl ? { backgroundColor: imagePlaceholderColor } : undefined}
     >
       {imageUrl && <img src={imageUrl} alt={imageAlt} className="h-full w-full object-cover" />}
+      {imageUrl?.includes('kcdd_placeholder=1') && (
+        <span className="pointer-events-none absolute right-3 top-3 rounded bg-black/60 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-white">
+          Placeholder photo
+        </span>
+      )}
     </div>
   )
 

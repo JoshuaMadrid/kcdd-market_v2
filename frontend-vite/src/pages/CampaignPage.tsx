@@ -263,23 +263,28 @@ export function CampaignPage() {
     }
   }
 
-  // Build outline from story content headings
+  // Build outline from story content headings.
+  // Normalize so the shallowest heading in the document becomes level 1
+  // (e.g. a story that starts at h2 still gets a clean top-level outline).
   const buildOutline = (htmlContent: string): OutlineItem[] => {
     if (!htmlContent) return []
 
     const parser = new DOMParser()
     const doc = parser.parseFromString(htmlContent, 'text/html')
     const headings = doc.querySelectorAll('h1, h2, h3, h4, h5, h6')
+    if (headings.length === 0) return []
+
+    const rawLevels = Array.from(headings).map((h) => parseInt(h.tagName.charAt(1)))
+    const minLevel = Math.min(...rawLevels)
 
     const items: OutlineItem[] = []
     headings.forEach((heading, index) => {
-      const level = parseInt(heading.tagName.charAt(1))
       const text = heading.textContent?.trim() || ''
       if (text) {
         items.push({
           id: `heading-${index}`,
           text,
-          level,
+          level: parseInt(heading.tagName.charAt(1)) - minLevel + 1,
         })
       }
     })
@@ -1204,19 +1209,19 @@ export function CampaignPage() {
 
                   {/* Dynamic outline from headings */}
                   {outline.length > 0 ? (
-                    <nav className="space-y-1">
+                    <nav className="space-y-0.5">
                       {outline.map((item, index) => (
                         <button
                           key={item.id}
                           onClick={() => scrollToHeading(index)}
-                          className={`block w-full rounded-lg px-3 py-2 text-left transition-colors hover:bg-gray-100 ${
+                          className={`block w-full rounded-md px-3 py-1.5 text-left text-sm leading-snug transition-colors hover:bg-gray-100 ${
                             item.level === 1
                               ? 'font-semibold text-[#0a0a0a]'
                               : item.level === 2
-                                ? 'pl-5 text-[#0a0a0a]'
+                                ? 'pl-5 text-[#404040]'
                                 : item.level === 3
-                                  ? 'pl-7 text-sm text-[#737373]'
-                                  : 'pl-9 text-sm text-[#737373]'
+                                  ? 'pl-7 text-xs text-[#737373]'
+                                  : 'pl-9 text-xs text-[#737373]'
                           }`}
                         >
                           {item.text}
@@ -1278,7 +1283,17 @@ export function CampaignPage() {
                     </div>
                   ) : campaign.story_content ? (
                     <div
-                      className="prose prose-lg max-w-none text-[#0a0a0a]"
+                      className="campaign-story max-w-none text-base leading-relaxed text-[#0a0a0a]
+                                 [&_h2]:mb-3 [&_h2]:mt-8 [&_h2]:text-2xl [&_h2]:font-semibold [&_h2]:tracking-tight [&_h2]:text-[#0a0a0a] first:[&_h2]:mt-0
+                                 [&_h3]:mb-2 [&_h3]:mt-6 [&_h3]:text-xl [&_h3]:font-semibold [&_h3]:text-[#0a0a0a]
+                                 [&_p]:mb-4 [&_p]:leading-relaxed
+                                 [&_ul]:mb-4 [&_ul]:mt-2 [&_ul]:list-disc [&_ul]:space-y-1 [&_ul]:pl-6
+                                 [&_ol]:mb-4 [&_ol]:mt-2 [&_ol]:list-decimal [&_ol]:space-y-1 [&_ol]:pl-6
+                                 [&_li]:pl-1
+                                 [&_strong]:font-semibold [&_strong]:text-[#0a0a0a]
+                                 [&_a]:font-medium [&_a]:text-[#ea580c] [&_a]:underline [&_a]:underline-offset-2
+                                 [&_iframe]:mt-2 [&_iframe]:w-full [&_iframe]:rounded-lg
+                                 [&_blockquote]:my-4 [&_blockquote]:border-l-4 [&_blockquote]:border-[#ea580c] [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-[#404040]"
                       dangerouslySetInnerHTML={{
                         __html: renderStoryHtml(campaign.story_content),
                       }}

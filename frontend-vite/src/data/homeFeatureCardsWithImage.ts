@@ -2,36 +2,38 @@ import type { FeatureCardsWithImageSectionData } from '@/components/home/Feature
 
 export const homeFeatureCardsWithImage: FeatureCardsWithImageSectionData = {
   subtitle: 'For Community Organizations',
-  heading: 'Get the technology your nonprofit needs to thrive.',
+  heading: 'Equip your programs with tech that actually shows up.',
   buttonLabel: 'Register Your Organization',
   buttonHref: '/sign-up',
   imagePlaceholderColor: '#1b5858',
+  imageUrl: 'https://picsum.photos/seed/kcdd-for-orgs/1200/1400?kcdd_placeholder=1',
+  imageAlt: 'Nonprofit staff setting up donated laptops in a community room',
   cards: [
     {
-      title: 'Submit Requests',
+      title: 'Post Specific Tech Needs',
       description:
-        'Post specific technology needs to our community of donors. Include details about how items will be used.',
-      linkText: 'Learn How',
+        '20 Chromebooks for a classroom. 5 hotspots for case managers. A projector for the homework room. Tell us what you need and what it unlocks.',
+      linkText: 'How to Submit',
       linkHref: '/about#for-organizations',
     },
     {
-      title: 'Verified Status',
+      title: 'Get Verified Once',
       description:
-        'Our team verifies your 501(c)(3) status ensuring donors can trust their contributions are going to legitimate causes.',
+        'We confirm your 501(c)(3) status with the IRS, talk to a reference, and you\'re cleared. After that, your requests post live for donors to fund.',
       linkText: 'Verification Process',
       linkHref: '/about#verification',
     },
     {
-      title: 'Receive Funding',
+      title: 'Devices, Not Reimbursements',
       description:
-        'When donors fund your requests, payments are processed securely through Stripe directly to your organization.',
-      linkText: 'Payment Details',
+        'Funded requests turn into actual gear shipped from our warehouse — fully wiped, re-imaged, and labeled. No vouchers, no purchase orders, no reimbursement paperwork.',
+      linkText: 'Fulfillment Details',
       linkHref: '/about#how-it-works',
     },
     {
-      title: 'Share Your Impact',
+      title: 'Report Outcomes Easily',
       description:
-        'Keep donors updated with proof of delivery, photos, and impact stories that build lasting relationships.',
+        'Upload one photo and write two sentences when the gear is in use. That\'s our entire reporting requirement — and it\'s what keeps donors funding the next request.',
       linkText: 'Impact Reporting',
       linkHref: '/about#impact',
     },

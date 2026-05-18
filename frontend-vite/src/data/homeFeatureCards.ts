@@ -1,39 +1,39 @@
 import type { FeatureCardsSectionData } from '@/components/home/FeatureCardsSection'
 
 export const homeFeatureCards: FeatureCardsSectionData = {
-  subtitle: 'How KC Digital Drive Works',
-  heading: 'Connecting donors with community organizations that need support.',
+  subtitle: 'For Donors',
+  heading: 'Fund a specific laptop, hotspot, or tablet — and watch it ship.',
   description:
-    'Our platform makes it easy to discover, fund, and track technology requests from verified 501(c)(3) organizations in the Kansas City area.',
-  listItems: ['100% tax-deductible', 'Direct impact tracking', 'Verified nonprofits'],
+    'No vague "general fund." Each request on KC DIME is a real device for a real Kansas City recipient. Pick the one you want to fund and follow it from cart to doorstep.',
+  listItems: ['100% tax-deductible', 'Per-device tracking', 'Verified recipients only'],
   buttonLabel: 'Get Started',
   buttonHref: '/sign-up',
   cards: [
     {
-      title: 'Browse Requests',
+      title: 'Browse Open Requests',
       description:
-        'Explore technology needs from local nonprofits including laptops, software, and equipment for their operations.',
+        'Laptops for students, hotspots for re-entry clients, tablets for seniors, monitors for remote workers — see what Kansas City needs right now.',
       linkText: 'View All Requests',
       linkHref: '/requests',
     },
     {
-      title: 'Make a Donation',
+      title: 'Fund a Device',
       description:
-        'Fund requests directly with secure payment processing. Your entire donation goes to the organization.',
-      linkText: 'Learn More',
+        'Pay with a card. Your entire contribution (minus the Stripe fee, which we publish) goes directly to the device your gift is tagged to.',
+      linkText: 'How Donations Work',
       linkHref: '/about#how-it-works',
     },
     {
       title: 'Track Your Impact',
       description:
-        'See exactly how your donations are used with proof of delivery, impact reports, and thank you messages.',
-      linkText: 'View Impact',
+        'Every device you funded shows up in your donor dashboard — with the recipient\'s thank-you note, a photo from delivery day, and our 90-day check-in.',
+      linkText: 'See Donor Dashboard',
       linkHref: '/about#impact',
     },
     {
-      title: 'Tax Benefits',
+      title: 'Tax Receipts, Automated',
       description:
-        'Receive instant tax receipts for every donation. Download annual summaries for easy tax filing.',
+        'Instant IRS-compliant receipts after every gift. Download an annual summary at tax time without emailing anyone.',
       linkText: 'Tax Information',
       linkHref: '/about#tax-benefits',
     },

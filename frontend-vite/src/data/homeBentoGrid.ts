@@ -2,36 +2,36 @@ import type { BentoCardData } from '@/components/home/BentoGridSection'
 
 export const homeBentoGrid: [BentoCardData, BentoCardData, BentoCardData, BentoCardData] = [
   {
-    title: 'Local Impact',
+    title: 'Built for Kansas City',
     description:
-      'Every donation stays in the Kansas City community. We partner with verified 501(c)(3) organizations doing meaningful work right here at home.',
-    linkText: 'See Local Organizations',
+      "Every device we ship stays in the metro. Partner pantries, classrooms, shelters, libraries — and individuals applying through our direct intake — are all within a 30-minute drive of our warehouse.",
+    linkText: 'See Local Partners',
     linkHref: '/requests',
     backgroundColor: '#1b5858',
     textColor: 'light',
   },
   {
-    title: 'Transparent Giving',
+    title: 'Every Device Tracked',
     description:
-      'Know exactly where your money goes. Track your donations from funding to delivery with proof of impact and thank you messages from organizations.',
+      'A donation that becomes a Chromebook becomes a serial number becomes a kid finishing their homework. We follow each device through delivery and report back at 30 and 90 days.',
     linkText: 'How Tracking Works',
     linkHref: '/about#how-it-works',
     backgroundColor: '#c4e5c1',
     textColor: 'dark',
   },
   {
-    title: 'Tax Benefits',
+    title: '100% Tax-Deductible',
     description:
-      'All donations are 100% tax-deductible. Download instant receipts after each donation or generate annual summaries for easy tax filing.',
+      'KC DIME is a 501(c)(3). Every gift generates an automated IRS-compliant receipt the moment your payment clears. Download annual summaries from your donor dashboard.',
     linkText: 'Tax Information',
     linkHref: '/about#tax-benefits',
     backgroundColor: '#c4e5c1',
     textColor: 'dark',
   },
   {
-    title: 'Join Our Community',
+    title: 'Donate Money or Devices',
     description:
-      "Whether you're a donor looking to make an impact or an organization needing support, there's a place for you at KC Digital Drive.",
+      "Cash works. So does the old laptop in your closet. We're a Microsoft Authorized Refurbisher partner — your device gets wiped, re-imaged, and re-deployed within 30 days.",
     linkText: 'Get Started Today',
     linkHref: '/sign-up',
     backgroundColor: '#103032',

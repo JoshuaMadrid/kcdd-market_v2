@@ -72,14 +72,15 @@ export function HeroSection() {
               id="hero-heading"
               className="text-center text-[30px] font-bold leading-tight text-black md:text-[40px] lg:text-[48px]"
             >
-              Bridge the Digital Divide
+              Real tech.
               <br />
-              <span className="text-[hsl(var(--brand-primary))]">in Kansas City</span>
+              <span className="text-[hsl(var(--brand-primary))]">For the people who need it.</span>
             </h1>
 
             <p className="max-w-2xl text-center text-base leading-relaxed text-gray-600 md:text-lg">
-              Connect donors with technology equipment requests from Kansas City community
-              organizations. Make an impact today.
+              KC DIME is a Kansas City tech nonprofit. We connect donors with laptops, hotspots,
+              tablets, and equipment requests from local community organizations <em>and</em>{' '}
+              individuals — so the digital divide gets smaller, one device at a time.
             </p>
 
             <nav className="flex items-center gap-4" aria-label="Primary actions">
