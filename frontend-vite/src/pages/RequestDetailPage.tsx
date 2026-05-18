@@ -98,6 +98,13 @@ export function RequestDetailPage() {
         <Badge variant={urgencyVariant(request.urgency) as any} className="capitalize">
           {request.urgency} urgency
         </Badge>
+        {request.urgency === 'high' &&
+          request.created_at &&
+          Date.now() - new Date(request.created_at).getTime() > 14 * 24 * 60 * 60 * 1000 && (
+            <Badge className="bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-100/80">
+              Time-Sensitive
+            </Badge>
+          )}
         {request.cause_area && (
           <Badge variant="outline">{request.cause_area.name}</Badge>
         )}

@@ -188,9 +188,18 @@ export function RequestsPage() {
                       )}
                     </CardDescription>
                   </div>
-                  <Badge variant={urgencyVariant(request.urgency) as any}>
-                    {request.urgency}
-                  </Badge>
+                  <div className="flex flex-col items-end gap-1">
+                    <Badge variant={urgencyVariant(request.urgency) as any}>
+                      {request.urgency}
+                    </Badge>
+                    {request.urgency === 'high' &&
+                      request.created_at &&
+                      Date.now() - new Date(request.created_at).getTime() > 14 * 24 * 60 * 60 * 1000 && (
+                        <Badge className="bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-100/80">
+                          Time-Sensitive
+                        </Badge>
+                      )}
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="flex-1">
