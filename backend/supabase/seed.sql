@@ -45,35 +45,21 @@ ON CONFLICT (name) DO NOTHING;
 -- MOCK DATA BLOCK
 -- ============================================================
 
--- STEP 1: Insert auth.users (7 rows)
-INSERT INTO auth.users (
-  id, instance_id, aud, role, email, encrypted_password,
-  email_confirmed_at, created_at, updated_at,
-  raw_app_meta_data, raw_user_meta_data, is_super_admin
-) VALUES
-  ('00000000-0000-0000-0001-000000000001', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'admin@kcdigitaldrive.org',  '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', NOW(), NOW(), NOW(), '{"provider":"email","providers":["email"]}', '{}', false),
-  ('00000000-0000-0000-0002-000000000001', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'cbo1@connectingroots.org',  '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', NOW(), NOW(), NOW(), '{"provider":"email","providers":["email"]}', '{}', false),
-  ('00000000-0000-0000-0002-000000000002', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'cbo2@kctechbridge.org',     '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', NOW(), NOW(), NOW(), '{"provider":"email","providers":["email"]}', '{}', false),
-  ('00000000-0000-0000-0002-000000000003', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'cbo3@digitalfutureskc.org', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', NOW(), NOW(), NOW(), '{"provider":"email","providers":["email"]}', '{}', false),
-  ('00000000-0000-0000-0003-000000000001', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'donor1@example.com',        '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', NOW(), NOW(), NOW(), '{"provider":"email","providers":["email"]}', '{}', false),
-  ('00000000-0000-0000-0003-000000000002', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'donor2@example.com',        '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', NOW(), NOW(), NOW(), '{"provider":"email","providers":["email"]}', '{}', false),
-  ('00000000-0000-0000-0003-000000000003', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'donor3@example.com',        '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', NOW(), NOW(), NOW(), '{"provider":"email","providers":["email"]}', '{}', false)
+-- STEP 1: Insert user_profiles directly
+-- After migration 20260518000000_clerk_user_id_text.sql, user_profiles.id is TEXT
+-- and no longer FK-bound to auth.users. We can insert mock profiles directly.
+-- IDs keep their UUID-shaped format to preserve FK target values throughout the seed,
+-- but they're stored as TEXT (so real Clerk IDs like "user_xxx" also work post-migration).
+-- The escalation trigger is bypassed by inserting (not updating) — trigger only fires on UPDATE.
+INSERT INTO user_profiles (id, user_type, is_vetted) VALUES
+  ('00000000-0000-0000-0001-000000000001', 'admin', true),
+  ('00000000-0000-0000-0002-000000000001', 'cbo',   true),
+  ('00000000-0000-0000-0002-000000000002', 'cbo',   true),
+  ('00000000-0000-0000-0002-000000000003', 'cbo',   true),
+  ('00000000-0000-0000-0003-000000000001', 'donor', false),
+  ('00000000-0000-0000-0003-000000000002', 'donor', false),
+  ('00000000-0000-0000-0003-000000000003', 'donor', false)
 ON CONFLICT (id) DO NOTHING;
-
--- STEP 2: Disable escalation trigger
-ALTER TABLE user_profiles DISABLE TRIGGER check_user_type_escalation;
-
--- STEP 3: UPDATE user_profiles
-UPDATE user_profiles SET user_type = 'admin', is_vetted = true  WHERE id = '00000000-0000-0000-0001-000000000001';
-UPDATE user_profiles SET user_type = 'cbo',   is_vetted = true  WHERE id = '00000000-0000-0000-0002-000000000001';
-UPDATE user_profiles SET user_type = 'cbo',   is_vetted = true  WHERE id = '00000000-0000-0000-0002-000000000002';
-UPDATE user_profiles SET user_type = 'cbo',   is_vetted = true  WHERE id = '00000000-0000-0000-0002-000000000003';
-UPDATE user_profiles SET user_type = 'donor', is_vetted = false WHERE id = '00000000-0000-0000-0003-000000000001';
-UPDATE user_profiles SET user_type = 'donor', is_vetted = false WHERE id = '00000000-0000-0000-0003-000000000002';
-UPDATE user_profiles SET user_type = 'donor', is_vetted = false WHERE id = '00000000-0000-0000-0003-000000000003';
-
--- STEP 4: Re-enable escalation trigger
-ALTER TABLE user_profiles ENABLE TRIGGER check_user_type_escalation;
 
 -- STEP 5: Insert organizations (3 rows)
 INSERT INTO organizations (
