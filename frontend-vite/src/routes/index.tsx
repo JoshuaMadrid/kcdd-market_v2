@@ -20,6 +20,7 @@ import { AboutPage } from '@/pages/AboutPage'
 import { FaqPage } from '@/pages/FaqPage'
 import { ContactPage } from '@/pages/ContactPage'
 import { RequestsPage } from '@/pages/RequestsPage'
+import { RequestDetailPage } from '@/pages/RequestDetailPage'
 import { DonorDashboard } from '@/pages/donor/DashboardPage'
 import { DonorProfile } from '@/pages/donor/ProfilePage'
 import { DonorImpact } from '@/pages/donor/ImpactPage'
@@ -217,6 +218,7 @@ export function AppRoutes() {
       {/* Organization routes (public) */}
       <Route element={<MainLayout />}>
         <Route path="/organizations/:id" element={<OrganizationProfilePage />} />
+        <Route path="/request/:id" element={<RequestDetailPage />} />
       </Route>
 
       {/* Payment routes */}

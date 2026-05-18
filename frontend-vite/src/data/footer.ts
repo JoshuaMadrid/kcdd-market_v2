@@ -39,22 +39,16 @@ export const footerData: FooterData = {
     placeholder: 'Enter your email',
     buttonLabel: 'Subscribe',
   },
-  socialLinks: [
-    { icon: 'facebook', href: 'https://facebook.com/kcdigitaldrive', label: 'Facebook' },
-    { icon: 'twitter', href: 'https://twitter.com/kcdigitaldrive', label: 'Twitter' },
-    { icon: 'instagram', href: 'https://instagram.com/kcdigitaldrive', label: 'Instagram' },
-    { icon: 'linkedin', href: 'https://linkedin.com/company/kcdigitaldrive', label: 'LinkedIn' },
-  ],
+  // Social links left empty until real KC DIME social profiles exist.
+  // The previous defaults pointed to facebook.com/kcdigitaldrive etc., which
+  // either don't exist or belong to other accounts — safer to omit than send
+  // donors to the wrong page.
+  socialLinks: [],
   legalLinks: [
     { label: 'Privacy Policy', href: '/legal/privacy' },
     { label: 'Terms of Service', href: '/legal/terms' },
     { label: 'Accessibility', href: '/legal/accessibility' },
     { label: 'Cookie Policy', href: '/legal/privacy' },
   ],
-  bottomSocialLinks: [
-    { icon: 'facebook', href: 'https://facebook.com/kcdigitaldrive', label: 'Facebook' },
-    { icon: 'twitter', href: 'https://twitter.com/kcdigitaldrive', label: 'Twitter' },
-    { icon: 'instagram', href: 'https://instagram.com/kcdigitaldrive', label: 'Instagram' },
-    { icon: 'linkedin', href: 'https://linkedin.com/company/kcdigitaldrive', label: 'LinkedIn' },
-  ],
+  bottomSocialLinks: [],
 }
