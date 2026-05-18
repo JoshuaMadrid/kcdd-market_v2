@@ -45,8 +45,28 @@ npm install -g pnpm
 
 1. Sign up at [clerk.com](https://clerk.com) and create a new app
 2. Go to Dashboard > **API Keys** and copy:
-   - `Publishable key` (pk*test*...) → used in frontend `.env`
-   - `Secret key` (sk*test*...) → used in backend `.env`
+   - `Publishable key` (pk_test_...) → used in frontend `.env`
+   - `Secret key` (sk_test_...) → used in backend `.env`
+3. **Create the `supabase` JWT template** (required — payment + admin flows fail without it):
+   - Fast path: open <https://dashboard.clerk.com/last-active?path=jwt-templates>
+   - Or navigate: Dashboard → app → left sidebar → **Configure** → **JWT Templates**
+   - Click **+ New template** → select the **Supabase** preset
+   - **Name field must be exactly `supabase`** (lowercase) — frontend code calls `getToken({ template: 'supabase' })`
+   - **Custom signing key: leave OFF** (default). This project uses the new third-party auth pattern with the new Supabase CLI keys (`sb_publishable_*` / `sb_secret_*`); Clerk's default signing key is sufficient. Only enable if you later see RLS errors related to `auth.uid()` — at that point fill it with the Supabase `JWT_SECRET`.
+   - Click **Apply changes** (Save)
+4. **Register Clerk as a Third-Party Auth provider in Supabase** (required — otherwise RLS treats every request as anonymous, frontend queries return `[]` for any per-user data):
+   - Open `backend/supabase/config.toml` and verify this block exists (already added):
+     ```toml
+     [auth.third_party.clerk]
+     enabled = true
+     domain = "<your-clerk-frontend-api-domain>"
+     ```
+   - The `domain` must match the `iss` claim of your JWT (`https://<domain>` minus the `https://`). For dev it's usually `<slug>.clerk.accounts.dev`. To verify: copy a JWT via the browser console (`copy(await window.Clerk.session.getToken({ template: 'supabase' }))`), paste into [jwt.io](https://jwt.io), check the `iss` claim.
+   - Full explanation: `_docs/clerk-supabase-auth.md`.
+5. Hard-refresh the browser (`Cmd+Shift+R`) after the above, so the Clerk SDK clears any cached token error state.
+
+> Skipping step 3 produces a runtime error: `clerk.browser.js ... ie.create` thrown from `CheckoutPage.tsx` when a user tries to donate. The Network response will read `"No JWT template exists with name: supabase"`.
+> Skipping step 4 makes the frontend appear to work but any RLS-protected query (donor dashboard, CBO profile, notifications) returns `[]`. See the Common Issues section for full diagnostics.
 
 ---
 
@@ -205,6 +225,42 @@ Copy the printed `whsec_...` value → `STRIPE_WEBHOOK_SECRET`
 
 > Keep this terminal running during development. Webhooks will not be delivered if it is closed.
 
+### Test Card Numbers
+
+Use these inside the Stripe CardElement on `/checkout/:requestId`:
+
+| Field      | Value                                              |
+| ---------- | -------------------------------------------------- |
+| Card no.   | `4242 4242 4242 4242` (success)                    |
+| MM / YY    | Any future date (e.g. `12 / 34`)                   |
+| CVC        | Any 3 digits (e.g. `123`)                          |
+| ZIP        | Any 5 digits (e.g. `12345`)                        |
+
+Other scenarios:
+
+| Scenario           | Card number              |
+| ------------------ | ------------------------ |
+| Card declined      | `4000 0000 0000 0002`    |
+| 3D Secure required | `4000 0025 0000 3155`    |
+| Insufficient funds | `4000 0000 0000 9995`    |
+
+Full list: <https://stripe.com/docs/testing#cards>
+
+### Security — Do Not Commit or Share Keys
+
+`STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` are secrets even in test mode. Never:
+
+- Paste them into chat tools, AI assistants, screenshots, or PRs
+- Commit `.env` files (already in `.gitignore` — keep it that way)
+- Share in Slack/email without an expiry plan
+
+If a key leaks, rotate immediately:
+
+- Secret key: Stripe Dashboard → Developers → API keys → **Roll key**
+- Webhook signing secret: Webhook endpoint detail page → **Roll signing secret**
+
+Then update `backend/api/.env` with the new values and restart the API.
+
 ---
 
 ## Step 7 — Start the Servers
@@ -236,6 +292,10 @@ cd frontend-vite && pnpm dev
 | Backend API     | <http://localhost:4000/health>       | Should return `{"status":"ok"}`  |
 | Supabase Studio | <http://127.0.0.1:54323>            | Inspect DB tables                |
 | Email testing   | <http://127.0.0.1:54324>            | Check signup confirmation emails |
+
+---
+
+> For production deployment (cloud Supabase, Vercel, etc.), see `howtodeploy.prod.md`.
 
 ---
 
@@ -329,6 +389,22 @@ cd frontend-vite && pnpm dev
 
 **Frontend type errors**
 → Run `cd frontend-vite && pnpm type-check` to locate the error
+
+**Payment error in browser console — `clerk.browser.js ... ie.create` thrown from `CheckoutPage.tsx`**
+
+This is **not** a Stripe error — it is the Clerk SDK failing to mint a JWT before the backend is even called.
+
+Diagnose: open DevTools → **Network** tab → click "Donate" → find the failed request (filter `tokens` or `clerk`) → look at the response body. Common cases:
+
+| Response message                                  | Fix                                                                                    |
+| ------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `No JWT template exists with name: supabase`      | Create the `supabase` JWT template in Clerk Dashboard (see Step 2.3)                  |
+| `Unauthenticated`                                 | Session expired — sign out and back in                                                 |
+| `Failed to fetch` / CORS                          | Add `http://localhost:3000` to Clerk's allowed origins (Dashboard → Domains)           |
+
+Same root cause shows up on `/cbo/setup` submit (calls `POST /api/users/become-cbo` which also needs the JWT).
+
+> The Clerk template's **Custom signing key** option should stay OFF — see Step 2.3. Only enable it if you later see Supabase RLS errors (e.g. `auth.uid()` returns null in a policy that should pass).
 
 **`ERR_PNPM_IGNORED_BUILDS` — build script blocked**
 
