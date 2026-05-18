@@ -27,8 +27,11 @@ import type { Database } from '@/types/database'
 import { AlertTriangle } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 
-// Check if organization can accept payments
+// Check if organization can accept payments. In dev with the backend bypass
+// enabled (VITE_STRIPE_BYPASS_CONNECT), we let any org through so end-to-end
+// donation flows can be exercised without Stripe Connect being onboarded.
 function canAcceptPayments(organization: any): boolean {
+  if (import.meta.env.VITE_STRIPE_BYPASS_CONNECT === 'true') return true
   return organization?.stripe_charges_enabled === true
 }
 
@@ -80,7 +83,11 @@ export function CheckoutPage() {
 
     try {
       // Create payment intent
-      const clientSecret = await createPaymentIntent(requestId, toStripeAmount(request.amount))
+      const clientSecret = await createPaymentIntent(
+        requestId,
+        toStripeAmount(request.amount),
+        user?.id
+      )
 
       // Confirm payment
       const cardElement = elements.getElement(CardElement)
@@ -230,6 +237,7 @@ export function CheckoutPage() {
               <div className="rounded-md border p-4">
                 <CardElement
                   options={{
+                    hidePostalCode: true,
                     style: {
                       base: {
                         fontSize: '16px',

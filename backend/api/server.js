@@ -308,9 +308,13 @@ app.post('/api/payments/create-intent', async (req, res) => {
       return res.status(404).json({ error: 'Request not found' })
     }
 
-    // Check if organization can accept payments
+    // Check if organization can accept payments. Dev convenience:
+    // STRIPE_BYPASS_CONNECT=true lets us run test-mode donations without
+    // having a Connect account set up. Money goes to the platform balance
+    // directly (no destination/application_fee). Test mode only.
+    const bypassConnect = process.env.STRIPE_BYPASS_CONNECT === 'true'
     const org = request.organization
-    if (!org?.stripe_account_id || !org?.stripe_charges_enabled) {
+    if (!bypassConnect && (!org?.stripe_account_id || !org?.stripe_charges_enabled)) {
       return res.status(400).json({
         error: 'Organization not ready to accept payments',
         code: 'STRIPE_NOT_CONNECTED',
@@ -336,14 +340,12 @@ app.post('/api/payments/create-intent', async (req, res) => {
     const platformFee = Math.round(amountCents * (feePercent / 100)) + feeFixed
     const organizationAmount = amountCents - platformFee
 
-    // Create payment intent with destination charge
-    const paymentIntent = await stripe.paymentIntents.create({
+    // Create payment intent. When Connect is set up, route via destination
+    // charge to the org. In bypass mode (dev/test only) just create a direct
+    // PaymentIntent against the platform account.
+    const intentParams = {
       amount: amountCents,
       currency: 'usd',
-      application_fee_amount: platformFee,
-      transfer_data: {
-        destination: org.stripe_account_id,
-      },
       metadata: {
         requestId,
         organizationId: org.id,
@@ -353,7 +355,12 @@ app.post('/api/payments/create-intent', async (req, res) => {
         organizationAmount: organizationAmount.toString(),
       },
       description: `Donation for: ${request.description}`,
-    })
+    }
+    if (!bypassConnect) {
+      intentParams.application_fee_amount = platformFee
+      intentParams.transfer_data = { destination: org.stripe_account_id }
+    }
+    const paymentIntent = await stripe.paymentIntents.create(intentParams)
 
     // Create payment transaction record
     const { error: txError } = await supabase.from('payment_transactions').insert({

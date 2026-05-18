@@ -25,7 +25,11 @@ export const getStripe = () => {
 /**
  * Create a payment intent for a request
  */
-export const createPaymentIntent = async (requestId: string, amount: number): Promise<string> => {
+export const createPaymentIntent = async (
+  requestId: string,
+  amount: number,
+  donorId?: string
+): Promise<string> => {
   const response = await fetch(`${apiConfig.baseUrl}${apiConfig.endpoints.payments.createIntent}`, {
     method: 'POST',
     headers: {
@@ -34,6 +38,7 @@ export const createPaymentIntent = async (requestId: string, amount: number): Pr
     body: JSON.stringify({
       requestId,
       amount,
+      donorId,
     }),
   })
 
