@@ -38,16 +38,13 @@ export function Navbar() {
         <div className="flex items-center gap-4">
           {isSignedIn ? (
             <>
-              <Link to={
-                userType === 'cbo' ? routes.cbo.dashboard :
-                userType === 'admin' ? routes.admin.dashboard :
-                routes.donor.dashboard
-              }>
-                <Button variant="ghost">Dashboard</Button>
-              </Link>
-              {userType === 'admin' && (
+              {userType === 'admin' ? (
                 <Link to={routes.admin.dashboard}>
                   <Button variant="ghost">Admin</Button>
+                </Link>
+              ) : (
+                <Link to={userType === 'cbo' ? routes.cbo.dashboard : routes.donor.dashboard}>
+                  <Button variant="ghost">Dashboard</Button>
                 </Link>
               )}
               <NotificationsBell />

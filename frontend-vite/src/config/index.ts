@@ -106,6 +106,7 @@ export const routes = {
   // Authentication
   signIn: '/sign-in',
   signUp: '/sign-up',
+  welcome: '/welcome',
 
   // Organization routes (public)
   organizations: {

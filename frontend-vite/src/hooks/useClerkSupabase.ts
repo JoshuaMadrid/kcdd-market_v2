@@ -11,7 +11,8 @@
 
 import { useAuth } from '@clerk/clerk-react'
 import { useEffect } from 'react'
-import { setSupabaseAuth, fetchUserProfile } from '@/lib/supabase'
+import { registerClerkTokenGetter, fetchUserProfile } from '@/lib/supabase'
+import { api } from '@/lib/api'
 import { useAuthStore } from '@/stores/authStore'
 
 export const useClerkSupabase = () => {
@@ -19,27 +20,33 @@ export const useClerkSupabase = () => {
   const { setUserType, reset } = useAuthStore()
 
   useEffect(() => {
-    const syncAuth = async () => {
-      if (!isLoaded) return
+    if (!isLoaded) return
 
-      if (userId) {
+    if (userId) {
+      // Register a token getter so supabase-js can pull a fresh Clerk JWT
+      // before every request. The getter is called per-request, so tokens
+      // never go stale (60s lifetime in Clerk dev).
+      registerClerkTokenGetter(() => getToken({ template: 'supabase' }))
+
+      const syncAuth = async () => {
         try {
-          const token = await getToken({ template: 'supabase' })
-          await setSupabaseAuth(token)
+          // Ensure user_profiles row exists for this Clerk user before any
+          // downstream FK-bound operations (payment webhooks, become-cbo, etc.)
+          await api.post('/api/users/sync', {}, getToken).catch((err) => {
+            console.error('Error syncing user_profiles:', err)
+          })
           // Populate userType in authStore so admin nav link is shown immediately
           const profile: any = await fetchUserProfile(userId).catch(() => null)
           if (profile?.user_type) setUserType(profile.user_type)
         } catch (error) {
-          console.error('Error syncing Clerk token with Supabase:', error)
-          await setSupabaseAuth(null)
+          console.error('Error syncing Clerk session:', error)
         }
-      } else {
-        await setSupabaseAuth(null)
-        reset()
       }
+      syncAuth()
+    } else {
+      registerClerkTokenGetter(null)
+      reset()
     }
-
-    syncAuth()
   }, [isLoaded, userId, getToken])
 
   return {

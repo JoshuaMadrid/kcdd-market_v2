@@ -13,37 +13,41 @@ import { createClient } from '@supabase/supabase-js'
 import { supabaseConfig } from '@/config'
 import type { Database } from '@/types/database'
 
-// Create Supabase client
+// Module-level holder for the Clerk token getter.
+// useClerkSupabase registers a function here on mount; supabase-js then calls
+// it before every request via the accessToken option below.
+let clerkTokenGetter: (() => Promise<string | null>) | null = null
+
+export const registerClerkTokenGetter = (
+  fn: (() => Promise<string | null>) | null
+) => {
+  clerkTokenGetter = fn
+}
+
+// Create Supabase client.
+// `accessToken` is the supabase-js v2.45+ hook for external auth providers
+// (Clerk, Auth0, Firebase). Each REST/realtime/storage request will call it
+// to get a fresh JWT and put it on the Authorization header, replacing the
+// publishable-key default. Combined with Supabase Third-Party Auth (see
+// _docs/clerk-supabase-auth.md), this is what makes RLS read clerk_user_id().
 export const supabase = createClient<Database>(
   supabaseConfig.url,
   supabaseConfig.publishableKey,
   {
     auth: {
-      persistSession: false, // We use Clerk for auth
+      persistSession: false, // Clerk owns the session
       autoRefreshToken: false,
+    },
+    accessToken: async () => {
+      if (!clerkTokenGetter) return null
+      try {
+        return await clerkTokenGetter()
+      } catch {
+        return null
+      }
     },
   }
 )
-
-/**
- * Set Clerk JWT token for Supabase requests
- * Call this after user signs in with Clerk
- */
-export const setSupabaseAuth = async (clerkToken: string | null) => {
-  const client = supabase as any
-  if (clerkToken) {
-    client.rest.headers['Authorization'] = `Bearer ${clerkToken}`
-  } else {
-    delete client.rest.headers['Authorization']
-  }
-}
-
-/**
- * Helper to check if user is authenticated with Supabase
- */
-export const isSupabaseAuthenticated = (): boolean => {
-  return !!(supabase as any).rest.headers['Authorization']
-}
 
 /**
  * Real-time subscription helper

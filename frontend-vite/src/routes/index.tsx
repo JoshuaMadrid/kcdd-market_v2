@@ -34,6 +34,7 @@ import { CheckoutPage } from '@/pages/CheckoutPage'
 import { PaymentSuccessPage } from '@/pages/PaymentSuccessPage'
 import { PaymentCancelPage } from '@/pages/PaymentCancelPage'
 import { DonationsPage } from '@/pages/donor/DonationsPage'
+import { WelcomePage } from '@/pages/WelcomePage'
 import { AdminDashboard } from '@/pages/admin/DashboardPage'
 import { AdminVettingPage } from '@/pages/admin/VettingPage'
 import { AdminRequestsPage } from '@/pages/admin/RequestsPage'
@@ -65,7 +66,29 @@ export function AppRoutes() {
 
       {/* Auth routes */}
       <Route path={routes.signIn} element={<SignIn routing="path" path={routes.signIn} />} />
-      <Route path={routes.signUp} element={<SignUp routing="path" path={routes.signUp} />} />
+      <Route
+        path={routes.signUp}
+        element={
+          <SignUp
+            routing="path"
+            path={routes.signUp}
+            afterSignUpUrl={routes.welcome}
+            afterSignInUrl={routes.home}
+          />
+        }
+      />
+
+      {/* Welcome (post-signup role chooser) */}
+      <Route element={<MainLayout />}>
+        <Route
+          path={routes.welcome}
+          element={
+            <ProtectedRoute>
+              <WelcomePage />
+            </ProtectedRoute>
+          }
+        />
+      </Route>
 
       {/* Donor routes (protected) */}
       <Route element={<MainLayout />}>
