@@ -6,6 +6,37 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
+// Phase 8: shape of requests.device_type_breakdown JSONB column.
+// All keys are optional; missing key means 0.
+export interface DeviceTypeBreakdown {
+  desktops?: number
+  laptops?: number
+  tablets?: number
+  smartphones?: number
+}
+
+// Phase 8: allowed values for requests.need_frequency.
+export type NeedFrequency = 'one_time' | 'recurring'
+
+// Phase 8.5: hybrid donation type — cash via Stripe or in-kind device pledge.
+export type DonationType = 'cash' | 'in_kind'
+
+// Phase 8.5: in_kind_pledges.pledge_status workflow.
+export type PledgeStatus = 'pending' | 'accepted' | 'rejected'
+
+// Phase 8.5: in_kind_pledges row shape (top-level reusable type).
+export interface InKindPledge {
+  id: string
+  request_id: string
+  donor_id: string
+  device_breakdown: DeviceTypeBreakdown
+  donor_notes: string | null
+  delivery_address: string
+  pledge_status: PledgeStatus
+  created_at: string
+  updated_at: string
+}
+
 export type Database = {
   public: {
     Tables: {
@@ -127,6 +158,8 @@ export type Database = {
           social_links: Record<string, string> | null
           program_description: string | null
           service_area_description: string | null
+          ages_served: string[] | null
+          pre_eligibility_status: string | null
           created_at: string
           updated_at: string
         }
@@ -152,6 +185,8 @@ export type Database = {
           social_links?: Record<string, string> | null
           program_description?: string | null
           service_area_description?: string | null
+          ages_served?: string[] | null
+          pre_eligibility_status?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -177,6 +212,8 @@ export type Database = {
           social_links?: Record<string, string> | null
           program_description?: string | null
           service_area_description?: string | null
+          ages_served?: string[] | null
+          pre_eligibility_status?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -247,6 +284,20 @@ export type Database = {
           fulfilled_at: string | null
           denied_at: string | null
           refunded_at: string | null
+          device_type_breakdown: DeviceTypeBreakdown
+          essay_technology_gap: string | null
+          essay_population_impact: string | null
+          essay_prior_support: string | null
+          essay_sustainability: string | null
+          essay_it_capacity: string | null
+          essay_urgency_narrative: string | null
+          refurbished_ok: boolean
+          has_supplier: boolean
+          has_it_support: boolean
+          distribution_method: string[] | null
+          need_frequency: NeedFrequency | null
+          donation_type: DonationType
+          pledge_id: string | null
         }
         Insert: {
           id?: string
@@ -269,6 +320,20 @@ export type Database = {
           fulfilled_at?: string | null
           denied_at?: string | null
           refunded_at?: string | null
+          device_type_breakdown?: DeviceTypeBreakdown
+          essay_technology_gap?: string | null
+          essay_population_impact?: string | null
+          essay_prior_support?: string | null
+          essay_sustainability?: string | null
+          essay_it_capacity?: string | null
+          essay_urgency_narrative?: string | null
+          refurbished_ok?: boolean
+          has_supplier?: boolean
+          has_it_support?: boolean
+          distribution_method?: string[] | null
+          need_frequency?: NeedFrequency | null
+          donation_type?: DonationType
+          pledge_id?: string | null
         }
         Update: {
           id?: string
@@ -291,6 +356,45 @@ export type Database = {
           fulfilled_at?: string | null
           denied_at?: string | null
           refunded_at?: string | null
+          device_type_breakdown?: DeviceTypeBreakdown
+          essay_technology_gap?: string | null
+          essay_population_impact?: string | null
+          essay_prior_support?: string | null
+          essay_sustainability?: string | null
+          essay_it_capacity?: string | null
+          essay_urgency_narrative?: string | null
+          refurbished_ok?: boolean
+          has_supplier?: boolean
+          has_it_support?: boolean
+          distribution_method?: string[] | null
+          need_frequency?: NeedFrequency | null
+          donation_type?: DonationType
+          pledge_id?: string | null
+        }
+      }
+      in_kind_pledges: {
+        Row: InKindPledge
+        Insert: {
+          id?: string
+          request_id: string
+          donor_id: string
+          device_breakdown?: DeviceTypeBreakdown
+          donor_notes?: string | null
+          delivery_address: string
+          pledge_status?: PledgeStatus
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          request_id?: string
+          donor_id?: string
+          device_breakdown?: DeviceTypeBreakdown
+          donor_notes?: string | null
+          delivery_address?: string
+          pledge_status?: PledgeStatus
+          created_at?: string
+          updated_at?: string
         }
       }
       organization_cause_areas: {

@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, MapPin, Calendar, ExternalLink } from 'lucide-react'
+import { ArrowLeft, MapPin, Calendar, ExternalLink, Package } from 'lucide-react'
 import { fetchRequestById } from '@/lib/supabase'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -9,6 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Separator } from '@/components/ui/separator'
 import { routes } from '@/config'
 import { formatCurrency, formatRelativeTime } from '@/lib/utils'
+import { InKindPledgeDialog } from '@/components/requests/InKindPledgeDialog'
 
 const urgencyVariant = (u: string) =>
   u === 'high' ? 'destructive' : u === 'medium' ? 'default' : 'secondary'
@@ -47,8 +48,9 @@ export function RequestDetailPage() {
   const [request, setRequest] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [pledgeDialogOpen, setPledgeDialogOpen] = useState(false)
 
-  useEffect(() => {
+  const loadRequest = useCallback(() => {
     if (!id) return
     setLoading(true)
     fetchRequestById(id)
@@ -56,6 +58,10 @@ export function RequestDetailPage() {
       .catch(() => setError('This request could not be found or is no longer available.'))
       .finally(() => setLoading(false))
   }, [id])
+
+  useEffect(() => {
+    loadRequest()
+  }, [loadRequest])
 
   if (loading) return <DetailSkeleton />
 
@@ -130,6 +136,137 @@ export function RequestDetailPage() {
       <div className="grid md:grid-cols-3 gap-6">
         {/* Left: categories */}
         <div className="md:col-span-2 space-y-6">
+          {/* Phase 8 — Device breakdown */}
+          {(() => {
+            const b = request.device_type_breakdown
+            if (!b) return null
+            const rows = (
+              [
+                ['Desktops', b.desktops],
+                ['Laptops', b.laptops],
+                ['Tablets', b.tablets],
+                ['Smartphones', b.smartphones],
+              ] as Array<[string, number | undefined]>
+            ).filter(([, n]) => (n ?? 0) > 0)
+            if (rows.length === 0) return null
+            return (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                    Devices Requested
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <table className="w-full text-sm">
+                    <tbody>
+                      {rows.map(([label, count]) => (
+                        <tr key={label} className="border-b last:border-b-0">
+                          <td className="py-1.5 text-muted-foreground">{label}</td>
+                          <td className="py-1.5 text-right font-medium">{count}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </CardContent>
+              </Card>
+            )
+          })()}
+
+          {/* Phase 8 — Logistics */}
+          {(() => {
+            const hasAny =
+              request.refurbished_ok ||
+              request.has_supplier ||
+              request.has_it_support ||
+              (request.distribution_method && request.distribution_method.length > 0) ||
+              request.need_frequency
+            if (!hasAny) return null
+            const freqLabel =
+              request.need_frequency === 'one_time'
+                ? 'One-Time'
+                : request.need_frequency === 'recurring'
+                ? 'Recurring'
+                : null
+            const distLabels: Record<string, string> = {
+              individual: 'Individual Recipients',
+              computer_lab: 'Computer Lab',
+              shared: 'Shared Device Pool',
+            }
+            return (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                    Logistics
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3 text-sm">
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant={request.refurbished_ok ? 'secondary' : 'outline'}>
+                      Refurbished OK: {request.refurbished_ok ? 'Yes' : 'No'}
+                    </Badge>
+                    <Badge variant={request.has_supplier ? 'secondary' : 'outline'}>
+                      Has Supplier: {request.has_supplier ? 'Yes' : 'No'}
+                    </Badge>
+                    <Badge variant={request.has_it_support ? 'secondary' : 'outline'}>
+                      Has IT Support: {request.has_it_support ? 'Yes' : 'No'}
+                    </Badge>
+                  </div>
+                  {request.distribution_method && request.distribution_method.length > 0 && (
+                    <div className="flex gap-2">
+                      <span className="text-muted-foreground">Distribution:</span>
+                      <span>
+                        {request.distribution_method
+                          .map((d: string) => distLabels[d] ?? d)
+                          .join(', ')}
+                      </span>
+                    </div>
+                  )}
+                  {freqLabel && (
+                    <div className="flex gap-2">
+                      <span className="text-muted-foreground">Frequency:</span>
+                      <span>{freqLabel}</span>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )
+          })()}
+
+          {/* Phase 8 — Essays */}
+          {(() => {
+            const essays: Array<[string, string | null]> = [
+              ['Technology Gap', request.essay_technology_gap],
+              ['Population Impact', request.essay_population_impact],
+              ['Prior Support', request.essay_prior_support],
+              ['Sustainability', request.essay_sustainability],
+              ['IT Capacity', request.essay_it_capacity],
+              ['Urgency Narrative', request.essay_urgency_narrative],
+            ]
+            const filled = essays.filter(([, v]) => v && v.trim().length > 0)
+            if (filled.length === 0) return null
+            return (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                    Application Essays
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {filled.map(([label, value]) => (
+                    <details key={label} className="border rounded-md px-3 py-2">
+                      <summary className="cursor-pointer text-sm font-medium select-none">
+                        {label}
+                      </summary>
+                      <p className="text-sm text-muted-foreground mt-2 whitespace-pre-wrap leading-relaxed">
+                        {value}
+                      </p>
+                    </details>
+                  ))}
+                </CardContent>
+              </Card>
+            )
+          })()}
+
           {challengeCategories.length > 0 && (
             <Card>
               <CardHeader className="pb-3">
@@ -225,9 +362,31 @@ export function RequestDetailPage() {
               </div>
               <Separator />
               {isOpen ? (
-                <Link to={routes.checkout(request.id)}>
-                  <Button className="w-full" size="lg">Donate Now</Button>
-                </Link>
+                <div className="space-y-2">
+                  <Link to={routes.checkout(request.id)}>
+                    <Button className="w-full" size="lg">Donate Now</Button>
+                  </Link>
+                  {(() => {
+                    const b = request.device_type_breakdown ?? {}
+                    const total =
+                      (Number(b.desktops) || 0) +
+                      (Number(b.laptops) || 0) +
+                      (Number(b.tablets) || 0) +
+                      (Number(b.smartphones) || 0)
+                    if (total === 0) return null
+                    return (
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        size="lg"
+                        onClick={() => setPledgeDialogOpen(true)}
+                      >
+                        <Package className="h-4 w-4 mr-2" />
+                        Donate Devices
+                      </Button>
+                    )
+                  })()}
+                </div>
               ) : (
                 <div className="text-center">
                   <Badge
@@ -258,6 +417,13 @@ export function RequestDetailPage() {
           )}
         </div>
       </div>
+
+      <InKindPledgeDialog
+        request={{ id: request.id, device_type_breakdown: request.device_type_breakdown }}
+        open={pledgeDialogOpen}
+        onOpenChange={setPledgeDialogOpen}
+        onSuccess={loadRequest}
+      />
     </div>
   )
 }

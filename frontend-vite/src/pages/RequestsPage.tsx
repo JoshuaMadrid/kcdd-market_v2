@@ -16,6 +16,41 @@ const PAGE_SIZE = 12
 const urgencyVariant = (u: string) =>
   u === 'high' ? 'destructive' : u === 'medium' ? 'default' : 'secondary'
 
+// Phase 8.5: donation-type badge for request cards.
+// Returns null for fulfilled / denied (status badge alone is enough there).
+function donationTypeBadge(request: any): { label: string; className: string } | null {
+  const status = request.status
+  if (status === 'fulfilled' || status === 'denied') return null
+
+  if (status === 'claimed') {
+    if (request.donation_type === 'in_kind') {
+      return {
+        label: 'Device pledge',
+        className: 'border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-50/80',
+      }
+    }
+    return { label: 'Funded', className: '' } // default secondary
+  }
+
+  // status === 'open' — sum device counts to decide
+  const b = request.device_type_breakdown ?? {}
+  const totalDevices =
+    (Number(b.desktops) || 0) +
+    (Number(b.laptops) || 0) +
+    (Number(b.tablets) || 0) +
+    (Number(b.smartphones) || 0)
+  if (totalDevices > 0) {
+    return {
+      label: 'Cash or Devices',
+      className: 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-50/80',
+    }
+  }
+  return {
+    label: 'Cash only',
+    className: 'border-green-300 bg-green-50 text-green-700 hover:bg-green-50/80',
+  }
+}
+
 function RequestCardSkeleton() {
   return (
     <Card className="flex flex-col">
@@ -199,6 +234,11 @@ export function RequestsPage() {
                           Time-Sensitive
                         </Badge>
                       )}
+                    {(() => {
+                      const dt = donationTypeBadge(request)
+                      if (!dt) return null
+                      return <Badge className={dt.className}>{dt.label}</Badge>
+                    })()}
                   </div>
                 </div>
               </CardHeader>
@@ -218,6 +258,23 @@ export function RequestsPage() {
                     <span className="text-muted-foreground">Posted:</span>
                     <span>{formatRelativeTime(request.created_at)}</span>
                   </div>
+                  {(() => {
+                    const b = request.device_type_breakdown
+                    if (!b) return null
+                    const parts = [
+                      (b.laptops ?? 0) > 0 && `${b.laptops} Laptop${b.laptops !== 1 ? 's' : ''}`,
+                      (b.desktops ?? 0) > 0 && `${b.desktops} Desktop${b.desktops !== 1 ? 's' : ''}`,
+                      (b.tablets ?? 0) > 0 && `${b.tablets} Tablet${b.tablets !== 1 ? 's' : ''}`,
+                      (b.smartphones ?? 0) > 0 && `${b.smartphones} Smartphone${b.smartphones !== 1 ? 's' : ''}`,
+                    ].filter(Boolean)
+                    if (parts.length === 0) return null
+                    return (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Devices:</span>
+                        <span className="text-right">{parts.join(', ')}</span>
+                      </div>
+                    )
+                  })()}
                 </div>
               </CardContent>
               <CardFooter>

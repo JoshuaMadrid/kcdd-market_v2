@@ -17,6 +17,7 @@ import { createClient } from '@supabase/supabase-js'
 import { clerkAuth } from './middleware/clerkAuth.js'
 import requestsRouter from './routes/requests.js'
 import usersRouter from './routes/users.js'
+import inKindRouter from './routes/inKind.js'
 
 // Load environment variables
 dotenv.config()
@@ -310,6 +311,7 @@ async function handleChargeRefunded(charge) {
 // ============================================
 
 app.use('/api/requests', clerkAuth, requestsRouter)
+app.use('/api/requests', clerkAuth, inKindRouter)
 app.use('/api/users', clerkAuth, usersRouter)
 
 // ============================================

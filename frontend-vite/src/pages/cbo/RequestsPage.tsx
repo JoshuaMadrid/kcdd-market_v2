@@ -8,6 +8,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Skeleton } from '@/components/ui/skeleton'
 import { FulfillDialog } from '@/components/requests/FulfillDialog'
 import { DenyDialog } from '@/components/requests/DenyDialog'
+import { AcceptPledgeDialog } from '@/components/requests/AcceptPledgeDialog'
+import { ConfirmReceiptDialog } from '@/components/requests/ConfirmReceiptDialog'
 import { fetchOrganizationRequests } from '@/lib/supabase'
 import { useCBOOrganization } from '@/hooks/useCBOOrganization'
 import { formatCurrency } from '@/lib/utils'
@@ -33,6 +35,8 @@ export function CBORequests() {
 
   const [fulfillTarget, setFulfillTarget] = useState<string | null>(null)
   const [denyTarget, setDenyTarget] = useState<string | null>(null)
+  const [pledgeReviewTarget, setPledgeReviewTarget] = useState<string | null>(null)
+  const [confirmReceiptTarget, setConfirmReceiptTarget] = useState<string | null>(null)
 
   const loadRequests = async () => {
     if (!org) return
@@ -124,7 +128,32 @@ export function CBORequests() {
                     <Badge variant={statusColors[req.status] as any}>
                       {req.status}
                     </Badge>
-                    {req.status === 'claimed' && (
+                    {req.donation_type === 'in_kind' && (
+                      <Badge className="border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-50/80">
+                        Device pledge
+                      </Badge>
+                    )}
+                    {req.status === 'claimed' && req.donation_type === 'in_kind' ? (
+                      req.in_kind_pledge?.pledge_status === 'pending' ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-blue-700 border-blue-300 hover:bg-blue-50"
+                          onClick={() => setPledgeReviewTarget(req.id)}
+                        >
+                          Review Pledge
+                        </Button>
+                      ) : req.in_kind_pledge?.pledge_status === 'accepted' ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-green-700 border-green-300 hover:bg-green-50"
+                          onClick={() => setConfirmReceiptTarget(req.id)}
+                        >
+                          Confirm Receipt
+                        </Button>
+                      ) : null
+                    ) : req.status === 'claimed' ? (
                       <>
                         <Button
                           size="sm"
@@ -143,7 +172,7 @@ export function CBORequests() {
                           Deny
                         </Button>
                       </>
-                    )}
+                    ) : null}
                   </div>
                 </div>
               ))}
@@ -163,6 +192,20 @@ export function CBORequests() {
         requestId={denyTarget ?? ''}
         open={denyTarget !== null}
         onOpenChange={(open) => { if (!open) setDenyTarget(null) }}
+        onSuccess={loadRequests}
+      />
+
+      <AcceptPledgeDialog
+        requestId={pledgeReviewTarget ?? ''}
+        open={pledgeReviewTarget !== null}
+        onOpenChange={(open) => { if (!open) setPledgeReviewTarget(null) }}
+        onSuccess={loadRequests}
+      />
+
+      <ConfirmReceiptDialog
+        requestId={confirmReceiptTarget ?? ''}
+        open={confirmReceiptTarget !== null}
+        onOpenChange={(open) => { if (!open) setConfirmReceiptTarget(null) }}
         onSuccess={loadRequests}
       />
     </div>

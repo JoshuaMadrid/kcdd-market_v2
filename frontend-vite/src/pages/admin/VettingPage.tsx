@@ -121,6 +121,16 @@ export function AdminVettingPage() {
                     Note: {org.vetting_note}
                   </p>
                 )}
+                {org.ages_served && org.ages_served.length > 0 && (
+                  <p className="text-xs text-muted-foreground mb-1">
+                    Ages Served: {org.ages_served.join(', ')}
+                  </p>
+                )}
+                {org.pre_eligibility_status && (
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Pre-Eligibility: {org.pre_eligibility_status}
+                  </p>
+                )}
                 <div className="flex gap-2">
                   <Button
                     size="sm"

@@ -13,7 +13,10 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Skeleton } from '@/components/ui/skeleton'
+
+const AGES_SERVED_OPTIONS = ['0-5', '6-12', '13-17', '18-24', '25-54', '55+'] as const
 import { fetchOrganizationByUserId, updateOrganization } from '@/lib/supabase'
 import { routes } from '@/config'
 import type { Database } from '@/types/database'
@@ -46,7 +49,27 @@ export function CBOProfileEdit() {
   const [error, setError] = useState<string | null>(null)
 
   // Form state
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    name: string
+    tagline: string
+    mission: string
+    technology_barriers: string
+    program_description: string
+    service_area_description: string
+    organization_type: string
+    organization_size: string
+    year_founded: string
+    website: string
+    email: string
+    phone: string
+    address: string
+    zipcode: string
+    ein: string
+    logo_url: string
+    cover_image_url: string
+    ages_served: string[]
+    pre_eligibility_status: string
+  }>({
     name: '',
     tagline: '',
     mission: '',
@@ -64,6 +87,8 @@ export function CBOProfileEdit() {
     ein: '',
     logo_url: '',
     cover_image_url: '',
+    ages_served: [],
+    pre_eligibility_status: '',
   })
 
   useEffect(() => {
@@ -96,6 +121,8 @@ export function CBOProfileEdit() {
             ein: orgData.ein || '',
             logo_url: orgData.logo_url || '',
             cover_image_url: orgData.cover_image_url || '',
+            ages_served: orgData.ages_served ?? [],
+            pre_eligibility_status: orgData.pre_eligibility_status ?? '',
           })
         }
       } catch (err) {
@@ -139,6 +166,8 @@ export function CBOProfileEdit() {
         ein: formData.ein || null,
         logo_url: formData.logo_url || null,
         cover_image_url: formData.cover_image_url || null,
+        ages_served: formData.ages_served.length > 0 ? formData.ages_served : null,
+        pre_eligibility_status: formData.pre_eligibility_status || null,
       })
 
       navigate(routes.cbo.profile)
@@ -321,6 +350,52 @@ export function CBOProfileEdit() {
                 onChange={(e) => handleChange('service_area_description', e.target.value)}
                 rows={2}
                 placeholder="Describe the geographic area you serve..."
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Population Served */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Population Served</CardTitle>
+            <CardDescription>Who does your organization serve?</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label>Ages Served</Label>
+              <div className="flex flex-wrap gap-3 mt-1">
+                {AGES_SERVED_OPTIONS.map((opt) => {
+                  const checked = formData.ages_served.includes(opt)
+                  return (
+                    <div key={opt} className="flex items-center gap-2">
+                      <Checkbox
+                        id={`age-${opt}`}
+                        checked={checked}
+                        onCheckedChange={(v) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            ages_served: v
+                              ? [...prev.ages_served, opt]
+                              : prev.ages_served.filter((a) => a !== opt),
+                          }))
+                        }
+                      />
+                      <Label htmlFor={`age-${opt}`} className="font-normal cursor-pointer">
+                        {opt}
+                      </Label>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="pre_eligibility_status">Pre-Eligibility Requirements</Label>
+              <Input
+                id="pre_eligibility_status"
+                value={formData.pre_eligibility_status}
+                onChange={(e) => handleChange('pre_eligibility_status', e.target.value)}
+                placeholder="e.g. income-verified, referral required"
               />
             </div>
           </CardContent>

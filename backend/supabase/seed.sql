@@ -59,8 +59,9 @@ INSERT INTO user_profiles (id, user_type, is_vetted) VALUES
   ('00000000-0000-0000-0003-000000000001', 'donor', false),
   ('00000000-0000-0000-0003-000000000002', 'donor', false),
   ('00000000-0000-0000-0003-000000000003', 'donor', false),
-  -- Real Clerk user pre-seeded as admin (survives db:reset; /api/users/sync respects existing row via ignoreDuplicates)
-  ('user_3DnElkT9WrqI1pJ5SBKNfoZB73x',     'admin', true)
+  -- Real Clerk users pre-seeded with their roles (survives db:reset; /api/users/sync respects existing row via ignoreDuplicates)
+  ('user_3DnElkT9WrqI1pJ5SBKNfoZB73x',     'admin', true),
+  ('user_3DsXr8YQSQrpyJsmOVTqWaa48qy',     'cbo',   true)
 ON CONFLICT (id) DO NOTHING;
 
 -- STEP 5: Insert organizations (3 rows)
@@ -785,5 +786,423 @@ VALUES
     true
   )
 ON CONFLICT (id) DO NOTHING;
+
+-- ============================================================
+-- STEP 17: Phase 8 backfill — populate ages_served, pre_eligibility_status,
+-- device_type_breakdown, logistics booleans, distribution_method,
+-- need_frequency, and 6 essay fields on a selection of orgs/requests so
+-- Phase 8 UI components have real data to render. UPDATE statements run
+-- after the original INSERTs (which use ON CONFLICT DO NOTHING).
+-- ============================================================
+
+-- Organizations — ages_served + pre_eligibility_status for all 3
+UPDATE organizations SET
+  ages_served            = ARRAY['6-12', '13-17']::text[],
+  pre_eligibility_status = 'Youth must be enrolled in a partner KCPS school or affiliated after-school program.'
+WHERE id = '00000000-0000-0000-0004-000000000001';
+
+UPDATE organizations SET
+  ages_served            = ARRAY['18-24', '25-54']::text[],
+  pre_eligibility_status = 'Income-verified or referral from a partner workforce-development agency required.'
+WHERE id = '00000000-0000-0000-0004-000000000002';
+
+UPDATE organizations SET
+  ages_served            = ARRAY['25-54', '55+']::text[],
+  pre_eligibility_status = 'Open to KC-metro residents 55+ or adults with documented accessibility needs.'
+WHERE id = '00000000-0000-0000-0004-000000000003';
+
+-- Requests — populate Phase 8 fields on 6 open + 2 fulfilled rows.
+-- Remaining rows stay at defaults so the UI also exercises the
+-- "no Phase 8 data" empty-state branches.
+
+-- Request 1: 15 Chromebooks for Connecting Roots
+UPDATE requests SET
+  device_type_breakdown   = '{"laptops": 15}'::jsonb,
+  refurbished_ok          = true,
+  has_supplier            = false,
+  has_it_support          = true,
+  distribution_method     = ARRAY['individual']::text[],
+  need_frequency          = 'recurring',
+  essay_technology_gap    = 'Students in the 64130 corridor have no devices at home. They cannot complete reading homework, watch tutorial videos, or take online practice tests. Each year about 60 of our 200 youth fall behind grade level by spring, and lack of a device is the most cited cause in our annual parent survey.',
+  essay_population_impact = 'These 15 Chromebooks would support roughly 45 students rotating through our after-school Digital Seedlings program. Past data shows participating students gain an average of 0.7 grade levels in reading over two semesters when they have take-home device access.',
+  essay_it_capacity       = 'Our part-time tech coordinator has been refurbishing donated devices for 4 years. He handles setup, account provisioning, and break/fix support for the entire fleet.'
+WHERE id = '00000000-0000-0000-0006-000000000001';
+
+-- Request 3: 10 laptop charging stations for KC Tech Bridge
+UPDATE requests SET
+  device_type_breakdown   = '{}'::jsonb,
+  refurbished_ok          = false,
+  has_supplier            = true,
+  has_it_support          = false,
+  distribution_method     = ARRAY['computer_lab']::text[],
+  need_frequency          = 'one_time',
+  essay_technology_gap    = 'Participants in our WorkReady lab bring their own laptops but we have no charging infrastructure. Class sessions are interrupted every 90 minutes when devices die, breaking participants'' focus during interview practice and resume work.',
+  essay_population_impact = 'We host four 12-week WorkReady cohorts per year, averaging 25 participants per cohort. Charging stations would eliminate ~2 hours of lost class time per week per cohort.',
+  essay_urgency_narrative = 'Our spring cohort starts in 6 weeks and we have already had to extend two prior cohorts because of lost charging time.'
+WHERE id = '00000000-0000-0000-0006-000000000003';
+
+-- Request 5: 8 large-screen tablets for Digital Futures
+UPDATE requests SET
+  device_type_breakdown   = '{"tablets": 8}'::jsonb,
+  refurbished_ok          = false,
+  has_supplier            = true,
+  has_it_support          = true,
+  distribution_method     = ARRAY['individual', 'shared']::text[],
+  need_frequency          = 'one_time',
+  essay_technology_gap    = 'Our Silver Screens seniors miss telehealth appointments because phone screens are too small to follow a doctor''s visual instructions. About 30% of our cohort has cancelled at least one appointment in the past 6 months citing screen-size issues.',
+  essay_population_impact = '8 large-screen tablets would rotate through our 24-senior cohort plus serve as backup loaners for in-home coaching. Past device additions have correlated with a 40% reduction in cancelled telehealth visits.',
+  essay_prior_support     = 'In 2024, AARP KC funded 4 tablets through a pilot. This request would expand on that pilot which proved out the model.',
+  essay_sustainability    = 'Tablets stay with the program; we have a 5-year replacement plan funded through our annual community lunch fundraiser.'
+WHERE id = '00000000-0000-0000-0006-000000000005';
+
+-- Request 18: mobile hotspots (open, high urgency)
+UPDATE requests SET
+  device_type_breakdown   = '{}'::jsonb,
+  refurbished_ok          = false,
+  has_supplier            = true,
+  has_it_support          = false,
+  distribution_method     = ARRAY['individual']::text[],
+  need_frequency          = 'recurring',
+  essay_technology_gap    = 'Four of our remote-learning track students lost home Wi-Fi between semesters when their families could not renew service. Without home connectivity they cannot complete daily reading logs or attend evening tutoring.',
+  essay_population_impact = 'Immediate impact on 4 students and indirect benefit to their families (8 siblings combined). Hotspots also enable us to keep a 6-month data plan flexible for emergency student needs.',
+  essay_urgency_narrative = 'Each day without connectivity sets a student back about a week academically based on our internal data; we are losing students month-over-month.'
+WHERE id = '00000000-0000-0000-0006-000000000018';
+
+-- Request 20: bilingual document scanner (open)
+UPDATE requests SET
+  device_type_breakdown   = '{}'::jsonb,
+  refurbished_ok          = true,
+  has_supplier            = false,
+  has_it_support          = true,
+  distribution_method     = ARRAY['shared']::text[],
+  need_frequency          = 'one_time',
+  essay_technology_gap    = 'Our intake currently relies on volunteer translators reviewing paper documents one-by-one. Cases that should close in 5 days are averaging 18 days.',
+  essay_population_impact = 'Bilingual OCR scanner would speed processing for an estimated 150 immigrant intakes per year, cutting wait times by ~70%.',
+  essay_it_capacity       = 'Our intake coordinator is already trained on the predecessor model from a partner agency loan. No additional staffing required.'
+WHERE id = '00000000-0000-0000-0006-000000000020';
+
+-- Request 22: JAWS screen reader licenses (open, high urgency)
+UPDATE requests SET
+  device_type_breakdown   = '{}'::jsonb,
+  refurbished_ok          = false,
+  has_supplier            = true,
+  has_it_support          = true,
+  distribution_method     = ARRAY['shared']::text[],
+  need_frequency          = 'recurring',
+  essay_technology_gap    = 'Three participants in our AccessAbility lab cannot complete the Microsoft Office certification track because the lab machines lack screen reader software. Two have deferred the program for a year already.',
+  essay_population_impact = 'Three immediate participants; estimated 6-8 additional learners per year as awareness of the lab grows in the blind/low-vision community.',
+  essay_sustainability    = 'JAWS licenses are renewed annually via our existing Microsoft TechSoup partnership; this funds the initial 3 seats.'
+WHERE id = '00000000-0000-0000-0006-000000000022';
+
+-- Request 10: 5 refurbished desktops (fulfilled — show that fulfilled also has data)
+UPDATE requests SET
+  device_type_breakdown   = '{"desktops": 5}'::jsonb,
+  refurbished_ok          = true,
+  has_supplier            = true,
+  has_it_support          = true,
+  distribution_method     = ARRAY['computer_lab']::text[],
+  need_frequency          = 'one_time',
+  essay_technology_gap    = 'Community center lab machines were over 12 years old and could not run current Office or web apps. About a third of after-school visitors gave up rather than wait for the slow machines.',
+  essay_population_impact = 'Lab serves ~120 students per week. Modern machines have already increased weekly engagement by 22% in the 30 days since install.'
+WHERE id = '00000000-0000-0000-0006-000000000010';
+
+-- Request 25: BP cuff + tablet bundle (fulfilled)
+UPDATE requests SET
+  device_type_breakdown   = '{"tablets": 1}'::jsonb,
+  refurbished_ok          = false,
+  has_supplier            = true,
+  has_it_support          = true,
+  distribution_method     = ARRAY['individual']::text[],
+  need_frequency          = 'one_time',
+  essay_technology_gap    = 'Homebound seniors miss BP-monitoring visits because transportation to clinics is unreliable. Telehealth via a paired BP cuff would close this loop.'
+WHERE id = '00000000-0000-0000-0006-000000000025';
+
+-- ============================================================
+-- STEP 18: Phase 8.5 mock data — In-Kind Pledges
+-- ============================================================
+-- 3 new requests (29-31) seeded to demonstrate hybrid donation flow without
+-- disturbing the existing Phase 8 demo data on requests 1-28.
+-- ============================================================
+
+-- Requests 29, 30, 31 — all start with device_type_breakdown populated
+INSERT INTO requests (
+  id, organization_id, cause_area_id, donor_id, description, amount,
+  urgency, zipcode, status, refurbished_ok, has_supplier, has_it_support
+) VALUES
+  (
+    '00000000-0000-0000-0006-000000000029',
+    '00000000-0000-0000-0004-000000000001',
+    (SELECT id FROM cause_areas WHERE name = 'Education'),
+    NULL,
+    '10 refurbished laptops + 5 tablets for our after-school coding cohort. Devices stay with students enrolled in the full-year program.',
+    1800.00, 'high', '64130', 'open', true, false, true
+  ),
+  (
+    '00000000-0000-0000-0006-000000000030',
+    '00000000-0000-0000-0004-000000000002',
+    (SELECT id FROM cause_areas WHERE name = 'Economic Development'),
+    NULL,
+    '8 desktops for our adult IT-certification training room. Replacing 10-year-old machines that cannot run current courseware.',
+    1200.00, 'medium', '64111', 'open', true, true, true
+  ),
+  (
+    '00000000-0000-0000-0006-000000000031',
+    '00000000-0000-0000-0004-000000000003',
+    (SELECT id FROM cause_areas WHERE name = 'Health & Wellness'),
+    NULL,
+    '6 large-screen tablets for telehealth coaching for homebound seniors. Replaces a borrowed loaner kit returning to its owner.',
+    900.00, 'high', '64106', 'open', false, true, true
+  )
+ON CONFLICT (id) DO NOTHING;
+
+-- Backfill device_type_breakdown via UPDATE (CHECK constraints on these are already enforced)
+UPDATE requests SET device_type_breakdown = '{"laptops": 10, "tablets": 5}'::jsonb,
+  distribution_method = ARRAY['individual']::text[], need_frequency = 'recurring'
+  WHERE id = '00000000-0000-0000-0006-000000000029';
+UPDATE requests SET device_type_breakdown = '{"desktops": 8}'::jsonb,
+  distribution_method = ARRAY['computer_lab']::text[], need_frequency = 'one_time'
+  WHERE id = '00000000-0000-0000-0006-000000000030';
+UPDATE requests SET device_type_breakdown = '{"tablets": 6}'::jsonb,
+  distribution_method = ARRAY['shared']::text[], need_frequency = 'one_time'
+  WHERE id = '00000000-0000-0000-0006-000000000031';
+
+-- request_challenge_categories + request_identity_categories for new rows
+INSERT INTO request_challenge_categories (request_id, challenge_category_id)
+VALUES
+  ('00000000-0000-0000-0006-000000000029', (SELECT id FROM challenge_categories WHERE name = 'Education Access')),
+  ('00000000-0000-0000-0006-000000000030', (SELECT id FROM challenge_categories WHERE name = 'Workforce Development')),
+  ('00000000-0000-0000-0006-000000000031', (SELECT id FROM challenge_categories WHERE name = 'Healthcare Access'))
+ON CONFLICT (request_id, challenge_category_id) DO NOTHING;
+
+INSERT INTO request_identity_categories (request_id, identity_category_id)
+VALUES
+  ('00000000-0000-0000-0006-000000000029', (SELECT id FROM identity_categories WHERE name = 'Youth')),
+  ('00000000-0000-0000-0006-000000000030', (SELECT id FROM identity_categories WHERE name = 'Hispanic/Latinx')),
+  ('00000000-0000-0000-0006-000000000031', (SELECT id FROM identity_categories WHERE name = 'Seniors'))
+ON CONFLICT (request_id, identity_category_id) DO NOTHING;
+
+-- Pledge 1 (PENDING) — donor Marcus pledges to Connecting Roots req 30
+-- We use req 30 (open, 8 desktops needed) to keep request 29 available
+-- for the "open + Cash or Devices" badge demo.
+INSERT INTO in_kind_pledges (
+  id, request_id, donor_id, device_breakdown, donor_notes, delivery_address, pledge_status
+) VALUES (
+  '00000000-0000-0000-0012-000000000001',
+  '00000000-0000-0000-0006-000000000030',
+  '00000000-0000-0000-0003-000000000001',
+  '{"desktops": 8}'::jsonb,
+  'All 8 desktops are 4-year-old refurbs with i5 CPUs, 16GB RAM, 256GB SSDs. Power cords + keyboards/mice included. Pickup preferred (truck-load).',
+  '4200 Wornall Rd, Kansas City, MO 64111',
+  'pending'
+) ON CONFLICT (id) DO NOTHING;
+
+UPDATE requests SET
+  status = 'claimed', donor_id = '00000000-0000-0000-0003-000000000001',
+  donation_type = 'in_kind', claimed_at = NOW() - INTERVAL '1 day',
+  pledge_id = '00000000-0000-0000-0012-000000000001'
+WHERE id = '00000000-0000-0000-0006-000000000030';
+
+INSERT INTO request_history (id, request_id, changed_by_id, old_status, new_status)
+VALUES ('00000000-0000-0000-0007-000000000023', '00000000-0000-0000-0006-000000000030',
+        '00000000-0000-0000-0003-000000000001', 'open', 'claimed')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO request_notifications (id, request_id, recipient_id, notification_type, title, message, is_read)
+VALUES (
+  '00000000-0000-0000-0009-000000000010',
+  '00000000-0000-0000-0006-000000000030',
+  '00000000-0000-0000-0002-000000000002',
+  'claimed',
+  'Device pledge received',
+  'Marcus T. pledged 8 desktops for your IT-certification training room. Review and accept to proceed.',
+  false
+) ON CONFLICT (id) DO NOTHING;
+
+-- Pledge 2 (ACCEPTED, awaiting receipt) — donor Priya pledges to Digital Futures req 31
+INSERT INTO in_kind_pledges (
+  id, request_id, donor_id, device_breakdown, donor_notes, delivery_address, pledge_status
+) VALUES (
+  '00000000-0000-0000-0012-000000000002',
+  '00000000-0000-0000-0006-000000000031',
+  '00000000-0000-0000-0003-000000000002',
+  '{"tablets": 6}'::jsonb,
+  '6 iPad (9th gen, refurbished). Will ship via UPS Ground when address confirmed.',
+  '15 W 10th St, Kansas City, MO 64105',
+  'accepted'
+) ON CONFLICT (id) DO NOTHING;
+
+UPDATE requests SET
+  status = 'claimed', donor_id = '00000000-0000-0000-0003-000000000002',
+  donation_type = 'in_kind', claimed_at = NOW() - INTERVAL '3 days',
+  pledge_id = '00000000-0000-0000-0012-000000000002'
+WHERE id = '00000000-0000-0000-0006-000000000031';
+
+INSERT INTO request_history (id, request_id, changed_by_id, old_status, new_status)
+VALUES ('00000000-0000-0000-0007-000000000024', '00000000-0000-0000-0006-000000000031',
+        '00000000-0000-0000-0003-000000000002', 'open', 'claimed')
+ON CONFLICT (id) DO NOTHING;
+
+-- Unconfirmed fulfillment record (CBO accepted, awaiting physical delivery)
+INSERT INTO fulfillment_records (
+  id, request_id, donor_id, fulfillment_method, confirmed_by_cbo
+) VALUES (
+  '00000000-0000-0000-0008-000000000007',
+  '00000000-0000-0000-0006-000000000031',
+  '00000000-0000-0000-0003-000000000002',
+  'in_kind',
+  false
+) ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO request_notifications (id, request_id, recipient_id, notification_type, title, message, is_read)
+VALUES
+  (
+    '00000000-0000-0000-0009-000000000011',
+    '00000000-0000-0000-0006-000000000031',
+    '00000000-0000-0000-0002-000000000003',
+    'claimed',
+    'Device pledge received',
+    'Priya S. pledged 6 large-screen tablets. Review and accept to proceed.',
+    true
+  ),
+  (
+    '00000000-0000-0000-0009-000000000012',
+    '00000000-0000-0000-0006-000000000031',
+    '00000000-0000-0000-0003-000000000002',
+    'approved',
+    'Pledge accepted',
+    'Digital Futures KC has accepted your tablet pledge. Coordinate delivery details with them.',
+    false
+  )
+ON CONFLICT (id) DO NOTHING;
+
+-- ============================================================
+-- Additional Phase 8 mock data — diverse edge cases
+-- ============================================================
+
+-- Request 2: wireless router upgrade (OPEN) — minimal: only essays, no device counts
+UPDATE requests SET
+  refurbished_ok          = false,
+  has_supplier            = false,
+  has_it_support          = true,
+  distribution_method     = ARRAY['shared']::text[],
+  need_frequency          = 'one_time',
+  essay_technology_gap    = 'Our community room''s 8-year-old router drops connections every ~20 minutes during peak hours, interrupting tutoring sessions and online assessments. Last month 3 students lost in-progress test submissions.',
+  essay_population_impact = 'Stable Wi-Fi serves all 60+ weekly visitors to the community room: students doing homework, parents in literacy classes, and seniors in our digital literacy circle.'
+WHERE id = '00000000-0000-0000-0006-000000000002';
+
+-- Request 4: projector + HDMI cables (OPEN) — single distribution, no IT support
+UPDATE requests SET
+  device_type_breakdown   = '{}'::jsonb,
+  refurbished_ok          = true,
+  has_supplier            = false,
+  has_it_support          = false,
+  distribution_method     = ARRAY['computer_lab']::text[],
+  need_frequency          = 'one_time',
+  essay_technology_gap    = 'We borrow a projector from a neighboring office twice a week; their schedule conflicts often force us to cancel literacy workshops.',
+  essay_population_impact = 'Reliable projector would support our weekly community digital literacy workshops (25 participants average) without scheduling friction.',
+  essay_prior_support     = 'No prior support for this specific equipment. We have tried renting twice; both times the rental was unavailable at peak class time.'
+WHERE id = '00000000-0000-0000-0006-000000000004';
+
+-- Request 6: 12 Bluetooth keyboard + mouse sets (OPEN, accessibility) — all distribution methods
+UPDATE requests SET
+  device_type_breakdown   = '{}'::jsonb,
+  refurbished_ok          = true,
+  has_supplier            = false,
+  has_it_support          = true,
+  distribution_method     = ARRAY['individual', 'computer_lab', 'shared']::text[],
+  need_frequency          = 'recurring',
+  essay_technology_gap    = 'Standard keyboards cause hand fatigue and key-press errors for participants with limited fine motor control in our AccessAbility program. We have observed task completion drop by 35% in sessions exceeding 30 minutes.',
+  essay_population_impact = '12 BT keyboard/mouse pairs would support all 18 active AccessAbility participants on rotation, with extras for new enrollees.',
+  essay_it_capacity       = 'Our accessibility consultant handles assistive-tech setup. Wireless pairing is straightforward and our staff already supports similar devices.',
+  essay_sustainability    = 'Devices stay with participants assigned to multi-week training; rotation kit shared in the lab.',
+  essay_urgency_narrative = 'New cohort of 6 participants starts in 3 weeks — we need devices before they begin.'
+WHERE id = '00000000-0000-0000-0006-000000000006';
+
+-- Request 7: 2 document scanners (CLAIMED) — partial data
+UPDATE requests SET
+  refurbished_ok          = true,
+  has_supplier            = true,
+  has_it_support          = true,
+  distribution_method     = ARRAY['shared']::text[],
+  need_frequency          = 'one_time',
+  essay_technology_gap    = 'Scholarship applications require digitized transcripts and financial documents. Without scanners, students rely on phone photos that are often rejected by application portals.',
+  essay_population_impact = 'Serves roughly 40 scholarship-bound youth per cycle.'
+WHERE id = '00000000-0000-0000-0006-000000000007';
+
+-- Request 11: 10 noise-canceling headphones (FULFILLED) — single essay
+UPDATE requests SET
+  device_type_breakdown   = '{}'::jsonb,
+  refurbished_ok          = false,
+  has_supplier            = true,
+  has_it_support          = false,
+  distribution_method     = ARRAY['computer_lab']::text[],
+  need_frequency          = 'one_time',
+  essay_technology_gap    = 'Our open-lab coding hours overlapped with neighboring meeting rooms. Students reported difficulty concentrating in 4 of 5 surveyed sessions.'
+WHERE id = '00000000-0000-0000-0006-000000000011';
+
+-- Request 13: 3 iPad Air for in-home coaching (FULFILLED) — multi distribution
+UPDATE requests SET
+  device_type_breakdown   = '{"tablets": 3}'::jsonb,
+  refurbished_ok          = false,
+  has_supplier            = true,
+  has_it_support          = true,
+  distribution_method     = ARRAY['individual', 'shared']::text[],
+  need_frequency          = 'one_time',
+  essay_technology_gap    = 'Coaches were carrying personal devices into client homes, creating an insurance and HIPAA-adjacent risk our board flagged in last year''s audit.',
+  essay_it_capacity       = 'Devices are MDM-enrolled by our IT volunteer and remotely wiped after each coaching engagement.',
+  essay_sustainability    = 'Tablets ride a 3-year refresh cycle funded by annual board allocation.'
+WHERE id = '00000000-0000-0000-0006-000000000013';
+
+-- Request 17: 20 USB-C hubs (OPEN, low) — high count single device type
+UPDATE requests SET
+  device_type_breakdown   = '{}'::jsonb,
+  refurbished_ok          = true,
+  has_supplier            = true,
+  has_it_support          = false,
+  distribution_method     = ARRAY['individual']::text[],
+  need_frequency          = 'recurring',
+  essay_technology_gap    = 'School-issued laptops have one USB-C port. Students cannot use a mouse and an external drive at the same time, which is required for our cybersecurity track lab exercises.',
+  essay_population_impact = '20 hubs serve our cyber/coding club roster of 22 students with two spares.'
+WHERE id = '00000000-0000-0000-0006-000000000017';
+
+-- Request 19: 6 webcams + ring lights (OPEN) — workforce focus
+UPDATE requests SET
+  device_type_breakdown   = '{}'::jsonb,
+  refurbished_ok          = false,
+  has_supplier            = false,
+  has_it_support          = false,
+  distribution_method     = ARRAY['shared']::text[],
+  need_frequency          = 'one_time',
+  essay_technology_gap    = 'Participants on borrowed laptops appear in low light during practice interviews. Two recent participants cited poor presentation as a reason they declined to schedule the real interview.',
+  essay_population_impact = 'Shared ring-light kit boosts our 25-participant cohort''s interview readiness without requiring devices to leave the workshop space.',
+  essay_urgency_narrative = 'Mock-interview week starts in 4 weeks; we want every participant to look professional on camera.'
+WHERE id = '00000000-0000-0000-0006-000000000019';
+
+-- Request 21: 5 universal remotes + smart speakers (OPEN) — multi-device
+UPDATE requests SET
+  device_type_breakdown   = '{}'::jsonb,
+  refurbished_ok          = false,
+  has_supplier            = true,
+  has_it_support          = true,
+  distribution_method     = ARRAY['individual']::text[],
+  need_frequency          = 'recurring',
+  essay_technology_gap    = 'Seniors with arthritis or low vision struggle with small phone-app interfaces. A pilot showed large-button remotes increased independent device use by 70%.',
+  essay_population_impact = '5 pairs serve 10 seniors on rotation through our Silver Screens cohort.',
+  essay_prior_support     = 'AARP Kansas funded our 2024 pilot of 2 pairs. This expands on that successful pilot.',
+  essay_sustainability    = 'Replacement budget is rolled into our annual Silver Screens line item; recurring tag reflects that.'
+WHERE id = '00000000-0000-0000-0006-000000000021';
+
+-- Request 26: 8 refurbished smartphones (FULFILLED) — high-count single device
+UPDATE requests SET
+  device_type_breakdown   = '{"smartphones": 8}'::jsonb,
+  refurbished_ok          = true,
+  has_supplier            = true,
+  has_it_support          = false,
+  distribution_method     = ARRAY['individual']::text[],
+  need_frequency          = 'one_time',
+  essay_technology_gap    = 'Job-readiness graduates lacked a way to receive employer shift texts; 3 of 12 placements last quarter were lost to "no-call" misunderstandings.',
+  essay_population_impact = 'Smartphones bridge the last-mile communication gap for newly placed workers in the first 90 days of employment.',
+  essay_sustainability    = 'Donors and graduating cohorts cycle phones back; we maintain a small loaner pool.'
+WHERE id = '00000000-0000-0000-0006-000000000026';
 
 COMMIT;

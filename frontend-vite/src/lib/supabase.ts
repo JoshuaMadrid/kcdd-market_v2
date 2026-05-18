@@ -237,11 +237,12 @@ export const fetchOrganizationByUserId = async (userId: string): Promise<any> =>
 
 // Fetch organization's requests
 export const fetchOrganizationRequests = async (organizationId: string): Promise<any[]> => {
-  const { data, error } = await supabase
+  const { data, error } = await (supabase as any)
     .from('requests')
     .select(`
       *,
-      cause_area:cause_areas(*)
+      cause_area:cause_areas(*),
+      in_kind_pledge:in_kind_pledges!requests_pledge_id_fkey(pledge_status)
     `)
     .eq('organization_id', organizationId)
     .order('created_at', { ascending: false })
@@ -343,11 +344,35 @@ export const createRequestWithCategories = async (
   return newRequest
 }
 
+/**
+ * Phase 8.5: fetch the in-kind pledge for a given request, if one exists.
+ * Returns null when no pledge exists rather than throwing.
+ *
+ * PII WARNING: the returned row contains `delivery_address` (donor's
+ * shipping/pickup address). RLS restricts SELECT to the donor and the
+ * owning CBO — never expose this row to anonymous or unrelated users.
+ * Must be called via the authenticated Supabase client (Clerk JWT attached).
+ */
+export const fetchInKindPledgeForRequest = async (
+  requestId: string
+): Promise<import('@/types/database').InKindPledge | null> => {
+  const { data, error } = await (supabase as any)
+    .from('in_kind_pledges')
+    .select('*')
+    .eq('request_id', requestId)
+    .maybeSingle()
+
+  if (error) throw error
+  return data ?? null
+}
+
 // Fetch all requests where user was the donor
 export const fetchDonorRequests = async (userId: string): Promise<any[]> => {
   const { data, error } = await (supabase as any)
     .from('requests')
-    .select('*, organization:organizations(name, logo_url, logo_emoji)')
+    .select(
+      '*, organization:organizations(name, logo_url, logo_emoji), in_kind_pledge:in_kind_pledges!requests_pledge_id_fkey(pledge_status)'
+    )
     .eq('donor_id', userId)
     .order('claimed_at', { ascending: false })
 

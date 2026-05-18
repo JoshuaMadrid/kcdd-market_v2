@@ -18,6 +18,18 @@ const statusVariant: Record<string, 'default' | 'secondary' | 'outline' | 'destr
   denied: 'destructive',
 }
 
+const pledgeStatusVariant: Record<string, 'default' | 'secondary' | 'destructive'> = {
+  pending: 'secondary',
+  accepted: 'default',
+  rejected: 'destructive',
+}
+
+const pledgeStatusLabel: Record<string, string> = {
+  pending: 'Pledge pending',
+  accepted: 'Pledge accepted',
+  rejected: 'Pledge rejected',
+}
+
 export function DonationsPage() {
   const { user } = useUser()
   const [donations, setDonations] = useState<any[]>([])
@@ -156,6 +168,11 @@ export function DonationsPage() {
                   <div className="flex items-center gap-3 shrink-0">
                     <span className="font-semibold">{formatCurrency(d.amount)}</span>
                     <Badge variant={statusVariant[d.status] ?? 'secondary'}>{d.status}</Badge>
+                    {d.donation_type === 'in_kind' && d.in_kind_pledge?.pledge_status && (
+                      <Badge variant={pledgeStatusVariant[d.in_kind_pledge.pledge_status] ?? 'secondary'}>
+                        {pledgeStatusLabel[d.in_kind_pledge.pledge_status] ?? d.in_kind_pledge.pledge_status}
+                      </Badge>
+                    )}
                   </div>
                 </div>
               ))}

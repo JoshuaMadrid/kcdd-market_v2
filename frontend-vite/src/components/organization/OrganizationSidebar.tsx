@@ -147,6 +147,28 @@ export function OrganizationSidebar({
           </div>
         )}
 
+        {/* Ages Served (Phase 8) */}
+        {organization.ages_served && organization.ages_served.length > 0 && (
+          <div className="space-y-2.5">
+            <h3 className="text-sm font-medium text-[#737373]">Ages Served</h3>
+            <div className="flex flex-wrap gap-1.5">
+              {organization.ages_served.map((age) => (
+                <Badge key={age} variant="outline" className="text-xs">
+                  {age}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Pre-Eligibility (Phase 8) */}
+        {organization.pre_eligibility_status && (
+          <div className="space-y-1">
+            <h3 className="text-sm font-medium text-[#737373]">Pre-Eligibility</h3>
+            <p className="text-sm text-[#0a0a0a]">{organization.pre_eligibility_status}</p>
+          </div>
+        )}
+
         {/* CTA Button — hidden for org owners (no self-support) */}
         {!isOwner && (
           <Button
