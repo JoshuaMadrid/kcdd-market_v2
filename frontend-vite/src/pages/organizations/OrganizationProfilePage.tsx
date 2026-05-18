@@ -117,7 +117,7 @@ export function OrganizationProfilePage() {
         <div className="flex gap-8">
           {/* Left: Tabs Content */}
           <div className="flex-1 min-w-0">
-            <Tabs defaultValue="about" className="w-full">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
               <TabsList className="bg-[#f5f5f5] p-[3px] rounded-lg w-full justify-start mb-6">
                 <TabsTrigger value="about" className="rounded-md">
                   About
@@ -161,6 +161,8 @@ export function OrganizationProfilePage() {
               causeAreas={organization.cause_areas}
               requestCount={openRequestCount}
               isVetted={organization.user_profile?.is_vetted}
+              isOwner={isOwner}
+              onSupportClick={() => setActiveTab('campaigns')}
             />
           </div>
         </div>

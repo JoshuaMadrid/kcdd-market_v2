@@ -53,6 +53,8 @@ cd backend && pnpm db:stop          # Stop local Supabase stack
 cd backend && pnpm db:status        # Show keys + URLs
 ```
 
+> **Supabase CLI usage rule** — never install the Supabase CLI globally (no `brew install supabase`, no `npm i -g supabase`, no `supabase ...` calls relying on PATH). The CLI is pinned in `backend/package.json` devDependencies and invoked exclusively via `pnpx supabase ...` (or the `pnpm db:*` scripts above). For commands the scripts do not cover (e.g. `pnpx supabase link --project-ref xyz`, `pnpx supabase login`, `pnpx supabase migration new <name>`), run `pnpx supabase ...` from the `backend/` directory. This keeps the CLI version locked across all machines and matches CI behavior.
+
 ### Local Access Points
 - Frontend: http://localhost:3000
 - Backend API: http://localhost:4000/health

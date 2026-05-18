@@ -58,7 +58,9 @@ INSERT INTO user_profiles (id, user_type, is_vetted) VALUES
   ('00000000-0000-0000-0002-000000000003', 'cbo',   true),
   ('00000000-0000-0000-0003-000000000001', 'donor', false),
   ('00000000-0000-0000-0003-000000000002', 'donor', false),
-  ('00000000-0000-0000-0003-000000000003', 'donor', false)
+  ('00000000-0000-0000-0003-000000000003', 'donor', false),
+  -- Real Clerk user pre-seeded as admin (survives db:reset; /api/users/sync respects existing row via ignoreDuplicates)
+  ('user_3DnElkT9WrqI1pJ5SBKNfoZB73x',     'admin', true)
 ON CONFLICT (id) DO NOTHING;
 
 -- STEP 5: Insert organizations (3 rows)
@@ -299,7 +301,7 @@ VALUES
   )
 ON CONFLICT (id) DO NOTHING;
 
--- STEP 11: requests (16 rows)
+-- STEP 11: requests (28 rows: 12 open, 5 claimed, 6 fulfilled, 5 denied)
 INSERT INTO requests (
   id, organization_id, cause_area_id, donor_id, description, amount,
   urgency, zipcode, status, payment_intent_id, claimed_at, fulfilled_at, denied_at, denial_reason
@@ -438,6 +440,108 @@ INSERT INTO requests (
     'Smart TV for waiting area to display health information for seniors. The screen we currently use has a broken backlight.',
     480.00, 'medium', '64106', 'denied', NULL, NULL, NULL, NOW() - INTERVAL '8 days',
     'Smart TV does not meet the digital access equipment criteria. Suggest requesting a computer monitor or display with HDMI input instead.'
+  ),
+  -- 6 ADDITIONAL OPEN (total 12 open)
+  (
+    '00000000-0000-0000-0006-000000000017',
+    '00000000-0000-0000-0004-000000000001',
+    (SELECT id FROM cause_areas WHERE name = 'Youth Development'),
+    NULL,
+    '20 USB-C hubs for our after-school coding club. Most school-issued laptops have only one USB-C port and students cannot connect both a mouse and an external drive simultaneously.',
+    160.00, 'low', '64128', 'open', NULL, NULL, NULL, NULL, NULL
+  ),
+  (
+    '00000000-0000-0000-0006-000000000018',
+    '00000000-0000-0000-0004-000000000001',
+    (SELECT id FROM cause_areas WHERE name = 'Education'),
+    NULL,
+    '4 mobile hotspot devices with 6-month data plans for students whose families cannot afford home internet. Even one missed Wi-Fi week sets students back in our remote-learning track.',
+    520.00, 'high', '64132', 'open', NULL, NULL, NULL, NULL, NULL
+  ),
+  (
+    '00000000-0000-0000-0006-000000000019',
+    '00000000-0000-0000-0004-000000000002',
+    (SELECT id FROM cause_areas WHERE name = 'Economic Development'),
+    NULL,
+    '6 webcams with built-in ring lights for our remote interview practice sessions. Participants doing job interviews on borrowed laptops often appear in unflattering low light.',
+    240.00, 'medium', '66102', 'open', NULL, NULL, NULL, NULL, NULL
+  ),
+  (
+    '00000000-0000-0000-0006-000000000020',
+    '00000000-0000-0000-0004-000000000002',
+    (SELECT id FROM cause_areas WHERE name = 'Community Services'),
+    NULL,
+    'Bilingual document scanner with OCR (English/Spanish/Vietnamese) for our immigrant intake services. Manual translation of paper documents adds 2 weeks to each case.',
+    430.00, 'high', '64112', 'open', NULL, NULL, NULL, NULL, NULL
+  ),
+  (
+    '00000000-0000-0000-0006-000000000021',
+    '00000000-0000-0000-0004-000000000003',
+    (SELECT id FROM cause_areas WHERE name = 'Health & Wellness'),
+    NULL,
+    '5 large-button universal remotes paired with smart speakers for seniors with arthritis or vision impairment. Our pilot showed a 70% increase in independent device use.',
+    175.00, 'medium', '64108', 'open', NULL, NULL, NULL, NULL, NULL
+  ),
+  (
+    '00000000-0000-0000-0006-000000000022',
+    '00000000-0000-0000-0004-000000000003',
+    (SELECT id FROM cause_areas WHERE name = 'Community Services'),
+    NULL,
+    'Accessibility software licenses (JAWS screen reader, 3 seats) for our AccessAbility computer training lab. Participants with vision impairment cannot currently complete certification courses.',
+    1100.00, 'high', '64113', 'open', NULL, NULL, NULL, NULL, NULL
+  ),
+  -- 2 ADDITIONAL CLAIMED (total 5 claimed)
+  (
+    '00000000-0000-0000-0006-000000000023',
+    '00000000-0000-0000-0004-000000000001',
+    (SELECT id FROM cause_areas WHERE name = 'Education'),
+    '00000000-0000-0000-0003-000000000002',
+    '3 graphing calculators for our high school SAT prep students. Test rules forbid phone calculators and most students do not own a dedicated calculator.',
+    285.00, 'medium', '64130', 'claimed', 'pi_mock_req23_vwx234', NOW() - INTERVAL '4 days', NULL, NULL, NULL
+  ),
+  (
+    '00000000-0000-0000-0006-000000000024',
+    '00000000-0000-0000-0004-000000000002',
+    (SELECT id FROM cause_areas WHERE name = 'Economic Development'),
+    '00000000-0000-0000-0003-000000000001',
+    '2 portable monitors for our mobile workforce coaching unit. Coaches visiting employer worksites can now do dual-screen resume reviews on-site.',
+    340.00, 'low', '66101', 'claimed', 'pi_mock_req24_yza567', NOW() - INTERVAL '6 days', NULL, NULL, NULL
+  ),
+  -- 2 ADDITIONAL FULFILLED (total 6 fulfilled)
+  (
+    '00000000-0000-0000-0006-000000000025',
+    '00000000-0000-0000-0004-000000000003',
+    (SELECT id FROM cause_areas WHERE name = 'Health & Wellness'),
+    '00000000-0000-0000-0003-000000000003',
+    'Blood pressure cuff with Bluetooth + tablet bundle for telehealth check-ins with homebound seniors. Reduces missed appointments by removing the transportation barrier.',
+    410.00, 'high', '64114', 'fulfilled', 'pi_mock_req25_bcd890', NOW() - INTERVAL '25 days', NOW() - INTERVAL '15 days', NULL, NULL
+  ),
+  (
+    '00000000-0000-0000-0006-000000000026',
+    '00000000-0000-0000-0004-000000000001',
+    (SELECT id FROM cause_areas WHERE name = 'Youth Development'),
+    '00000000-0000-0000-0003-000000000002',
+    '8 refurbished smartphones for our youth job-readiness program graduates so they can receive employer texts about shifts.',
+    640.00, 'medium', '64130', 'fulfilled', 'pi_mock_req26_efg123', NOW() - INTERVAL '40 days', NOW() - INTERVAL '28 days', NULL, NULL
+  ),
+  -- 2 ADDITIONAL DENIED (total 5 denied)
+  (
+    '00000000-0000-0000-0006-000000000027',
+    '00000000-0000-0000-0004-000000000002',
+    (SELECT id FROM cause_areas WHERE name = 'Community Services'),
+    NULL,
+    'Espresso machine for our welcome center waiting area to provide refreshments while participants wait for intake.',
+    780.00, 'low', '64111', 'denied', NULL, NULL, NULL, NOW() - INTERVAL '5 days',
+    'Item does not qualify as digital access technology. Coffee equipment is outside the platform''s funding scope.'
+  ),
+  (
+    '00000000-0000-0000-0006-000000000028',
+    '00000000-0000-0000-0004-000000000003',
+    (SELECT id FROM cause_areas WHERE name = 'Education'),
+    NULL,
+    'Drone with camera for outdoor accessibility training videos. We want to film walking-route demonstrations for community members.',
+    650.00, 'low', '64106', 'denied', NULL, NULL, NULL, NOW() - INTERVAL '12 days',
+    'Drone is outside the equipment scope. Recommend resubmitting with a standard handheld camcorder if filming remains a need.'
   )
 ON CONFLICT (id) DO NOTHING;
 
@@ -459,7 +563,20 @@ VALUES
   ('00000000-0000-0000-0006-000000000013', (SELECT id FROM challenge_categories WHERE name = 'Healthcare Access')),
   ('00000000-0000-0000-0006-000000000014', (SELECT id FROM challenge_categories WHERE name = 'Education Access')),
   ('00000000-0000-0000-0006-000000000015', (SELECT id FROM challenge_categories WHERE name = 'Workforce Development')),
-  ('00000000-0000-0000-0006-000000000016', (SELECT id FROM challenge_categories WHERE name = 'Community Engagement'))
+  ('00000000-0000-0000-0006-000000000016', (SELECT id FROM challenge_categories WHERE name = 'Community Engagement')),
+  -- additional requests 17-28
+  ('00000000-0000-0000-0006-000000000017', (SELECT id FROM challenge_categories WHERE name = 'Education Access')),
+  ('00000000-0000-0000-0006-000000000018', (SELECT id FROM challenge_categories WHERE name = 'Digital Divide')),
+  ('00000000-0000-0000-0006-000000000019', (SELECT id FROM challenge_categories WHERE name = 'Workforce Development')),
+  ('00000000-0000-0000-0006-000000000020', (SELECT id FROM challenge_categories WHERE name = 'Community Engagement')),
+  ('00000000-0000-0000-0006-000000000021', (SELECT id FROM challenge_categories WHERE name = 'Healthcare Access')),
+  ('00000000-0000-0000-0006-000000000022', (SELECT id FROM challenge_categories WHERE name = 'Education Access')),
+  ('00000000-0000-0000-0006-000000000023', (SELECT id FROM challenge_categories WHERE name = 'Education Access')),
+  ('00000000-0000-0000-0006-000000000024', (SELECT id FROM challenge_categories WHERE name = 'Workforce Development')),
+  ('00000000-0000-0000-0006-000000000025', (SELECT id FROM challenge_categories WHERE name = 'Healthcare Access')),
+  ('00000000-0000-0000-0006-000000000026', (SELECT id FROM challenge_categories WHERE name = 'Workforce Development')),
+  ('00000000-0000-0000-0006-000000000027', (SELECT id FROM challenge_categories WHERE name = 'Community Engagement')),
+  ('00000000-0000-0000-0006-000000000028', (SELECT id FROM challenge_categories WHERE name = 'Education Access'))
 ON CONFLICT (request_id, challenge_category_id) DO NOTHING;
 
 -- STEP 13: request_identity_categories (16 rows)
@@ -480,7 +597,20 @@ VALUES
   ('00000000-0000-0000-0006-000000000013', (SELECT id FROM identity_categories WHERE name = 'Seniors')),
   ('00000000-0000-0000-0006-000000000014', (SELECT id FROM identity_categories WHERE name = 'Women')),
   ('00000000-0000-0000-0006-000000000015', (SELECT id FROM identity_categories WHERE name = 'Veterans')),
-  ('00000000-0000-0000-0006-000000000016', (SELECT id FROM identity_categories WHERE name = 'Disability'))
+  ('00000000-0000-0000-0006-000000000016', (SELECT id FROM identity_categories WHERE name = 'Disability')),
+  -- additional requests 17-28
+  ('00000000-0000-0000-0006-000000000017', (SELECT id FROM identity_categories WHERE name = 'Youth')),
+  ('00000000-0000-0000-0006-000000000018', (SELECT id FROM identity_categories WHERE name = 'Black/African American')),
+  ('00000000-0000-0000-0006-000000000019', (SELECT id FROM identity_categories WHERE name = 'Hispanic/Latinx')),
+  ('00000000-0000-0000-0006-000000000020', (SELECT id FROM identity_categories WHERE name = 'Hispanic/Latinx')),
+  ('00000000-0000-0000-0006-000000000021', (SELECT id FROM identity_categories WHERE name = 'Seniors')),
+  ('00000000-0000-0000-0006-000000000022', (SELECT id FROM identity_categories WHERE name = 'Disability')),
+  ('00000000-0000-0000-0006-000000000023', (SELECT id FROM identity_categories WHERE name = 'Youth')),
+  ('00000000-0000-0000-0006-000000000024', (SELECT id FROM identity_categories WHERE name = 'Veterans')),
+  ('00000000-0000-0000-0006-000000000025', (SELECT id FROM identity_categories WHERE name = 'Seniors')),
+  ('00000000-0000-0000-0006-000000000026', (SELECT id FROM identity_categories WHERE name = 'Youth')),
+  ('00000000-0000-0000-0006-000000000027', (SELECT id FROM identity_categories WHERE name = 'Hispanic/Latinx')),
+  ('00000000-0000-0000-0006-000000000028', (SELECT id FROM identity_categories WHERE name = 'Disability'))
 ON CONFLICT (request_id, identity_category_id) DO NOTHING;
 
 -- STEP 14: request_history (14 rows)
@@ -499,7 +629,16 @@ VALUES
   ('00000000-0000-0000-0007-000000000011', '00000000-0000-0000-0006-000000000013', '00000000-0000-0000-0002-000000000003', 'claimed', 'fulfilled'),
   ('00000000-0000-0000-0007-000000000012', '00000000-0000-0000-0006-000000000014', '00000000-0000-0000-0002-000000000001', 'open', 'denied'),
   ('00000000-0000-0000-0007-000000000013', '00000000-0000-0000-0006-000000000015', '00000000-0000-0000-0002-000000000002', 'open', 'denied'),
-  ('00000000-0000-0000-0007-000000000014', '00000000-0000-0000-0006-000000000016', '00000000-0000-0000-0002-000000000003', 'open', 'denied')
+  ('00000000-0000-0000-0007-000000000014', '00000000-0000-0000-0006-000000000016', '00000000-0000-0000-0002-000000000003', 'open', 'denied'),
+  -- additional history for requests 23-28
+  ('00000000-0000-0000-0007-000000000015', '00000000-0000-0000-0006-000000000023', '00000000-0000-0000-0003-000000000002', 'open', 'claimed'),
+  ('00000000-0000-0000-0007-000000000016', '00000000-0000-0000-0006-000000000024', '00000000-0000-0000-0003-000000000001', 'open', 'claimed'),
+  ('00000000-0000-0000-0007-000000000017', '00000000-0000-0000-0006-000000000025', '00000000-0000-0000-0003-000000000003', 'open', 'claimed'),
+  ('00000000-0000-0000-0007-000000000018', '00000000-0000-0000-0006-000000000025', '00000000-0000-0000-0002-000000000003', 'claimed', 'fulfilled'),
+  ('00000000-0000-0000-0007-000000000019', '00000000-0000-0000-0006-000000000026', '00000000-0000-0000-0003-000000000002', 'open', 'claimed'),
+  ('00000000-0000-0000-0007-000000000020', '00000000-0000-0000-0006-000000000026', '00000000-0000-0000-0002-000000000001', 'claimed', 'fulfilled'),
+  ('00000000-0000-0000-0007-000000000021', '00000000-0000-0000-0006-000000000027', '00000000-0000-0000-0002-000000000002', 'open', 'denied'),
+  ('00000000-0000-0000-0007-000000000022', '00000000-0000-0000-0006-000000000028', '00000000-0000-0000-0002-000000000003', 'open', 'denied')
 ON CONFLICT (id) DO NOTHING;
 
 -- STEP 15: fulfillment_records (4 rows)
@@ -539,6 +678,24 @@ VALUES
     'pickup',
     'PICKUP-ORG3-REQ13',
     'Donor brought tablets to Digital Futures KC office downtown. Cases included.',
+    true
+  ),
+  (
+    '00000000-0000-0000-0008-000000000005',
+    '00000000-0000-0000-0006-000000000025',
+    '00000000-0000-0000-0003-000000000003',
+    'shipping',
+    'UPS1Z999BB55667788',
+    'Bluetooth BP cuff and tablet shipped pre-paired. Org IT volunteer confirmed pairing on arrival.',
+    true
+  ),
+  (
+    '00000000-0000-0000-0008-000000000006',
+    '00000000-0000-0000-0006-000000000026',
+    '00000000-0000-0000-0003-000000000002',
+    'pickup',
+    'PICKUP-ORG1-REQ26',
+    'Donor dropped off 8 refurbished smartphones at Connecting Roots KC. SIM activation handled by org partner.',
     true
   )
 ON CONFLICT (id) DO NOTHING;
@@ -598,6 +755,33 @@ VALUES
     'fulfilled',
     'Request fulfilled — thank you!',
     'The request for 3 iPad Air tablets ($560.00) has been marked fulfilled. Your Silver Screens coaches now have dedicated devices.',
+    true
+  ),
+  (
+    '00000000-0000-0000-0009-000000000007',
+    '00000000-0000-0000-0006-000000000023',
+    '00000000-0000-0000-0002-000000000001',
+    'claimed',
+    'Your request has been claimed',
+    'A donor has claimed your request for 3 graphing calculators ($285.00). They will be in touch to arrange delivery.',
+    false
+  ),
+  (
+    '00000000-0000-0000-0009-000000000008',
+    '00000000-0000-0000-0006-000000000025',
+    '00000000-0000-0000-0002-000000000003',
+    'fulfilled',
+    'Request fulfilled — thank you!',
+    'The Bluetooth BP cuff + tablet bundle ($410.00) has been delivered. Your telehealth check-ins can now begin.',
+    false
+  ),
+  (
+    '00000000-0000-0000-0009-000000000009',
+    '00000000-0000-0000-0006-000000000026',
+    '00000000-0000-0000-0002-000000000001',
+    'fulfilled',
+    'Request fulfilled — thank you!',
+    '8 refurbished smartphones ($640.00) have been delivered to your youth job-readiness program. Time to text some employers.',
     true
   )
 ON CONFLICT (id) DO NOTHING;

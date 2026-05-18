@@ -208,6 +208,7 @@ export function CBOProfile() {
               causeAreas={organization.cause_areas}
               requestCount={openRequestCount}
               isVetted={true}
+              isOwner
             />
           </div>
         </div>
