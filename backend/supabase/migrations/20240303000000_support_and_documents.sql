@@ -187,15 +187,19 @@ ADD COLUMN IF NOT EXISTS wants_updates BOOLEAN DEFAULT FALSE;
 -- =============================================
 -- 10. DONOR CAUSE AREAS TABLE
 -- =============================================
+-- Column was `user_id` in the original main version; renamed to `donor_id`
+-- to match the Phase 9 RPC + indexes added later in
+-- 20260523000000_phase9_match_alerts.sql. Both sides target the same table,
+-- so we standardize on `donor_id` (semantically clearer).
 CREATE TABLE IF NOT EXISTS donor_cause_areas (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id TEXT NOT NULL,
+  donor_id TEXT NOT NULL,
   cause_area_id UUID NOT NULL REFERENCES cause_areas(id) ON DELETE CASCADE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  UNIQUE(user_id, cause_area_id)
+  UNIQUE(donor_id, cause_area_id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_donor_cause_areas_user_id ON donor_cause_areas(user_id);
+CREATE INDEX IF NOT EXISTS idx_donor_cause_areas_donor ON donor_cause_areas(donor_id);
 
 ALTER TABLE donor_cause_areas ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Anyone can view donor cause areas" ON donor_cause_areas FOR SELECT USING (true);
@@ -204,8 +208,10 @@ CREATE POLICY "Anyone can manage donor cause areas" ON donor_cause_areas FOR ALL
 -- =============================================
 -- 11. EXTEND ORGANIZATIONS TABLE
 -- =============================================
+-- Note: `logo_url` is NOT added here. The initial schema (20240101) has
+-- a `logo` column; the reconcile migration (20260427) renames it to
+-- `logo_url`. Adding it here too caused the rename to fail on fresh DBs.
 ALTER TABLE organizations
-ADD COLUMN IF NOT EXISTS logo_url TEXT,
 ADD COLUMN IF NOT EXISTS slug VARCHAR(200),
 ADD COLUMN IF NOT EXISTS description TEXT,
 ADD COLUMN IF NOT EXISTS city VARCHAR(100),
@@ -235,13 +241,42 @@ CREATE TRIGGER org_slug_trigger
 -- =============================================
 -- 12. UPDATE CAUSE_AREAS FOR TEXT IDS
 -- =============================================
+-- Edited 2026-05-18 to make this section apply on a fresh `db:reset`.
+-- The original ran straight ALTERs, but Postgres refuses because:
+--   (a) the `request_details` view in 20240101 depends on cause_areas.id
+--   (b) FK constraints from organization_cause_areas / requests /
+--       donor_cause_areas reference cause_areas.id as UUID, so altering
+--       cause_areas.id to TEXT leaves the FK columns of incompatible type.
+-- Fix: drop the dependent view and FKs, run the type ALTERs, then recreate
+-- the FKs with the new TEXT type. The view is recreated later in
+-- 20260518000000_clerk_user_id_text.sql with the post-reconcile column names.
+
+DROP VIEW IF EXISTS request_details CASCADE;
+
+ALTER TABLE organization_cause_areas DROP CONSTRAINT IF EXISTS organization_cause_areas_cause_area_id_fkey;
+ALTER TABLE requests DROP CONSTRAINT IF EXISTS requests_cause_area_id_fkey;
+ALTER TABLE donor_cause_areas DROP CONSTRAINT IF EXISTS donor_cause_areas_cause_area_id_fkey;
+
 -- Allow text IDs for cause areas
 ALTER TABLE cause_areas ALTER COLUMN id TYPE TEXT USING id::text;
 ALTER TABLE cause_areas ALTER COLUMN id SET DEFAULT uuid_generate_v4()::text;
 
--- Update foreign keys
+-- Update foreign key columns to match new TEXT type
 ALTER TABLE organization_cause_areas ALTER COLUMN cause_area_id TYPE TEXT USING cause_area_id::text;
 ALTER TABLE requests ALTER COLUMN cause_area_id TYPE TEXT USING cause_area_id::text;
 ALTER TABLE donor_cause_areas ALTER COLUMN cause_area_id TYPE TEXT USING cause_area_id::text;
+
+-- Recreate FK constraints with the new TEXT type
+ALTER TABLE organization_cause_areas
+  ADD CONSTRAINT organization_cause_areas_cause_area_id_fkey
+  FOREIGN KEY (cause_area_id) REFERENCES cause_areas(id) ON DELETE CASCADE;
+
+ALTER TABLE requests
+  ADD CONSTRAINT requests_cause_area_id_fkey
+  FOREIGN KEY (cause_area_id) REFERENCES cause_areas(id) ON DELETE RESTRICT;
+
+ALTER TABLE donor_cause_areas
+  ADD CONSTRAINT donor_cause_areas_cause_area_id_fkey
+  FOREIGN KEY (cause_area_id) REFERENCES cause_areas(id) ON DELETE CASCADE;
 
 COMMIT;

@@ -1,15 +1,18 @@
 -- Migration: Organization Documents
 -- For CBO Dashboard document management functionality
--- NOTE: organization_documents.id is TEXT to match the current organizations.id
--- type (also TEXT, since Clerk user IDs are text). Earlier UUID variant existed
--- in the migration history; the applied schema below uses gen_random_uuid()::text.
+-- NOTE: organization_documents.id is TEXT (PK, no external FK references it).
+-- organization_id stays UUID to match organizations.id, which remains UUID
+-- through the migration chain (only organizations.user_id is converted to
+-- TEXT in 20260518000000_clerk_user_id_text.sql). The 2026-05-18 fix
+-- changes organization_id from TEXT → UUID to make the FK valid on a
+-- fresh `db:reset`. uploaded_by stays TEXT (holds Clerk user ID, no FK).
 
 -- =============================================
 -- 1. ORGANIZATION DOCUMENTS TABLE
 -- =============================================
 CREATE TABLE IF NOT EXISTS organization_documents (
   id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
-  organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   uploaded_by TEXT NOT NULL,
   name VARCHAR(200) NOT NULL,
   type VARCHAR(50) NOT NULL,

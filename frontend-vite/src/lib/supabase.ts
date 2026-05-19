@@ -488,12 +488,12 @@ export const saveDonorCauseAreas = async (userId: string, causeAreas: string[]) 
 
   // Create donor_cause_areas records
   const records = causeAreaRecords.map((ca) => ({
-    user_id: userId,
+    donor_id: userId,
     cause_area_id: ca.id,
   }))
 
   // Delete existing associations first
-  await (supabase as any).from('donor_cause_areas').delete().eq('user_id', userId)
+  await (supabase as any).from('donor_cause_areas').delete().eq('donor_id', userId)
 
   // Insert new associations
   const { data, error } = await (supabase as any).from('donor_cause_areas').insert(records).select()
