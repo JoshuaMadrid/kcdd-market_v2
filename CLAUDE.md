@@ -46,12 +46,20 @@ pnpm lint            # ESLint
 
 ### Database (Supabase CLI)
 ```bash
-cd backend && pnpm db:push          # Apply migrations to local DB
 cd backend && pnpm db:reset         # Reset local DB (wipes data, re-runs all migrations + seed)
+cd backend && pnpm db:push          # Push migrations to the linked REMOTE project (requires `supabase link`)
 cd backend && pnpm db:start         # Start local Supabase stack
 cd backend && pnpm db:stop          # Stop local Supabase stack
 cd backend && pnpm db:status        # Show keys + URLs
 ```
+
+> `pnpm db:push` is **remote-only** — it requires `pnpx supabase link --project-ref ...` first and pushes to the cloud project, not the local stack. For the local Docker stack there is no incremental "apply" command; the canonical path is `pnpm db:reset` (wipes data, replays everything including seed). When you need to apply a single new migration without losing local data (e.g. policy fix on a populated DB), pipe the migration file directly into the local Postgres:
+>
+> ```bash
+> docker exec -i supabase_db_backend psql -U postgres < backend/supabase/migrations/<file>.sql
+> ```
+>
+> The file still lives under `backend/supabase/migrations/`, so the next `db:reset` (and any teammate's reset) replays it cleanly.
 
 > **Supabase CLI usage rule** — never install the Supabase CLI globally (no `brew install supabase`, no `npm i -g supabase`, no `supabase ...` calls relying on PATH). The CLI is pinned in `backend/package.json` devDependencies and invoked exclusively via `pnpx supabase ...` (or the `pnpm db:*` scripts above). For commands the scripts do not cover (e.g. `pnpx supabase link --project-ref xyz`, `pnpx supabase login`, `pnpx supabase migration new <name>`), run `pnpx supabase ...` from the `backend/` directory. This keeps the CLI version locked across all machines and matches CI behavior.
 
