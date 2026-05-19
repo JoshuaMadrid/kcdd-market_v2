@@ -21,6 +21,7 @@
   "author": "KC Digital Drive",
   "license": "MIT",
   "dependencies": {
+    "@clerk/backend": "^3.4.9",
     "@supabase/supabase-js": "^2.39.7",
     "cors": "^2.8.5",
     "dotenv": "^16.4.1",
