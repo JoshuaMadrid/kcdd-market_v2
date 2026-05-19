@@ -62,6 +62,7 @@ export type Database = {
           is_active?: boolean
           created_at?: string
         }
+        Relationships: []
       }
       challenge_categories: {
         Row: {
@@ -85,6 +86,7 @@ export type Database = {
           is_active?: boolean
           created_at?: string
         }
+        Relationships: []
       }
       identity_categories: {
         Row: {
@@ -105,6 +107,7 @@ export type Database = {
           is_active?: boolean
           created_at?: string
         }
+        Relationships: []
       }
       user_profiles: {
         Row: {
@@ -113,6 +116,13 @@ export type Database = {
           phone: string | null
           is_vetted: boolean
           vetting_note: string | null
+          email: string | null
+          name: string | null
+          profile_picture_url: string | null
+          onboarding_complete: boolean
+          wants_updates: boolean
+          verification_status: string | null
+          org_tier: string | null
           created_at: string
           updated_at: string
         }
@@ -122,6 +132,13 @@ export type Database = {
           phone?: string | null
           is_vetted?: boolean
           vetting_note?: string | null
+          email?: string | null
+          name?: string | null
+          profile_picture_url?: string | null
+          onboarding_complete?: boolean
+          wants_updates?: boolean
+          verification_status?: string | null
+          org_tier?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -131,9 +148,17 @@ export type Database = {
           phone?: string | null
           is_vetted?: boolean
           vetting_note?: string | null
+          email?: string | null
+          name?: string | null
+          profile_picture_url?: string | null
+          onboarding_complete?: boolean
+          wants_updates?: boolean
+          verification_status?: string | null
+          org_tier?: string | null
           created_at?: string
           updated_at?: string
         }
+        Relationships: []
       }
       organizations: {
         Row: {
@@ -145,6 +170,8 @@ export type Database = {
           email: string
           phone: string | null
           address: string | null
+          city: string | null
+          state: string | null
           zipcode: string
           ein: string | null
           logo_url: string | null
@@ -160,6 +187,9 @@ export type Database = {
           service_area_description: string | null
           ages_served: string[] | null
           pre_eligibility_status: string | null
+          slug: string | null
+          stripe_charges_enabled: boolean | null
+          verification_status: string | null
           created_at: string
           updated_at: string
         }
@@ -168,37 +198,12 @@ export type Database = {
           user_id: string
           name: string
           website?: string | null
-          mission: string
-          email: string
-          phone?: string | null
-          address?: string | null
-          zipcode: string
-          ein?: string | null
-          logo_url?: string | null
-          logo_emoji?: string
-          tagline?: string | null
-          organization_type?: string | null
-          organization_size?: string | null
-          year_founded?: number | null
-          technology_barriers?: string | null
-          cover_image_url?: string | null
-          social_links?: Record<string, string> | null
-          program_description?: string | null
-          service_area_description?: string | null
-          ages_served?: string[] | null
-          pre_eligibility_status?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          name?: string
-          website?: string | null
           mission?: string
           email?: string
           phone?: string | null
           address?: string | null
+          city?: string | null
+          state?: string | null
           zipcode?: string
           ein?: string | null
           logo_url?: string | null
@@ -214,9 +219,45 @@ export type Database = {
           service_area_description?: string | null
           ages_served?: string[] | null
           pre_eligibility_status?: string | null
+          slug?: string | null
+          stripe_charges_enabled?: boolean | null
+          verification_status?: string | null
           created_at?: string
           updated_at?: string
         }
+        Update: {
+          id?: string
+          user_id?: string
+          name?: string
+          website?: string | null
+          mission?: string
+          email?: string
+          phone?: string | null
+          address?: string | null
+          city?: string | null
+          state?: string | null
+          zipcode?: string
+          ein?: string | null
+          logo_url?: string | null
+          logo_emoji?: string
+          tagline?: string | null
+          organization_type?: string | null
+          organization_size?: string | null
+          year_founded?: number | null
+          technology_barriers?: string | null
+          cover_image_url?: string | null
+          social_links?: Record<string, string> | null
+          program_description?: string | null
+          service_area_description?: string | null
+          ages_served?: string[] | null
+          pre_eligibility_status?: string | null
+          slug?: string | null
+          stripe_charges_enabled?: boolean | null
+          verification_status?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       donor_profiles: {
         Row: {
@@ -228,6 +269,7 @@ export type Database = {
           name: string
           email: string
           phone: string | null
+          website: string | null
           max_per_request: number
           service_area_zipcode: string | null
           created_at: string
@@ -242,6 +284,7 @@ export type Database = {
           name: string
           email: string
           phone?: string | null
+          website?: string | null
           max_per_request?: number
           service_area_zipcode?: string | null
           created_at?: string
@@ -256,11 +299,13 @@ export type Database = {
           name?: string
           email?: string
           phone?: string | null
+          website?: string | null
           max_per_request?: number
           service_area_zipcode?: string | null
           created_at?: string
           updated_at?: string
         }
+        Relationships: []
       }
       requests: {
         Row: {
@@ -298,6 +343,7 @@ export type Database = {
           need_frequency: NeedFrequency | null
           donation_type: DonationType
           pledge_id: string | null
+          beneficiaries_count: number | null
         }
         Insert: {
           id?: string
@@ -334,6 +380,7 @@ export type Database = {
           need_frequency?: NeedFrequency | null
           donation_type?: DonationType
           pledge_id?: string | null
+          beneficiaries_count?: number | null
         }
         Update: {
           id?: string
@@ -370,10 +417,22 @@ export type Database = {
           need_frequency?: NeedFrequency | null
           donation_type?: DonationType
           pledge_id?: string | null
+          beneficiaries_count?: number | null
         }
+        Relationships: []
       }
       in_kind_pledges: {
-        Row: InKindPledge
+        Row: {
+          id: string
+          request_id: string
+          donor_id: string
+          device_breakdown: DeviceTypeBreakdown
+          donor_notes: string | null
+          delivery_address: string
+          pledge_status: PledgeStatus
+          created_at: string
+          updated_at: string
+        }
         Insert: {
           id?: string
           request_id: string
@@ -396,6 +455,7 @@ export type Database = {
           created_at?: string
           updated_at?: string
         }
+        Relationships: []
       }
       organization_cause_areas: {
         Row: {
@@ -416,6 +476,7 @@ export type Database = {
           cause_area_id?: string
           created_at?: string
         }
+        Relationships: []
       }
       request_challenge_categories: {
         Row: {
@@ -436,6 +497,7 @@ export type Database = {
           challenge_category_id?: string
           created_at?: string
         }
+        Relationships: []
       }
       request_identity_categories: {
         Row: {
@@ -456,6 +518,7 @@ export type Database = {
           identity_category_id?: string
           created_at?: string
         }
+        Relationships: []
       }
       fulfillment_records: {
         Row: {
@@ -491,6 +554,7 @@ export type Database = {
           created_at?: string
           updated_at?: string
         }
+        Relationships: []
       }
       request_history: {
         Row: {
@@ -520,6 +584,7 @@ export type Database = {
           note?: string | null
           created_at?: string
         }
+        Relationships: []
       }
       stripe_events: {
         Row: {
@@ -540,6 +605,7 @@ export type Database = {
           payload?: Record<string, unknown> | null
           received_at?: string
         }
+        Relationships: []
       }
       request_notifications: {
         Row: {
@@ -572,6 +638,7 @@ export type Database = {
           is_read?: boolean
           created_at?: string
         }
+        Relationships: []
       }
       donor_cause_areas: {
         Row: {
@@ -592,6 +659,7 @@ export type Database = {
           cause_area_id?: string
           created_at?: string
         }
+        Relationships: []
       }
       organization_populations: {
         Row: {
@@ -612,6 +680,7 @@ export type Database = {
           identity_category_id?: string
           created_at?: string
         }
+        Relationships: []
       }
       organization_updates: {
         Row: {
@@ -644,6 +713,7 @@ export type Database = {
           created_at?: string
           updated_at?: string
         }
+        Relationships: []
       }
       organization_team_members: {
         Row: {
@@ -682,6 +752,163 @@ export type Database = {
           is_active?: boolean
           created_at?: string
         }
+        Relationships: []
+      }
+      campaigns: {
+        Row: {
+          id: string
+          organization_id: string
+          created_by: string
+          title: string
+          slug: string | null
+          status: string
+          funding_goal: number
+          amount_raised: number
+          supporters_count: number
+          short_description: string | null
+          story_title: string | null
+          story_content: string | null
+          contact_email: string
+          image_url: string | null
+          logo_url: string | null
+          phone: string | null
+          creator_name: string | null
+          creator_role: string | null
+          cause_area_ids: string[] | null
+          facebook_url: string | null
+          twitter_url: string | null
+          instagram_url: string | null
+          linkedin_url: string | null
+          youtube_url: string | null
+          tiktok_url: string | null
+          website_url: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          created_by: string
+          title: string
+          slug?: string | null
+          status?: string
+          funding_goal: number
+          amount_raised?: number
+          supporters_count?: number
+          short_description?: string | null
+          story_title?: string | null
+          story_content?: string | null
+          contact_email: string
+          image_url?: string | null
+          logo_url?: string | null
+          phone?: string | null
+          creator_name?: string | null
+          creator_role?: string | null
+          cause_area_ids?: string[] | null
+          facebook_url?: string | null
+          twitter_url?: string | null
+          instagram_url?: string | null
+          linkedin_url?: string | null
+          youtube_url?: string | null
+          tiktok_url?: string | null
+          website_url?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          created_by?: string
+          title?: string
+          slug?: string | null
+          status?: string
+          funding_goal?: number
+          amount_raised?: number
+          supporters_count?: number
+          short_description?: string | null
+          story_title?: string | null
+          story_content?: string | null
+          contact_email?: string
+          image_url?: string | null
+          logo_url?: string | null
+          phone?: string | null
+          creator_name?: string | null
+          creator_role?: string | null
+          cause_area_ids?: string[] | null
+          facebook_url?: string | null
+          twitter_url?: string | null
+          instagram_url?: string | null
+          linkedin_url?: string | null
+          youtube_url?: string | null
+          tiktok_url?: string | null
+          website_url?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      payment_transactions: {
+        Row: {
+          id: string
+          donor_id: string | null
+          organization_id: string | null
+          request_id: string | null
+          campaign_id: string | null
+          amount_total: number
+          status: string
+          created_at: string
+          completed_at: string | null
+        }
+        Insert: {
+          id?: string
+          donor_id?: string | null
+          organization_id?: string | null
+          request_id?: string | null
+          campaign_id?: string | null
+          amount_total: number
+          status?: string
+          created_at?: string
+          completed_at?: string | null
+        }
+        Update: {
+          id?: string
+          donor_id?: string | null
+          organization_id?: string | null
+          request_id?: string | null
+          campaign_id?: string | null
+          amount_total?: number
+          status?: string
+          created_at?: string
+          completed_at?: string | null
+        }
+        Relationships: []
+      }
+      newsletter_subscriptions: {
+        Row: {
+          id: string
+          email: string
+          source: string | null
+          is_active: boolean
+          subscribed_at: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          email: string
+          source?: string | null
+          is_active?: boolean
+          subscribed_at?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          email?: string
+          source?: string | null
+          is_active?: boolean
+          subscribed_at?: string
+          created_at?: string
+        }
+        Relationships: []
       }
     }
     Views: {
@@ -697,4 +924,3 @@ export type Database = {
     }
   }
 }
-

@@ -10,6 +10,9 @@ interface OrganizationUpdatesTabProps {
   isLoading?: boolean
   isOwner?: boolean
   onPostUpdate?: () => void
+  // Props passed from OrganizationProfilePage
+  organizationId?: string
+  onUpdatesChanged?: () => Promise<void>
 }
 
 export function OrganizationUpdatesTab({

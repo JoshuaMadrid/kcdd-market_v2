@@ -7,18 +7,27 @@ import type { Database } from '@/types/database'
 type TeamMember = Database['public']['Tables']['organization_team_members']['Row']
 
 interface OrganizationTeamTabProps {
-  teamMembers: TeamMember[]
+  teamMembers?: TeamMember[]
+  // Alias used by OrganizationProfilePage
+  members?: TeamMember[]
   isLoading?: boolean
   isOwner?: boolean
   onAddMember?: () => void
+  // Props passed from OrganizationProfilePage
+  organizationId?: string
+  onMembersChanged?: () => Promise<void>
 }
 
 export function OrganizationTeamTab({
+  members,
   teamMembers,
   isLoading = false,
   isOwner = false,
   onAddMember,
 }: OrganizationTeamTabProps) {
+  // Accept either prop name
+  const resolvedMembers = members ?? teamMembers ?? []
+
   if (isLoading) {
     return (
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -29,7 +38,7 @@ export function OrganizationTeamTab({
     )
   }
 
-  if (teamMembers.length === 0) {
+  if (resolvedMembers.length === 0) {
     return (
       <Card className="border-[#f5f5f5]">
         <CardContent className="p-8 text-center">
@@ -72,7 +81,7 @@ export function OrganizationTeamTab({
         </div>
       )}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {teamMembers.map((member) => {
+      {resolvedMembers.map((member) => {
         const initials = member.name
           .split(' ')
           .map((word) => word[0])

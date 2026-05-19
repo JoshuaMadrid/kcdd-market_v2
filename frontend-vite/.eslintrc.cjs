@@ -5,14 +5,7 @@ module.exports = {
     es2021: true,
     node: true,
   },
-  extends: [
-    'eslint:recommended',
-    'plugin:@typescript-eslint/recommended',
-    'plugin:react/recommended',
-    'plugin:react-hooks/recommended',
-    'plugin:jsx-a11y/recommended',
-    'prettier',
-  ],
+  extends: ['eslint:recommended', 'plugin:@typescript-eslint/recommended', 'plugin:react/recommended', 'plugin:react-hooks/recommended', 'plugin:jsx-a11y/recommended', 'prettier', 'plugin:storybook/recommended'],
   parser: '@typescript-eslint/parser',
   parserOptions: {
     ecmaVersion: 'latest',
@@ -54,6 +47,13 @@ module.exports = {
     ],
     'jsx-a11y/click-events-have-key-events': 'warn',
     'jsx-a11y/no-static-element-interactions': 'warn',
+    'jsx-a11y/label-has-associated-control': 'warn',
+    'jsx-a11y/heading-has-content': 'warn',
+    'jsx-a11y/no-autofocus': 'warn',
+
+    // React entities (allow in text content)
+    'react/no-unescaped-entities': 'warn',
+    'react/no-unknown-property': ['error', { ignore: ['cmdk-input-wrapper'] }],
 
     // General
     'no-console': ['warn', { allow: ['warn', 'error', 'info'] }],

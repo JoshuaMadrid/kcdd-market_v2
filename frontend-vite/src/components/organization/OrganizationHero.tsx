@@ -1,75 +1,76 @@
-import { Building2, Pencil } from 'lucide-react'
+/**
+ * Organization Hero Component
+ * Cover image area with organization logo overlay
+ */
+
+import { Pencil, ImagePlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { OrganizationLogo } from './OrganizationLogo'
-import type { Database } from '@/types/database'
-
-type Organization = Database['public']['Tables']['organizations']['Row']
 
 interface OrganizationHeroProps {
-  organization: Organization
+  coverImageUrl?: string | null
+  logoUrl?: string | null
+  logoEmoji?: string
+  name: string
   isOwner?: boolean
   onEditClick?: () => void
 }
 
 export function OrganizationHero({
-  organization,
+  coverImageUrl,
+  logoUrl,
+  logoEmoji,
+  name,
   isOwner = false,
   onEditClick,
 }: OrganizationHeroProps) {
   return (
-    <div className="w-full">
-      {/* Cover Image Area */}
-      <div className="w-full h-[300px] bg-[#f5f5f5] rounded-[10px] overflow-hidden relative">
-        {organization.cover_image_url ? (
-          <img
-            src={organization.cover_image_url}
-            alt={`${organization.name} cover`}
-            className="w-full h-full object-cover"
-          />
+    <div className="relative">
+      {/* Cover Image */}
+      <div className="h-[300px] w-full overflow-hidden rounded-[10px] bg-[#f5f5f5]">
+        {coverImageUrl ? (
+          <div className="relative h-full w-full">
+            <img src={coverImageUrl} alt={`${name} cover`} className="h-full w-full object-cover" />
+            {coverImageUrl.includes('kcdd_placeholder=1') && (
+              <div className="pointer-events-none absolute inset-0 flex items-end justify-end p-3">
+                <span className="rounded bg-black/60 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-white">
+                  Placeholder photo
+                </span>
+              </div>
+            )}
+          </div>
         ) : (
-          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#f5f5f5] to-[#e5e5e5]">
-            <div className="text-[#737373] flex flex-col items-center">
-              <Building2 className="h-16 w-16 mb-2 opacity-50" />
-              <span className="text-sm">Organization Cover</span>
-            </div>
+          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#ea580c]/10 to-[#1b5858]/10">
+            <ImagePlus className="h-16 w-16 text-[#737373] opacity-30" />
           </div>
         )}
+      </div>
 
-        {/* Edit button overlay for owners */}
-        {isOwner && onEditClick && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm"
-            onClick={onEditClick}
-          >
-            <Pencil className="h-4 w-4 mr-1" />
-            Edit Profile
-          </Button>
-        )}
-
-        {/* Organization logo overlay */}
-        <div className="absolute -bottom-8 left-6">
-          <div className="rounded-full border-4 border-white bg-white shadow-lg">
-            <OrganizationLogo
-              name={organization.name}
-              logoUrl={organization.logo_url}
-              logoEmoji={organization.logo_emoji}
-              size="xl"
-            />
-          </div>
+      {/* Logo Overlay */}
+      <div className="absolute -bottom-12 left-6">
+        <div className="rounded-full bg-white p-1 shadow-lg">
+          <OrganizationLogo
+            logoUrl={logoUrl}
+            logoEmoji={logoEmoji}
+            name={name}
+            size="xl"
+            className="border-4 border-white"
+          />
         </div>
       </div>
 
-      {/* Organization Name & Tagline */}
-      <div className="pt-12 px-6">
-        <h1 className="text-4xl font-bold text-[#0a0a0a] leading-tight">
-          {organization.name}
-        </h1>
-        {organization.tagline && (
-          <p className="text-lg text-[#737373] mt-1">{organization.tagline}</p>
-        )}
-      </div>
+      {/* Edit Button for Owners */}
+      {isOwner && onEditClick && (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onEditClick}
+          className="absolute right-4 top-4 bg-white/90 backdrop-blur-sm"
+        >
+          <Pencil className="mr-1 h-4 w-4" />
+          Edit Profile
+        </Button>
+      )}
     </div>
   )
 }

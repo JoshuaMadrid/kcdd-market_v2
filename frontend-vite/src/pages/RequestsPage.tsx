@@ -87,7 +87,7 @@ export function RequestsPage() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const { data, count } = await fetchFilteredRequests({ search, causeAreaId, urgency, page })
+      const { requests: data, total: count } = await fetchFilteredRequests({ search, causeAreaId, urgency, page })
       setRequests(data)
       setTotal(count)
     } catch (err) {

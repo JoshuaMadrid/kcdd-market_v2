@@ -1,50 +1,146 @@
 /**
  * Navigation Bar Component
+ * Themed with CSS variables - update colors in globals.css
  */
 
-import { Link } from 'react-router-dom'
-import { UserButton, useUser } from '@clerk/clerk-react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { UserButton, useUser, SignInButton, SignUpButton } from '@clerk/clerk-react'
 import { routes } from '@/config'
 import { Button } from '@/components/ui/button'
 import { NotificationsBell } from '@/components/notifications/NotificationsBell'
-import { useAuthStore } from '@/stores/authStore'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { ChevronDown, LayoutDashboard, Heart, Building2, Shield } from 'lucide-react'
+import { useUserType } from '@/hooks/useClerkSupabase'
 
 export function Navbar() {
   const { isSignedIn } = useUser()
-  const { userType } = useAuthStore()
+  const { userType, loading: userTypeLoading } = useUserType()
+  const location = useLocation()
+  const navigate = useNavigate()
+
+  const isActive = (path: string) => location.pathname === path
+
+  // Determine which dashboards the user has access to
+  const getDashboardOptions = () => {
+    if (userType === 'admin') {
+      return [
+        { label: 'Admin Dashboard', path: routes.admin.dashboard, icon: Shield },
+        { label: 'Donor Dashboard', path: routes.donor.dashboard, icon: Heart },
+        { label: 'CBO Dashboard', path: routes.cbo.dashboard, icon: Building2 },
+      ]
+    }
+    if (userType === 'cbo') {
+      return [{ label: 'Dashboard', path: routes.cbo.dashboard, icon: LayoutDashboard }]
+    }
+    // Default to donor
+    return [{ label: 'Dashboard', path: routes.donor.dashboard, icon: LayoutDashboard }]
+  }
+
+  const dashboardOptions = getDashboardOptions()
+  const hasMultipleDashboards = dashboardOptions.length > 1
+  const defaultDashboard = dashboardOptions[0]?.path || routes.donor.dashboard
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container flex h-16 items-center justify-between">
-        <div className="flex gap-6 md:gap-10">
-          <Link to={routes.home} className="flex items-center space-x-2">
-            <span className="font-bold text-xl">KCDD Market</span>
-          </Link>
-          <nav className="hidden md:flex gap-6">
+    <header className="w-full border-b bg-white">
+      <div className="flex items-center px-5 py-5">
+        {/* Left side - Navigation Links */}
+        <div className="flex flex-1 items-center">
+          <nav className="hidden items-center gap-[15px] md:flex">
+            <Link
+              to={routes.home}
+              className={`text-sm transition-colors ${
+                isActive(routes.home)
+                  ? 'font-bold text-[hsl(var(--brand-primary))]'
+                  : 'font-normal text-black hover:text-[hsl(var(--brand-primary))]'
+              }`}
+            >
+              Homepage
+            </Link>
             <Link
               to={routes.requests}
-              className="flex items-center text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
+              className={`text-sm transition-colors ${
+                isActive(routes.requests)
+                  ? 'font-bold text-[hsl(var(--brand-primary))]'
+                  : 'font-normal text-black hover:text-[hsl(var(--brand-primary))]'
+              }`}
             >
               Browse Requests
             </Link>
             <Link
               to={routes.about}
-              className="flex items-center text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
+              className={`text-sm transition-colors ${
+                isActive(routes.about)
+                  ? 'font-bold text-[hsl(var(--brand-primary))]'
+                  : 'font-normal text-black hover:text-[hsl(var(--brand-primary))]'
+              }`}
             >
-              About
+              About Us
             </Link>
           </nav>
         </div>
-        <div className="flex items-center gap-4">
+
+        {/* Logo - Centered, hugs content */}
+        <Link to={routes.home} className="flex-shrink-0">
+          <h1
+            className="whitespace-nowrap text-[30px] font-black text-[hsl(var(--brand-primary))]"
+            style={{ fontFamily: 'Inter, sans-serif' }}
+          >
+            KC DIME
+          </h1>
+        </Link>
+
+        {/* Right side - Action Buttons */}
+        <div className="flex flex-1 items-center justify-end gap-[15px]">
           {isSignedIn ? (
             <>
-              {userType === 'admin' ? (
-                <Link to={routes.admin.dashboard}>
-                  <Button variant="ghost">Admin</Button>
-                </Link>
+              {userTypeLoading ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-full border-[hsl(var(--brand-primary))] text-[hsl(var(--brand-primary))] opacity-50"
+                  disabled
+                >
+                  Dashboard
+                </Button>
+              ) : hasMultipleDashboards ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1 rounded-full border-[hsl(var(--brand-primary))] text-[hsl(var(--brand-primary))] hover:bg-[hsl(var(--brand-primary))] hover:text-white"
+                    >
+                      Dashboard
+                      <ChevronDown className="h-3 w-3" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    {dashboardOptions.map((option) => (
+                      <DropdownMenuItem
+                        key={option.path}
+                        onClick={() => navigate(option.path)}
+                        className="cursor-pointer gap-2"
+                      >
+                        <option.icon className="h-4 w-4" />
+                        {option.label}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               ) : (
-                <Link to={userType === 'cbo' ? routes.cbo.dashboard : routes.donor.dashboard}>
-                  <Button variant="ghost">Dashboard</Button>
+                <Link to={defaultDashboard}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-full border-[hsl(var(--brand-primary))] text-[hsl(var(--brand-primary))] hover:bg-[hsl(var(--brand-primary))] hover:text-white"
+                  >
+                    Dashboard
+                  </Button>
                 </Link>
               )}
               <NotificationsBell />
@@ -52,12 +148,33 @@ export function Navbar() {
             </>
           ) : (
             <>
-              <Link to={routes.signIn}>
-                <Button variant="ghost">Sign In</Button>
-              </Link>
-              <Link to={routes.signUp}>
-                <Button>Sign Up</Button>
-              </Link>
+              <SignInButton mode="modal">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-9 rounded-full px-4 text-[hsl(var(--brand-primary))] hover:bg-[hsl(var(--brand-primary)/0.08)]"
+                >
+                  Sign in
+                </Button>
+              </SignInButton>
+              <SignInButton mode="modal">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 rounded-full border-[hsl(var(--brand-primary))] px-4 text-[hsl(var(--brand-primary))] hover:bg-[hsl(var(--brand-primary))] hover:text-white"
+                >
+                  For Organizations
+                </Button>
+              </SignInButton>
+              <SignUpButton mode="modal">
+                <Button
+                  size="sm"
+                  className="h-9 gap-2 rounded-full bg-[hsl(var(--brand-primary))] px-4 text-white hover:bg-[hsl(var(--brand-primary)/0.9)]"
+                >
+                  <Heart className="h-4 w-4 fill-white" />
+                  Donate
+                </Button>
+              </SignUpButton>
             </>
           )}
         </div>

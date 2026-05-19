@@ -14,7 +14,6 @@ old-frontend/
 # DEPENDENCIES
 # ============================================
 node_modules/
-package-lock.json
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -97,6 +96,19 @@ coverage/
 backend/volumes/db/data/
 *.sql.backup
 
+# Generated seed file (contains user-specific data)
+backend/supabase/seed_data.sql
+
+# ============================================
+# AI / AGENT TOOLS (private, local-only)
+# ============================================
+.claude/
+.agents/
+.kiro/
+.windsurf/
+.mcp.json
+skills-lock.json
+
 # ============================================
 # MISC
 # ============================================
@@ -117,4 +129,13 @@ _scripts
 00.architecture.md
 _docs
 z_*
-# LOCAL_DEV.node_modules    
+# LOCAL_DEV.node_modules
+
+# Supabase seed and backup files (from origin/main)
+backend/supabase/seed_data.template.sql
+backend/supabase/generate-seed.js
+frontend-vite/.mcp.json
+backend/supabase/seed_organization_profile.sql
+
+# Database backups (may contain personal data)
+backend/supabase/backups/

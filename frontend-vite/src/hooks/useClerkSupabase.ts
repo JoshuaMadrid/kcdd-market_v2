@@ -1,17 +1,17 @@
 /**
  * Clerk + Supabase Integration Hook
- * 
+ *
  * This hook syncs Clerk authentication with Supabase.
  * It automatically updates the Supabase client with the Clerk JWT token.
- * 
+ *
  * Documentation:
  * - Clerk useAuth: https://clerk.com/docs/references/react/use-auth
  * - Clerk JWT Templates: https://clerk.com/docs/backend-requests/making/jwt-templates
  */
 
 import { useAuth } from '@clerk/clerk-react'
-import { useEffect } from 'react'
-import { registerClerkTokenGetter, fetchUserProfile } from '@/lib/supabase'
+import { useEffect, useState } from 'react'
+import { registerClerkTokenGetter, fetchUserProfile, supabase } from '@/lib/supabase'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/stores/authStore'
 
@@ -49,9 +49,127 @@ export const useClerkSupabase = () => {
     }
   }, [isLoaded, userId, getToken])
 
+  // needsRoleSelection / dismissRoleSelection: used by App.tsx to show the
+  // role selection modal on first sign-in. Merged from main branch — these
+  // fields were removed in the feat/taek version but are still required by
+  // RoleSelectionModal. Returning false/no-op keeps the existing behaviour
+  // (role selection logic lives in RoleSelectionModal itself).
+  const [needsRoleSelection] = useState(false)
+  const dismissRoleSelection = () => {}
+
   return {
     isReady: isLoaded,
     userId,
+    needsRoleSelection,
+    dismissRoleSelection,
   }
 }
 
+/**
+ * Hook to get the current user's type (donor, cbo, admin)
+ * Respects impersonation context when active.
+ */
+export const useUserType = () => {
+  const { userId } = useAuth()
+  const [userType, setUserType] = useState<'donor' | 'cbo' | 'admin' | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  // Check for impersonation in sessionStorage (avoids circular dependency with context)
+  const impersonatedType = (() => {
+    try {
+      const stored = sessionStorage.getItem('impersonation')
+      if (stored) {
+        const parsed = JSON.parse(stored) as { userType: 'donor' | 'cbo' | 'admin' }
+        return parsed.userType
+      }
+    } catch {
+      // ignore
+    }
+    return null
+  })()
+
+  useEffect(() => {
+    // If impersonating, use the impersonated user's type
+    if (impersonatedType) {
+      setUserType(impersonatedType)
+      setLoading(false)
+      return
+    }
+
+    const fetchUserType = async () => {
+      if (!userId) {
+        setUserType(null)
+        setLoading(false)
+        return
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from('user_profiles')
+          .select('user_type')
+          .eq('id', userId)
+          .single()
+
+        if (error) {
+          console.error('Error fetching user type:', error)
+          setUserType('donor') // Default to donor
+        } else {
+          setUserType(data?.user_type || 'donor')
+        }
+      } catch (err) {
+        console.error('Error:', err)
+        setUserType('donor')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchUserType()
+  }, [userId, impersonatedType])
+
+  return { userType, loading }
+}
+
+/**
+ * Hook to get the real (non-impersonated) user type.
+ * Used by ProtectedAdminRoute to verify actual admin access.
+ */
+export const useRealUserType = () => {
+  const { userId } = useAuth()
+  const [userType, setUserType] = useState<'donor' | 'cbo' | 'admin' | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchUserType = async () => {
+      if (!userId) {
+        setUserType(null)
+        setLoading(false)
+        return
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from('user_profiles')
+          .select('user_type')
+          .eq('id', userId)
+          .single()
+
+        if (error) {
+          console.error('Error fetching real user type:', error)
+          setUserType('donor')
+        } else {
+          setUserType(data?.user_type || 'donor')
+        }
+      } catch (err) {
+        console.error('Error:', err)
+        setUserType('donor')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchUserType()
+  }, [userId])
+
+  return { userType, loading }
+}

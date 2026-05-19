@@ -65,7 +65,7 @@ export function CBOProfile() {
 
       try {
         const orgData = await fetchOrganizationByUserId(user.id)
-        setOrganization(orgData)
+        setOrganization(orgData as unknown as OrganizationWithRelations)
 
         if (orgData) {
           const [requestsData, updatesData, teamData] = await Promise.all([
@@ -74,7 +74,7 @@ export function CBOProfile() {
             fetchOrganizationTeamMembers(orgData.id),
           ])
 
-          setRequests(requestsData as RequestWithCauseArea[])
+          setRequests(requestsData as unknown as RequestWithCauseArea[])
           setUpdates(updatesData)
           setTeamMembers(teamData)
         }
@@ -119,7 +119,6 @@ export function CBOProfile() {
     )
   }
 
-  const openRequestCount = requests.filter((r) => r.status === 'open').length
 
   return (
     <div className="max-w-[1200px] mx-auto">
@@ -145,7 +144,10 @@ export function CBOProfile() {
       {/* Hero Section */}
       <div className="px-6 pt-4">
         <OrganizationHero
-          organization={organization}
+          coverImageUrl={organization.cover_image_url}
+          logoUrl={organization.logo_url}
+          logoEmoji={organization.logo_emoji ?? undefined}
+          name={organization.name}
           isOwner={true}
           onEditClick={() => window.location.href = routes.cbo.profileEdit}
         />
@@ -174,8 +176,7 @@ export function CBOProfile() {
 
               <TabsContent value="about" className="mt-0">
                 <OrganizationAboutTab
-                  organization={organization}
-                  populations={organization.populations}
+                  organization={organization as any}
                 />
               </TabsContent>
 
@@ -204,10 +205,8 @@ export function CBOProfile() {
           {/* Right: Sidebar */}
           <div className="w-[340px] flex-shrink-0 hidden lg:block">
             <OrganizationSidebar
-              organization={organization}
-              causeAreas={organization.cause_areas}
-              requestCount={openRequestCount}
-              isVetted={true}
+              organization={organization as any}
+              causeAreas={organization.cause_areas as any}
               isOwner
             />
           </div>

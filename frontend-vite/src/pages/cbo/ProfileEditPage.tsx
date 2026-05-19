@@ -100,7 +100,7 @@ export function CBOProfileEdit() {
 
       try {
         const orgData = await fetchOrganizationByUserId(user.id)
-        setOrganization(orgData)
+        setOrganization(orgData as unknown as Organization)
 
         if (orgData) {
           setFormData({

@@ -21,7 +21,6 @@
     }
   ],
   "env": {
-    "VITE_APP_NAME": "@app-name",
     "VITE_ENVIRONMENT": "production"
   }
 }

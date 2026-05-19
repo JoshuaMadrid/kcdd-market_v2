@@ -1,64 +1,45 @@
-import { Users, AlertTriangle, MapPin, FileText } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
-import type { Database } from '@/types/database'
+/**
+ * Organization About Tab Component
+ * Displays mission, populations served, technology needs, program description
+ */
 
-type Organization = Database['public']['Tables']['organizations']['Row']
-type IdentityCategory = Database['public']['Tables']['identity_categories']['Row']
+import { Lightbulb, Users, MapPin, FileText } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import type { OrganizationProfile } from '@/lib/supabase'
 
 interface OrganizationAboutTabProps {
-  organization: Organization
-  populations?: Array<{ category: IdentityCategory }>
+  organization: OrganizationProfile
 }
 
-export function OrganizationAboutTab({
-  organization,
-  populations = [],
-}: OrganizationAboutTabProps) {
+export function OrganizationAboutTab({ organization }: OrganizationAboutTabProps) {
   return (
-    <div className="space-y-8">
-      {/* Mission Statement */}
+    <div className="max-w-3xl space-y-8">
+      {/* Mission */}
       <section>
-        <h2 className="text-2xl font-semibold text-[#0a0a0a] mb-4 flex items-center gap-2">
-          <FileText className="h-6 w-6 text-[#ea580c]" />
+        <h2 className="mb-4 flex items-center gap-2 text-2xl font-semibold text-[#0a0a0a]">
+          <FileText className="h-6 w-6 text-[#1b5858]" />
           Our Mission
         </h2>
-        <p className="text-base text-[#0a0a0a] leading-relaxed whitespace-pre-wrap">
-          {organization.mission}
-        </p>
+        <p className="text-base leading-relaxed text-[#0a0a0a]">{organization.mission}</p>
       </section>
 
       {/* Populations Served */}
-      {populations.length > 0 && (
+      {organization.populations && organization.populations.length > 0 && (
         <section>
-          <h2 className="text-2xl font-semibold text-[#0a0a0a] mb-4 flex items-center gap-2">
-            <Users className="h-6 w-6 text-[#ea580c]" />
-            Who We Serve
-          </h2>
+          <h3 className="mb-3 flex items-center gap-2 text-lg font-semibold text-[#0a0a0a]">
+            <Users className="h-5 w-5 text-[#1b5858]" />
+            Populations We Serve
+          </h3>
           <div className="flex flex-wrap gap-2">
-            {populations.map(({ category }) => (
+            {organization.populations.map((pop) => (
               <Badge
-                key={category.id}
+                key={pop.id}
                 variant="secondary"
-                className="text-sm px-3 py-1"
+                className="bg-[#1b5858]/10 px-3 py-1 font-normal text-[#1b5858]"
               >
-                {category.name}
+                {pop.name}
               </Badge>
             ))}
-          </div>
-        </section>
-      )}
-
-      {/* Technology Barriers */}
-      {organization.technology_barriers && (
-        <section>
-          <h2 className="text-2xl font-semibold text-[#0a0a0a] mb-4 flex items-center gap-2">
-            <AlertTriangle className="h-6 w-6 text-[#ea580c]" />
-            Technology Barriers Our Clients Face
-          </h2>
-          <div className="bg-[#fef3c7] border border-[#fcd34d] rounded-lg p-4">
-            <p className="text-base text-[#92400e] leading-relaxed whitespace-pre-wrap">
-              {organization.technology_barriers}
-            </p>
           </div>
         </section>
       )}
@@ -66,23 +47,38 @@ export function OrganizationAboutTab({
       {/* Program Description */}
       {organization.program_description && (
         <section>
-          <h2 className="text-2xl font-semibold text-[#0a0a0a] mb-4">
-            Our Programs
-          </h2>
-          <p className="text-base text-[#0a0a0a] leading-relaxed whitespace-pre-wrap">
+          <h3 className="mb-3 text-lg font-semibold text-[#0a0a0a]">Our Programs</h3>
+          <p className="whitespace-pre-line text-base leading-relaxed text-[#0a0a0a]">
             {organization.program_description}
           </p>
+        </section>
+      )}
+
+      {/* Technology Needs - Restyled to be informative, not alarming */}
+      {organization.technology_barriers && (
+        <section className="rounded-lg border border-[#bae6fd] bg-[#f0f9ff] p-6">
+          <div className="flex items-start gap-3">
+            <div className="rounded-full bg-[#0ea5e9]/10 p-2">
+              <Lightbulb className="h-5 w-5 text-[#0ea5e9]" />
+            </div>
+            <div>
+              <h3 className="mb-2 text-lg font-semibold text-[#0a0a0a]">How You Can Help</h3>
+              <p className="text-base leading-relaxed text-[#0a0a0a]">
+                {organization.technology_barriers}
+              </p>
+            </div>
+          </div>
         </section>
       )}
 
       {/* Service Area */}
       {organization.service_area_description && (
         <section>
-          <h2 className="text-2xl font-semibold text-[#0a0a0a] mb-4 flex items-center gap-2">
-            <MapPin className="h-6 w-6 text-[#ea580c]" />
+          <h3 className="mb-3 flex items-center gap-2 text-lg font-semibold text-[#0a0a0a]">
+            <MapPin className="h-5 w-5 text-[#1b5858]" />
             Service Area
-          </h2>
-          <p className="text-base text-[#0a0a0a] leading-relaxed whitespace-pre-wrap">
+          </h3>
+          <p className="text-base leading-relaxed text-[#0a0a0a]">
             {organization.service_area_description}
           </p>
         </section>
@@ -90,30 +86,30 @@ export function OrganizationAboutTab({
 
       {/* Organization Details */}
       <section className="border-t border-[#f5f5f5] pt-6">
-        <h3 className="text-sm font-medium text-[#737373] mb-3">Organization Details</h3>
+        <h3 className="mb-3 text-sm font-medium text-[#737373]">Organization Details</h3>
         <div className="grid grid-cols-2 gap-4 text-sm">
           {organization.organization_type && (
             <div>
               <p className="text-[#737373]">Organization Type</p>
-              <p className="text-[#0a0a0a] font-medium">{organization.organization_type}</p>
+              <p className="font-medium text-[#0a0a0a]">{organization.organization_type}</p>
             </div>
           )}
           {organization.organization_size && (
             <div>
               <p className="text-[#737373]">Organization Size</p>
-              <p className="text-[#0a0a0a] font-medium">{organization.organization_size}</p>
+              <p className="font-medium text-[#0a0a0a]">{organization.organization_size}</p>
             </div>
           )}
           {organization.year_founded && (
             <div>
               <p className="text-[#737373]">Year Founded</p>
-              <p className="text-[#0a0a0a] font-medium">{organization.year_founded}</p>
+              <p className="font-medium text-[#0a0a0a]">{organization.year_founded}</p>
             </div>
           )}
           {organization.ein && (
             <div>
               <p className="text-[#737373]">EIN</p>
-              <p className="text-[#0a0a0a] font-medium">{organization.ein}</p>
+              <p className="font-medium text-[#0a0a0a]">{organization.ein}</p>
             </div>
           )}
         </div>
