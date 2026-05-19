@@ -170,7 +170,7 @@ All tables use RLS; migrations are in `backend/supabase/migrations/`.
 ```
 VITE_CLERK_PUBLISHABLE_KEY=
 VITE_SUPABASE_URL=
-VITE_SUPABASE_ANON_KEY=
+VITE_SUPABASE_PUBLISHABLE_KEY=
 VITE_STRIPE_PUBLISHABLE_KEY=
 VITE_API_URL=http://localhost:4000
 VITE_APP_NAME=KC Digital Drive Market
