@@ -51,17 +51,19 @@ ON CONFLICT (name) DO NOTHING;
 -- IDs keep their UUID-shaped format to preserve FK target values throughout the seed,
 -- but they're stored as TEXT (so real Clerk IDs like "user_xxx" also work post-migration).
 -- The escalation trigger is bypassed by inserting (not updating) — trigger only fires on UPDATE.
-INSERT INTO user_profiles (id, user_type, is_vetted) VALUES
-  ('00000000-0000-0000-0001-000000000001', 'admin', true),
-  ('00000000-0000-0000-0002-000000000001', 'cbo',   true),
-  ('00000000-0000-0000-0002-000000000002', 'cbo',   true),
-  ('00000000-0000-0000-0002-000000000003', 'cbo',   true),
-  ('00000000-0000-0000-0003-000000000001', 'donor', false),
-  ('00000000-0000-0000-0003-000000000002', 'donor', false),
-  ('00000000-0000-0000-0003-000000000003', 'donor', false),
+-- org_tier + verification_status added by 20260524000000_admin_user_tier_columns.sql
+-- Mock variety so the admin User Management table shows all badge variants.
+INSERT INTO user_profiles (id, user_type, is_vetted, org_tier, verification_status) VALUES
+  ('00000000-0000-0000-0001-000000000001', 'admin', true,  'individual', 'verified'),
+  ('00000000-0000-0000-0002-000000000001', 'cbo',   true,  'large_org',  'verified'),
+  ('00000000-0000-0000-0002-000000000002', 'cbo',   true,  'small_org',  'verified'),
+  ('00000000-0000-0000-0002-000000000003', 'cbo',   true,  'small_org',  'verified'),
+  ('00000000-0000-0000-0003-000000000001', 'donor', false, 'individual', 'unverified'),
+  ('00000000-0000-0000-0003-000000000002', 'donor', false, 'individual', 'verified'),
+  ('00000000-0000-0000-0003-000000000003', 'donor', false, 'individual', 'unverified'),
   -- Real Clerk users pre-seeded with their roles (survives db:reset; /api/users/sync respects existing row via ignoreDuplicates)
-  ('user_3DnElkT9WrqI1pJ5SBKNfoZB73x',     'admin', true),
-  ('user_3DsXr8YQSQrpyJsmOVTqWaa48qy',     'cbo',   true)
+  ('user_3DnElkT9WrqI1pJ5SBKNfoZB73x',     'admin', true,  'individual', 'verified'),
+  ('user_3DsXr8YQSQrpyJsmOVTqWaa48qy',     'cbo',   true,  'small_org',  'verified')
 ON CONFLICT (id) DO NOTHING;
 
 -- STEP 5: Insert organizations (3 rows)
@@ -1273,7 +1275,9 @@ INSERT INTO donor_documents (
 -- ============================================================
 -- STEP 21: campaigns + campaign_questions
 -- ============================================================
--- Two active campaigns from two different CBOs, one paused
+-- 6 active campaigns + 1 pending, spread across the 3 seeded CBOs.
+-- cause_area_ids is set via UPDATE below because cause_areas.id is auto-
+-- generated per db:reset (uuid_generate_v4()) so we can't hardcode here.
 INSERT INTO campaigns (
   id, organization_id, created_by, title, slug, creator_name, creator_role,
   funding_goal, amount_raised, supporters_count,
@@ -1291,7 +1295,7 @@ INSERT INTO campaigns (
    'Why this matters',
    '<h2>Why this matters</h2><p>Last semester, 18 of our 25 enrolled students had to share a single shelf of Chromebooks rotating between classrooms. Homework went home unfinished, and our retention dropped from 82% to 64% in the spring.</p><p>With <strong>$12,000</strong> we can buy 25 refurbished Lenovo ThinkPads, accessory bundles (mice, sleeves), and a year of break/fix support.</p>',
    'campaigns@connectingroots.org', '+1-816-555-0111',
-   'https://example.com/img/connecting-roots-cover.jpg',
+   'https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=1200&q=80',
    'https://example.com/img/connecting-roots-logo.png',
    'https://facebook.com/connectingrootskc', 'https://instagram.com/connectingrootskc',
    'active'),
@@ -1305,7 +1309,7 @@ INSERT INTO campaigns (
    'A classroom on wheels',
    '<h2>A classroom on wheels</h2><p>Our fixed-site classes have a 4-month waitlist while seniors in the Northland tell us they cannot reach our downtown office. This mobile lab — a 2018 Ford Transit retrofitted with 15 laptop stations and Starlink uplink — will bring 6 weekly classes to 4 community centers north of the river.</p>',
    'campaigns@digitalfutureskc.org', '+1-816-555-0133',
-   'https://example.com/img/digital-futures-mobile-lab.jpg',
+   'https://images.unsplash.com/photo-1581094794329-c8112a89af12?w=1200&q=80',
    'https://example.com/img/digital-futures-logo.png',
    NULL, 'https://instagram.com/digitalfutureskc',
    'active'),
@@ -1320,7 +1324,92 @@ INSERT INTO campaigns (
    '<p>Our spring cohort opens in February. Hardware lead time means we need committed funding by January 15.</p>',
    'campaigns@kctechbridge.org', '+1-816-555-0122',
    NULL, NULL, NULL, NULL,
-   'pending');
+   'pending'),
+  ('00000000-0000-0000-0009-000000000004', '00000000-0000-0000-0004-000000000002',
+   '00000000-0000-0000-0002-000000000002',
+   'Workforce Computer Lab — Tech Bridge',
+   'workforce-computer-lab-tech-bridge',
+   'Lin Chen', 'Programs Lead',
+   18000.00, 4250.00, 19,
+   'Outfit a 12-station job-readiness lab for adults transitioning out of shelters and re-entry programs.',
+   'A doorway to a paycheck',
+   '<p>Our partners refer 80–90 adults a year who need entry-level digital skills. We currently rent lab time at the library — limited to 2 hours per week. A dedicated 12-station lab unlocks evening and weekend training.</p>',
+   'campaigns@kctechbridge.org', '+1-816-555-0122',
+   'https://images.unsplash.com/photo-1497366216548-37526070297c?w=1200&q=80',
+   NULL,
+   NULL, NULL,
+   'active'),
+  ('00000000-0000-0000-0009-000000000005', '00000000-0000-0000-0004-000000000001',
+   '00000000-0000-0000-0002-000000000001',
+   'Arts Studio Tablets for Roots Teens',
+   'arts-studio-tablets-roots-teens',
+   'Amara Johnson', 'Program Director',
+   5000.00, 4200.00, 38,
+   '10 iPad + Apple Pencil bundles for our Saturday teen arts studio (digital illustration & music production).',
+   'Where pencils meet pixels',
+   '<p>Our Saturday teens have been making zines for 3 years. Half now ask about digital art and beat production. Hardware is the only thing standing between them and a portfolio they can take to art school.</p>',
+   'campaigns@connectingroots.org', '+1-816-555-0111',
+   'https://images.unsplash.com/photo-1611162616475-46b635cb6868?w=1200&q=80',
+   NULL,
+   'https://facebook.com/connectingrootskc', NULL,
+   'active'),
+  ('00000000-0000-0000-0009-000000000006', '00000000-0000-0000-0004-000000000003',
+   '00000000-0000-0000-0002-000000000003',
+   'Stay-Connected Phones for Housing Stability',
+   'stay-connected-phones-housing-stability',
+   'Devon Park', 'Executive Director',
+   6500.00, 6500.00, 73,
+   '50 prepaid smartphones + 6-month service for clients transitioning out of shelter into permanent housing.',
+   'A working phone IS housing stability',
+   '<p>Caseworkers report 3 in 10 housing placements fail in the first 90 days because clients cannot be reached for utility setup, employer call-backs, or appointments. A phone changes that.</p>',
+   'campaigns@digitalfutureskc.org', '+1-816-555-0133',
+   'https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?w=1200&q=80',
+   NULL,
+   NULL, 'https://instagram.com/digitalfutureskc',
+   'active'),
+  ('00000000-0000-0000-0009-000000000007', '00000000-0000-0000-0004-000000000001',
+   '00000000-0000-0000-0002-000000000001',
+   'Health-Tech Kiosk at the Roots Community Hub',
+   'health-tech-kiosk-roots-community-hub',
+   'Amara Johnson', 'Program Director',
+   9200.00, 1850.00, 12,
+   'A telehealth kiosk + Bluetooth BP cuff station in our lobby — open to neighbors during business hours.',
+   'Closing the last appointment-mile',
+   '<p>Our community hub already hosts 200+ visits per month. A self-serve telehealth booth lets neighbors talk to a nurse without a doctor visit. Phase 1 funds the booth, BP cuff, scale, and 6 months of platform fees.</p>',
+   'campaigns@connectingroots.org', '+1-816-555-0111',
+   NULL,
+   'https://example.com/img/connecting-roots-logo.png',
+   NULL, NULL,
+   'active');
+
+-- Backfill cause_area_ids via name lookup (cause_areas.id is auto-generated UUID-as-text).
+UPDATE campaigns SET cause_area_ids = ARRAY(
+  SELECT id::TEXT FROM cause_areas WHERE name IN ('Education','Youth Development')
+) WHERE id = '00000000-0000-0000-0009-000000000001';
+
+UPDATE campaigns SET cause_area_ids = ARRAY(
+  SELECT id::TEXT FROM cause_areas WHERE name IN ('Education','Community Services')
+) WHERE id = '00000000-0000-0000-0009-000000000002';
+
+UPDATE campaigns SET cause_area_ids = ARRAY(
+  SELECT id::TEXT FROM cause_areas WHERE name IN ('Health & Wellness','Education')
+) WHERE id = '00000000-0000-0000-0009-000000000003';
+
+UPDATE campaigns SET cause_area_ids = ARRAY(
+  SELECT id::TEXT FROM cause_areas WHERE name IN ('Economic Development')
+) WHERE id = '00000000-0000-0000-0009-000000000004';
+
+UPDATE campaigns SET cause_area_ids = ARRAY(
+  SELECT id::TEXT FROM cause_areas WHERE name IN ('Arts & Culture','Youth Development')
+) WHERE id = '00000000-0000-0000-0009-000000000005';
+
+UPDATE campaigns SET cause_area_ids = ARRAY(
+  SELECT id::TEXT FROM cause_areas WHERE name IN ('Housing','Community Services')
+) WHERE id = '00000000-0000-0000-0009-000000000006';
+
+UPDATE campaigns SET cause_area_ids = ARRAY(
+  SELECT id::TEXT FROM cause_areas WHERE name IN ('Health & Wellness','Community Services')
+) WHERE id = '00000000-0000-0000-0009-000000000007';
 
 INSERT INTO campaign_questions (campaign_id, question, submitter_name, submitter_email, status, answer, is_public, answered_at, answered_by) VALUES
   ('00000000-0000-0000-0009-000000000001',

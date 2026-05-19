@@ -42,6 +42,7 @@ import { CampaignPage } from '@/pages/CampaignPage'
 import { CampaignDonatePage } from '@/pages/CampaignDonatePage'
 import { AdminDashboard } from '@/pages/admin/DashboardPage'
 import { AdminUsersPage } from '@/pages/admin/UsersPage'
+import { AdminUserDetailPage } from '@/pages/admin/UserDetailPage'
 import { AdminVettingPage } from '@/pages/admin/VettingPage'
 import { AdminRequestsPage } from '@/pages/admin/RequestsPage'
 import { AdminAuditPage } from '@/pages/admin/AuditPage'
@@ -299,6 +300,16 @@ export function AppRoutes() {
             <ProtectedRoute>
               <ProtectedAdminRoute>
                 <AdminUsersPage />
+              </ProtectedAdminRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/users/:id"
+          element={
+            <ProtectedRoute>
+              <ProtectedAdminRoute>
+                <AdminUserDetailPage />
               </ProtectedAdminRoute>
             </ProtectedRoute>
           }

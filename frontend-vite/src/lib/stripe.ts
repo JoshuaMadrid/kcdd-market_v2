@@ -44,11 +44,16 @@ export const createPaymentIntent = async (
     body: JSON.stringify({ requestId }),
   })
 
+  const data = await response.json().catch(() => null)
+
   if (!response.ok) {
-    throw new Error('Failed to create payment intent')
+    const message = data?.message || data?.error || `Payment intent failed (HTTP ${response.status})`
+    const error = new Error(message) as Error & { code?: string; status?: number }
+    if (data?.code) error.code = data.code
+    error.status = response.status
+    throw error
   }
 
-  const data = await response.json()
   return data.clientSecret
 }
 

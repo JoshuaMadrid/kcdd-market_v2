@@ -2356,7 +2356,7 @@ export const fetchRequestById = async (id: string): Promise<any> => {
 
 // Fetch filtered requests with pagination
 export const fetchFilteredRequests = async (params: {
-  causeAreaId?: string
+  causeAreaIds?: string[]
   urgency?: string
   status?: string
   search?: string
@@ -2364,7 +2364,7 @@ export const fetchFilteredRequests = async (params: {
   pageSize?: number
   donationType?: string
 }): Promise<{ requests: any[]; total: number }> => {
-  const { causeAreaId, urgency, status = 'open', search, page = 1, pageSize = 12, donationType } = params
+  const { causeAreaIds, urgency, status = 'open', search, page = 1, pageSize = 12, donationType } = params
 
   let query = (supabase as any)
     .from('requests')
@@ -2380,7 +2380,7 @@ export const fetchFilteredRequests = async (params: {
     .order('created_at', { ascending: false })
     .range((page - 1) * pageSize, page * pageSize - 1)
 
-  if (causeAreaId) query = query.eq('cause_area_id', causeAreaId)
+  if (causeAreaIds && causeAreaIds.length > 0) query = query.in('cause_area_id', causeAreaIds)
   if (urgency) query = query.eq('urgency', urgency)
   if (search) query = query.ilike('description', `%${search}%`)
   if (donationType === 'in_kind') {

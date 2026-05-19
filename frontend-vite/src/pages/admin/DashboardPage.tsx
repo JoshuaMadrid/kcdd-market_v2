@@ -564,6 +564,7 @@ function UsersContent({
     verification_status: VerificationStatus
   }) => Promise<void>
 }) {
+  const navigate = useNavigate()
   const [searchQuery, setSearchQuery] = useState('')
   const [filterType, setFilterType] = useState<string | null>(null)
   const [filterStatus, setFilterStatus] = useState<string | null>(null)
@@ -885,7 +886,7 @@ function UsersContent({
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => setSelectedUser(user)}>
+                            <DropdownMenuItem onClick={() => navigate(routes.admin.userDetail(user.id))}>
                               <Eye className="mr-2 h-4 w-4" />
                               View Details
                             </DropdownMenuItem>
@@ -1233,6 +1234,7 @@ function OrganizationsContent({
   onRefresh: () => void
   onUpdateOrgStatus?: (userId: string, status: VerificationStatus) => void
 }) {
+  const navigate = useNavigate()
   const [searchQuery, setSearchQuery] = useState('')
   const [filterStatus, setFilterStatus] = useState<string | null>(null)
   const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null)
@@ -1249,12 +1251,6 @@ function OrganizationsContent({
 
     return matchesSearch && matchesStatus
   })
-
-  const handleViewOrg = (org: Organization) => {
-    setSelectedOrg(org)
-    setEditMode(false)
-    setEditValues({})
-  }
 
   const handleEditOrg = (org: Organization) => {
     setSelectedOrg(org)
@@ -1402,7 +1398,7 @@ function OrganizationsContent({
                   variant="outline"
                   size="sm"
                   className="flex-1"
-                  onClick={() => handleViewOrg(org)}
+                  onClick={() => navigate(routes.organizations.profile(org.id))}
                 >
                   <Eye className="mr-1 h-4 w-4" />
                   View
@@ -1672,6 +1668,7 @@ function RequestsContent({
   onRefresh: () => void
   onUpdateStatus: (requestId: string, status: string) => void
 }) {
+  const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
 
@@ -1788,7 +1785,7 @@ function RequestsContent({
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => navigate(routes.requestDetail(request.id))}>
                             <Eye className="mr-2 h-4 w-4" />
                             View Details
                           </DropdownMenuItem>

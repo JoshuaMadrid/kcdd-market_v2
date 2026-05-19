@@ -147,6 +147,7 @@ export const routes = {
     requests: '/admin/requests',
     audit: '/admin/audit',
     users: '/admin/users',
+    userDetail: (id: string) => `/admin/users/${id}`,
     organizations: '/admin/organizations',
     campaigns: '/admin/campaigns',
   },
