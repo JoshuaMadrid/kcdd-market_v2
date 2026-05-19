@@ -368,6 +368,38 @@ export const fetchInKindPledgeForRequest = async (
 }
 
 /**
+ * Phase 9: fetch the cause-area IDs this donor has subscribed to for match alerts.
+ * @param donorId — Clerk user ID (TEXT, e.g. "user_abc")
+ * Returns an empty array when no subscriptions exist; never throws on empty result.
+ */
+export const fetchDonorCauseAreas = async (donorId: string): Promise<string[]> => {
+  const { data, error } = await (supabase as any)
+    .from('donor_cause_areas')
+    .select('cause_area_id')
+    .eq('donor_id', donorId)
+
+  if (error) throw error
+  return (data ?? []).map((row: { cause_area_id: string }) => row.cause_area_id)
+}
+
+/**
+ * Phase 9: atomically replace this donor's cause-area subscriptions.
+ * Uses the `set_donor_cause_areas` Postgres RPC (SECURITY DEFINER) so DELETE+INSERT
+ * runs inside a single transaction and silent partial loss is impossible.
+ * Passing an empty array clears all subscriptions (opt-out).
+ */
+export const upsertDonorCauseAreas = async (
+  donorId: string,
+  causeAreaIds: string[]
+): Promise<void> => {
+  const { error } = await (supabase as any).rpc('set_donor_cause_areas', {
+    p_donor_id: donorId,
+    p_cause_area_ids: causeAreaIds,
+  })
+  if (error) throw error
+}
+
+/**
  * Phase 8.5 polish: fetch in-kind pledges this donor submitted that were rejected.
  * After rejection, `requests.donor_id` is NULL so `fetchDonorRequests` no longer
  * returns these — query `in_kind_pledges` directly.

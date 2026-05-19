@@ -6,7 +6,14 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { fetchDonorProfile, upsertDonorProfile } from '@/lib/supabase'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  fetchDonorProfile,
+  upsertDonorProfile,
+  fetchCauseAreas,
+  fetchDonorCauseAreas,
+  upsertDonorCauseAreas,
+} from '@/lib/supabase'
 import { useToast } from '@/components/ui/use-toast'
 
 export function DonorProfile() {
@@ -23,11 +30,17 @@ export function DonorProfile() {
     max_per_request: '1000',
     profile_picture_url: '',
   })
+  const [causeAreas, setCauseAreas] = useState<Array<{ id: string; name: string }>>([])
+  const [selectedCauseAreas, setSelectedCauseAreas] = useState<string[]>([])
 
   useEffect(() => {
     if (!user) return
-    fetchDonorProfile(user.id)
-      .then((profile) => {
+    Promise.all([
+      fetchDonorProfile(user.id),
+      fetchCauseAreas(),
+      fetchDonorCauseAreas(user.id),
+    ])
+      .then(([profile, areas, selected]) => {
         if (profile) {
           setFormData({
             display_name: profile.display_name ?? '',
@@ -38,10 +51,18 @@ export function DonorProfile() {
             profile_picture_url: profile.profile_picture_url ?? '',
           })
         }
+        setCauseAreas(areas)
+        setSelectedCauseAreas(selected)
       })
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [user])
+
+  const toggleCauseArea = (id: string) => {
+    setSelectedCauseAreas((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    )
+  }
 
   const handleChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
@@ -63,7 +84,8 @@ export function DonorProfile() {
         name: user.fullName ?? '',
         email: user.primaryEmailAddress?.emailAddress ?? '',
       })
-      toast({ title: 'Profile saved', description: 'Your profile has been updated.' })
+      await upsertDonorCauseAreas(user.id, selectedCauseAreas)
+      toast({ title: 'Profile saved', description: 'Your profile and interests have been updated.' })
     } catch (err: any) {
       toast({
         title: 'Save failed',
@@ -179,6 +201,35 @@ export function DonorProfile() {
                 placeholder="https://example.com/photo.jpg"
               />
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Notify me about</CardTitle>
+            <CardDescription>
+              Get an in-app alert when a new request matches your interests (and your max-per-request).
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {causeAreas.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No cause areas available.</p>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                {causeAreas.map((ca) => (
+                  <div key={ca.id} className="flex items-center gap-2">
+                    <Checkbox
+                      id={`ca-${ca.id}`}
+                      checked={selectedCauseAreas.includes(ca.id)}
+                      onCheckedChange={() => toggleCauseArea(ca.id)}
+                    />
+                    <Label htmlFor={`ca-${ca.id}`} className="font-normal cursor-pointer">
+                      {ca.name}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 

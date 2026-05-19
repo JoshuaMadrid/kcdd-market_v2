@@ -545,7 +545,7 @@ export type Database = {
         Row: {
           id: string
           request_id: string
-          notification_type: 'denied' | 'approved' | 'claimed' | 'fulfilled' | 'edited'
+          notification_type: 'denied' | 'approved' | 'claimed' | 'fulfilled' | 'edited' | 'match_alert'
           title: string
           message: string
           recipient_id: string
@@ -555,7 +555,7 @@ export type Database = {
         Insert: {
           id?: string
           request_id: string
-          notification_type: 'denied' | 'approved' | 'claimed' | 'fulfilled' | 'edited'
+          notification_type: 'denied' | 'approved' | 'claimed' | 'fulfilled' | 'edited' | 'match_alert'
           title: string
           message: string
           recipient_id: string
@@ -565,11 +565,31 @@ export type Database = {
         Update: {
           id?: string
           request_id?: string
-          notification_type?: 'denied' | 'approved' | 'claimed' | 'fulfilled' | 'edited'
+          notification_type?: 'denied' | 'approved' | 'claimed' | 'fulfilled' | 'edited' | 'match_alert'
           title?: string
           message?: string
           recipient_id?: string
           is_read?: boolean
+          created_at?: string
+        }
+      }
+      donor_cause_areas: {
+        Row: {
+          id: string
+          donor_id: string
+          cause_area_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          donor_id: string
+          cause_area_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          donor_id?: string
+          cause_area_id?: string
           created_at?: string
         }
       }
