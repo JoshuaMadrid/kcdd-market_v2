@@ -1205,4 +1205,148 @@ UPDATE requests SET
   essay_sustainability    = 'Donors and graduating cohorts cycle phones back; we maintain a small loaner pool.'
 WHERE id = '00000000-0000-0000-0006-000000000026';
 
+-- ============================================================
+-- 2026-05-18 MERGE ADDITIONS — mock data for tables from origin/main
+-- ============================================================
+-- platform_settings and support_faqs already auto-seed via their migrations.
+-- The sections below cover what stays empty after migrations.
+
+-- ============================================================
+-- STEP 17: support_contact_info — donor SupportPage contact card
+-- ============================================================
+INSERT INTO support_contact_info (type, label, value, description, sort_order, is_active) VALUES
+  ('email',   'General Support',  'support@kcdigitaldrive.org', 'Reply within 1 business day', 1, true),
+  ('email',   'Donor Help',       'donors@kcdigitaldrive.org',  'For receipt and tax-document questions', 2, true),
+  ('phone',   'Phone (M-F 9-5)',  '+1-816-555-0142',            'Voicemail outside hours', 3, true),
+  ('address', 'Mailing Address',  '1200 Main St, Kansas City, MO 64105', NULL, 4, true);
+
+-- ============================================================
+-- STEP 18: donor_cause_areas — Phase 9 match-alert subscriptions
+-- ============================================================
+-- Marcus subscribed to Education + Youth Development (matches several seeded requests)
+-- Priya subscribed to Health & Wellness + Housing
+-- Donor 3 subscribed to Education only
+INSERT INTO donor_cause_areas (donor_id, cause_area_id)
+SELECT '00000000-0000-0000-0003-000000000001', id FROM cause_areas WHERE name IN ('Education', 'Youth Development')
+UNION ALL
+SELECT '00000000-0000-0000-0003-000000000002', id FROM cause_areas WHERE name IN ('Health & Wellness', 'Housing')
+UNION ALL
+SELECT '00000000-0000-0000-0003-000000000003', id FROM cause_areas WHERE name = 'Education';
+
+-- ============================================================
+-- STEP 19: organization_documents — public 501c3 letters + private financials
+-- ============================================================
+INSERT INTO organization_documents (organization_id, uploaded_by, name, type, size, file_url, year, status, description, is_public) VALUES
+  ('00000000-0000-0000-0004-000000000001', '00000000-0000-0000-0002-000000000001',
+   '501(c)(3) Determination Letter',           '501c3',              '184 KB', 'https://example.com/docs/connecting-roots-501c3.pdf', 2018, 'ready', 'IRS determination granting tax-exempt status.', true),
+  ('00000000-0000-0000-0004-000000000001', '00000000-0000-0000-0002-000000000001',
+   '2025 Annual Report',                       'annual_report',      '2.1 MB', 'https://example.com/docs/connecting-roots-annual-2025.pdf', 2025, 'ready', 'Programs, outcomes, and audited financials.', true),
+  ('00000000-0000-0000-0004-000000000001', '00000000-0000-0000-0002-000000000001',
+   '2025 Form 990',                            'financial_statement','812 KB', 'https://example.com/docs/connecting-roots-990-2025.pdf', 2025, 'ready', 'Public IRS filing.',                       true),
+  ('00000000-0000-0000-0004-000000000002', '00000000-0000-0000-0002-000000000002',
+   'Tax-Exempt Certificate',                   'tax_exempt',         '92 KB',  'https://example.com/docs/kc-tech-bridge-exempt.pdf',        2019, 'ready', 'Missouri sales-tax exemption.',            true),
+  ('00000000-0000-0000-0004-000000000002', '00000000-0000-0000-0002-000000000002',
+   '2025 Audit Report',                        'audit_report',       '1.4 MB', 'https://example.com/docs/kc-tech-bridge-audit-2025.pdf',    2025, 'ready', 'Independent auditor report (private).',    false),
+  ('00000000-0000-0000-0004-000000000003', '00000000-0000-0000-0002-000000000003',
+   '501(c)(3) Determination Letter',           '501c3',              '178 KB', 'https://example.com/docs/digital-futures-501c3.pdf',        2020, 'ready', 'IRS determination letter.',                true),
+  ('00000000-0000-0000-0004-000000000003', '00000000-0000-0000-0002-000000000003',
+   'Board Bylaws (revised 2025)',              'bylaws',             '256 KB', 'https://example.com/docs/digital-futures-bylaws.pdf',       2025, 'ready', NULL,                                       false);
+
+-- ============================================================
+-- STEP 20: donor_documents — tax receipts for fulfilled donations
+-- ============================================================
+-- One receipt per fulfilled cash donation. Marcus has 2, Priya has 1.
+INSERT INTO donor_documents (
+  user_id, name, type, size, file_url, year, status,
+  organization_id, organization_name, organization_ein,
+  donation_amount, donation_date, receipt_number
+) VALUES
+  ('00000000-0000-0000-0003-000000000001', 'Receipt #R-2025-0042',  'receipt',      '128 KB', 'https://example.com/receipts/r-2025-0042.pdf', 2025, 'ready',
+   '00000000-0000-0000-0004-000000000001', 'Connecting Roots KC',  '85-1234567', 350.00, '2025-09-12 14:22:00-05', 'R-2025-0042'),
+  ('00000000-0000-0000-0003-000000000001', 'Receipt #R-2025-0078',  'receipt',      '124 KB', 'https://example.com/receipts/r-2025-0078.pdf', 2025, 'ready',
+   '00000000-0000-0000-0004-000000000002', 'KC Tech Bridge',       '85-2345678', 220.00, '2025-11-03 09:15:00-06', 'R-2025-0078'),
+  ('00000000-0000-0000-0003-000000000002', 'Receipt #R-2025-0093',  'receipt',      '126 KB', 'https://example.com/receipts/r-2025-0093.pdf', 2025, 'ready',
+   '00000000-0000-0000-0004-000000000003', 'Digital Futures KC',   '85-3456789', 500.00, '2025-12-18 16:48:00-06', 'R-2025-0093'),
+  ('00000000-0000-0000-0003-000000000001', '2025 Annual Summary',   'annual_summary','312 KB', 'https://example.com/receipts/marcus-2025-annual.pdf', 2025, 'ready',
+   NULL, NULL, NULL, 570.00, '2026-01-15 00:00:00-06', 'AS-2025-0017');
+
+-- ============================================================
+-- STEP 21: campaigns + campaign_questions
+-- ============================================================
+-- Two active campaigns from two different CBOs, one paused
+INSERT INTO campaigns (
+  id, organization_id, created_by, title, slug, creator_name, creator_role,
+  funding_goal, amount_raised, supporters_count,
+  short_description, story_title, story_content,
+  contact_email, phone, image_url, logo_url,
+  facebook_url, instagram_url, status
+) VALUES
+  ('00000000-0000-0000-0009-000000000001', '00000000-0000-0000-0004-000000000001',
+   '00000000-0000-0000-0002-000000000001',
+   'Laptops for the Roots After-School Program',
+   'laptops-for-roots-afterschool',
+   'Amara Johnson', 'Program Director',
+   12000.00, 7350.00, 47,
+   'Help us put 25 refurbished laptops into the hands of middle-schoolers in our weekday after-school cohort.',
+   'Why this matters',
+   '<h2>Why this matters</h2><p>Last semester, 18 of our 25 enrolled students had to share a single shelf of Chromebooks rotating between classrooms. Homework went home unfinished, and our retention dropped from 82% to 64% in the spring.</p><p>With <strong>$12,000</strong> we can buy 25 refurbished Lenovo ThinkPads, accessory bundles (mice, sleeves), and a year of break/fix support.</p>',
+   'campaigns@connectingroots.org', '+1-816-555-0111',
+   'https://example.com/img/connecting-roots-cover.jpg',
+   'https://example.com/img/connecting-roots-logo.png',
+   'https://facebook.com/connectingrootskc', 'https://instagram.com/connectingrootskc',
+   'active'),
+  ('00000000-0000-0000-0009-000000000002', '00000000-0000-0000-0004-000000000003',
+   '00000000-0000-0000-0002-000000000003',
+   'Digital Futures Mobile Lab',
+   'digital-futures-mobile-lab',
+   'Devon Park', 'Executive Director',
+   45000.00, 18900.00, 121,
+   'A retrofitted van + 15 workstations brings basic computer skills to underserved Northland neighborhoods.',
+   'A classroom on wheels',
+   '<h2>A classroom on wheels</h2><p>Our fixed-site classes have a 4-month waitlist while seniors in the Northland tell us they cannot reach our downtown office. This mobile lab — a 2018 Ford Transit retrofitted with 15 laptop stations and Starlink uplink — will bring 6 weekly classes to 4 community centers north of the river.</p>',
+   'campaigns@digitalfutureskc.org', '+1-816-555-0133',
+   'https://example.com/img/digital-futures-mobile-lab.jpg',
+   'https://example.com/img/digital-futures-logo.png',
+   NULL, 'https://instagram.com/digitalfutureskc',
+   'active'),
+  ('00000000-0000-0000-0009-000000000003', '00000000-0000-0000-0004-000000000002',
+   '00000000-0000-0000-0002-000000000002',
+   'Tech Bridge Senior Cohort (Spring 2026)',
+   'tech-bridge-senior-cohort-spring-2026',
+   'Lin Chen', 'Programs Lead',
+   8500.00, 0.00, 0,
+   'Funding 30 tablets + accessibility kits for our spring cohort serving adults 65+.',
+   'Reaching the last mile',
+   '<p>Our spring cohort opens in February. Hardware lead time means we need committed funding by January 15.</p>',
+   'campaigns@kctechbridge.org', '+1-816-555-0122',
+   NULL, NULL, NULL, NULL,
+   'pending');
+
+INSERT INTO campaign_questions (campaign_id, question, submitter_name, submitter_email, status, answer, is_public, answered_at, answered_by) VALUES
+  ('00000000-0000-0000-0009-000000000001',
+   'Are the laptops new or refurbished? What is the warranty?',
+   'Rachel M.', 'rachel.m.donor@example.com',
+   'answered',
+   'They are professionally refurbished Lenovo ThinkPads with a 1-year parts-and-labor warranty from our supplier. Each unit ships with new battery and SSD.',
+   true, '2025-11-08 10:24:00-06', '00000000-0000-0000-0002-000000000001'),
+  ('00000000-0000-0000-0009-000000000001',
+   'Can I sponsor a specific student?',
+   'Anonymous', NULL,
+   'pending', NULL, false, NULL, NULL),
+  ('00000000-0000-0000-0009-000000000002',
+   'How will routes be chosen?',
+   'James K.', 'jk@example.com',
+   'answered',
+   'We are partnering with Mid-America Regional Council to identify zip codes with the lowest fixed-broadband adoption; first four stops are Gladstone, North Kansas City, Parkville, and Liberty.',
+   true, '2025-12-14 13:10:00-06', '00000000-0000-0000-0002-000000000003');
+
+-- ============================================================
+-- STEP 22: newsletter_subscriptions (Footer signup form)
+-- ============================================================
+INSERT INTO newsletter_subscriptions (email, source, is_active) VALUES
+  ('rachel.m.donor@example.com',  'footer',  true),
+  ('marcus.donor@example.com',    'footer',  true),
+  ('events-only@example.com',     'about',   true),
+  ('unsubscribed@example.com',    'footer',  false);
+
 COMMIT;
