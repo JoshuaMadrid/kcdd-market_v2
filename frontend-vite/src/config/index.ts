@@ -41,9 +41,17 @@ export const clerkConfig = {
 // ============================================
 export const supabaseConfig = {
   url: import.meta.env.VITE_SUPABASE_URL || '',
-  // Canonical env var name for this project (feat/taek convention)
-  publishableKey: import.meta.env.VITE_SUPABASE_ANON_KEY || '',
-  anonKey: import.meta.env.VITE_SUPABASE_ANON_KEY || '',
+  // Canonical env var: VITE_SUPABASE_ANON_KEY (matches CLAUDE.md + .env.example).
+  // VITE_SUPABASE_PUBLISHABLE_KEY is honored as a fallback to avoid breaking
+  // older local setups that copied the pre-merge .env.example.
+  publishableKey:
+    import.meta.env.VITE_SUPABASE_ANON_KEY ||
+    import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+    '',
+  anonKey:
+    import.meta.env.VITE_SUPABASE_ANON_KEY ||
+    import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+    '',
   // Supabase Dashboard: https://app.supabase.com
   // Docs: https://supabase.com/docs/reference/javascript/introduction
 }
