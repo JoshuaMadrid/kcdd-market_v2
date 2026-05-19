@@ -1,9 +1,11 @@
+import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Users, Building2 } from 'lucide-react'
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
+import { CampaignDonateModal } from '@/components/CampaignDonateModal'
 import { formatCurrency, formatRelativeTime } from '@/lib/utils'
 import { routes } from '@/config'
 import type { Database } from '@/types/database'
@@ -31,6 +33,7 @@ interface CampaignCardProps {
 
 export function CampaignCard({ campaign, causeAreas }: CampaignCardProps) {
   const navigate = useNavigate()
+  const [showDonateModal, setShowDonateModal] = useState(false)
   const slug = campaign.slug ?? campaign.id
   const org = campaign.organization
   const goal = campaign.funding_goal ?? 0
@@ -163,17 +166,29 @@ export function CampaignCard({ campaign, causeAreas }: CampaignCardProps) {
           <span>{formatRelativeTime(campaign.created_at)}</span>
         </div>
 
-        {/* CTA — stopPropagation so it does not double-fire with the card onClick */}
+        {/* CTA — opens donate modal in place (matches CampaignPage UX);
+            stopPropagation so it does not double-fire with the card onClick */}
         <Button
           className="w-full bg-[#ea580c] hover:bg-[#c2410c] text-white"
           onClick={(e) => {
             e.stopPropagation()
-            navigate(campaignHref)
+            setShowDonateModal(true)
           }}
         >
           Support Campaign
         </Button>
       </CardFooter>
+
+      <CampaignDonateModal
+        open={showDonateModal}
+        onOpenChange={setShowDonateModal}
+        campaign={{
+          id: campaign.id,
+          title: campaign.title,
+          slug,
+          organization: org,
+        } as any}
+      />
     </Card>
   )
 }

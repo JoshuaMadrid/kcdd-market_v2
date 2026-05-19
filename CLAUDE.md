@@ -84,17 +84,20 @@ frontend-vite/src/
 │   ├── organizations/   # Public org profiles (inline-editable for owners)
 │   ├── donor/           # Donor dashboard, profile (cause-area alerts), donations
 │   ├── cbo/             # CBO dashboard, requests, profile management
-│   ├── admin/           # Admin dashboard + vetting/users/audit/requests tabs
+│   ├── admin/           # Admin dashboard, UserDetailPage, vetting/users/audit/requests sub-pages
 │   ├── legal/           # privacy, terms, accessibility, cpsia, do-not-sell, sitemap
+│   ├── RequestsPage.tsx                            # Tabs: Requests + Campaigns (?tab= URL state)
 │   ├── CampaignPage.tsx, CampaignDonatePage.tsx   # Campaign feature pages
 │   ├── FaqPage.tsx, ContactPage.tsx               # Static info pages
 │   ├── WelcomePage.tsx, PaymentSuccess/Cancel.tsx
 ├── components/
 │   ├── ui/              # 24 shadcn/ui components (Radix-based)
 │   ├── home/            # HeroSection, BentoGridSection, ContentBlockSection, FeaturesSection, StatsSection, etc.
+│   ├── campaigns/       # CampaignCard (progress bar + supporters + integrated donate modal)
 │   ├── organization/    # Profile tabs + AddTeamMemberDialog, PostUpdateDialog (owner CRUD)
 │   ├── requests/        # FulfillDialog, DenyDialog, AcceptPledgeDialog, ConfirmReceiptDialog, InKindPledgeDialog
 │   ├── notifications/   # NotificationsBell, NotificationsList
+│   ├── CampaignDonateModal.tsx # In-page Stripe donation flow for campaigns
 │   ├── Footer.tsx       # Site footer with newsletter subscribe
 │   ├── NoticeBanner.tsx # Top-of-page announcement bar
 │   ├── AdminRoute.tsx   # /admin guard (uses useRealUserType for impersonation safety)
@@ -161,7 +164,7 @@ claimed → open (automatic: on charge.refunded webhook)
 
 ### Database Schema (key tables)
 Core:
-- `user_profiles` — Clerk user ID (TEXT) + `user_type` (donor/cbo/admin); `id` is no longer FK-bound to `auth.users` after `20260518000000_clerk_user_id_text.sql`
+- `user_profiles` — Clerk user ID (TEXT) + `user_type` (donor/cbo/admin) + `org_tier` (individual/small_org/large_org) + `verification_status` (unverified/verified); `id` is no longer FK-bound to `auth.users` after `20260518000000_clerk_user_id_text.sql`
 - `donor_profiles` — donor-specific data (display_name, bio, max_per_request, cause-area match preferences)
 - `organizations` — CBO profiles (logo_url, mission, cover_image_url, social_links, `ages_served`, `pre_eligibility_status`)
 - `requests` — equipment donation requests with status enum + payment_intent_id + Phase 8 form-depth fields (`donation_type`, `device_type_breakdown`, `need_frequency`, etc.)
@@ -172,7 +175,7 @@ Core:
 - `donor_cause_areas` — Phase 9 donor opt-in to cause-area match alerts (junction; trigger inserts notifications on matching requests)
 
 Campaigns (from main):
-- `campaigns` — fundraising campaigns by orgs (funding_goal, amount_raised, story_content)
+- `campaigns` — fundraising campaigns by orgs (funding_goal, amount_raised, supporters_count, story_content, `cause_area_ids: TEXT[]` for chip filter)
 - `campaign_questions` — visitor-submitted FAQs awaiting org review
 
 Payments / Stripe Connect:
@@ -200,6 +203,8 @@ All tables use RLS; migrations are in `backend/supabase/migrations/`.
 - `request_notifications.is_read` (was `read`)
 - `user_profiles.id` is **TEXT** (Clerk user ID) since `20260518000000_clerk_user_id_text.sql`; no FK to `auth.users`
 - `donor_cause_areas.donor_id` (NOT `user_id`; standardized during the 2026-05-18 merge)
+- `user_profiles.org_tier` + `verification_status` added in `20260524000000_admin_user_tier_columns.sql` (origin/main referenced them but never created the columns)
+- `campaigns.cause_area_ids: TEXT[]` added in `20260525000000_campaign_cause_area_ids.sql` (same origin/main gap)
 
 ## Environment Variables
 
@@ -220,12 +225,15 @@ VITE_ENABLE_REALTIME=true
 ```
 STRIPE_SECRET_KEY=
 STRIPE_WEBHOOK_SECRET=
+STRIPE_BYPASS_CONNECT=true       # dev only — skip Stripe Connect destination charges
 SUPABASE_URL=
 SUPABASE_SECRET_KEY=
 CLERK_SECRET_KEY=
 PORT=4000
 ALLOWED_ORIGINS=http://localhost:3000
 ```
+
+`STRIPE_BYPASS_CONNECT=true` lets the `/api/payments/create-intent` route create test-mode PaymentIntents against the platform account instead of requiring each organization to have a connected Stripe account (`stripe_account_id` + `stripe_charges_enabled`). Without it, every donation 400s with `code: STRIPE_NOT_CONNECTED` until the org completes Connect onboarding. Never set in production.
 
 All frontend env vars are accessed through `frontend-vite/src/config/index.ts`.
 
