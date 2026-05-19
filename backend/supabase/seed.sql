@@ -158,6 +158,37 @@ INSERT INTO donor_profiles (
   )
 ON CONFLICT (id) DO NOTHING;
 
+-- Mark the 3 seeded orgs as Stripe-Connect ready so the campaign donate
+-- modal does not gate behind "Payments Not Available" in local dev.
+-- Real stripe_account_id values would come from Connect onboarding; the
+-- `acct_test_*` placeholders never actually charge.
+UPDATE organizations SET
+  stripe_account_id = 'acct_test_connecting_roots_kc',
+  stripe_charges_enabled = true,
+  stripe_payouts_enabled = true,
+  stripe_details_submitted = true,
+  stripe_onboarding_complete = true,
+  stripe_connected_at = NOW()
+WHERE id = '00000000-0000-0000-0004-000000000001';
+
+UPDATE organizations SET
+  stripe_account_id = 'acct_test_kc_tech_bridge',
+  stripe_charges_enabled = true,
+  stripe_payouts_enabled = true,
+  stripe_details_submitted = true,
+  stripe_onboarding_complete = true,
+  stripe_connected_at = NOW()
+WHERE id = '00000000-0000-0000-0004-000000000002';
+
+UPDATE organizations SET
+  stripe_account_id = 'acct_test_digital_futures_kc',
+  stripe_charges_enabled = true,
+  stripe_payouts_enabled = true,
+  stripe_details_submitted = true,
+  stripe_onboarding_complete = true,
+  stripe_connected_at = NOW()
+WHERE id = '00000000-0000-0000-0004-000000000003';
+
 -- STEP 7: organization_cause_areas (6 rows)
 INSERT INTO organization_cause_areas (organization_id, cause_area_id)
 VALUES

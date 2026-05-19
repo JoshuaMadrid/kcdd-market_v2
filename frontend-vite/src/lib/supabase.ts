@@ -1030,7 +1030,7 @@ export const updateCampaign = async (
 export const getActiveCampaigns = async (limit: number = 10, includePending: boolean = false) => {
   let query = supabase.from('campaigns').select(`
       *,
-      organization:organizations(id, name, slug, logo_url)
+      organization:organizations(id, name, slug, logo_url, stripe_charges_enabled, stripe_account_id)
     `)
 
   if (includePending) {

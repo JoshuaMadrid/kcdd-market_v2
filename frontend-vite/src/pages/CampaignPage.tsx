@@ -628,7 +628,7 @@ export function CampaignPage() {
         .select(
           `
           *,
-          organization:organizations(id, name, mission, logo)
+          organization:organizations(id, name, mission, logo_url, logo_emoji, slug, stripe_charges_enabled, stripe_account_id)
         `
         )
         .or(`slug.eq.${slug},id.eq.${slug}`)
