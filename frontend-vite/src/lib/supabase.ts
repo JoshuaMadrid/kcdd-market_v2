@@ -1284,13 +1284,7 @@ export const fetchDonorImpactData = async (userId: string): Promise<DonorImpactD
 
     // Fetch impact by cause with cause area names
     const { data: causeData } = await ((supabase as any).from('donor_impact_by_cause'))
-      .select(
-        `
-        amount,
-        percentage,
-        cause_area:cause_areas(name)
-      `
-      )
+      .select('amount, percentage, cause_area_name')
       .eq('user_id', userId)
       .order('percentage', { ascending: false })
 
@@ -1315,7 +1309,7 @@ export const fetchDonorImpactData = async (userId: string): Promise<DonorImpactD
         months_active: 0,
       },
       topCauses: (causeData || []).map((c: any) => ({
-        name: c.cause_area?.name || 'Unknown',
+        name: c.cause_area_name || 'Unknown',
         amount: c.amount,
         percentage: c.percentage,
       })),
