@@ -138,7 +138,15 @@ export function CampaignDonateModal({ open, onOpenChange, campaign }: CampaignDo
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[480px]">
+      {/* stopPropagation: this modal can be rendered inside a clickable Card
+          (e.g. CampaignCard with onClick=navigate). Radix Portal moves the
+          DOM out of the card tree, but React's synthetic events still bubble
+          up the React tree — so clicks inside the modal would otherwise
+          trigger the card's navigate handler. */}
+      <DialogContent
+        className="max-h-[90vh] overflow-y-auto sm:max-w-[480px]"
+        onClick={(e) => e.stopPropagation()}
+      >
         <DialogHeader>
           <DialogTitle>Support {campaign?.title || 'this campaign'}</DialogTitle>
         </DialogHeader>
