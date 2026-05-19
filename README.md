@@ -58,7 +58,7 @@ For project conventions and agent guidance: see [`CLAUDE.md`](./CLAUDE.md).
 
 ## Status
 
-**Phases 1–6 complete.** Next up: Phase 7 (CBO Content Management), Phase 8 (Policy Guardrails). See [`_docs/status.md`](./_docs/status.md) for the full breakdown.
+**Phases 1–9 (Batch A) complete.** Latest merge (2026-05-18) brought in the full homepage design system, Stripe Connect, campaigns, admin redesign, PDF receipts, and Vercel serverless deploy. See [`_docs/status.md`](./_docs/status.md) for the full breakdown.
 
 ---
 

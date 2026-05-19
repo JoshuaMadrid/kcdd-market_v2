@@ -6,16 +6,16 @@ Modern React application built with Vite, TypeScript, and Tailwind CSS.
 
 ```bash
 # Install dependencies
-npm install
+pnpm install
 
 # Start development server
-npm run dev
+pnpm dev
 
 # Build for production
-npm run build
+pnpm build
 
 # Preview production build
-npm run preview
+pnpm preview
 ```
 
 ## Project Structure
@@ -71,9 +71,9 @@ Create a `.env.local` file with these variables:
 # Clerk
 VITE_CLERK_PUBLISHABLE_KEY=pk_test_xxxxx
 
-# Supabase
+# Supabase (publishable/secret naming, Supabase 2024+ convention)
 VITE_SUPABASE_URL=http://localhost:54321
-VITE_SUPABASE_ANON_KEY=your-anon-key
+VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 
 # Stripe
 VITE_STRIPE_PUBLISHABLE_KEY=pk_test_xxxxx
@@ -141,7 +141,7 @@ Supabase PostgreSQL database with:
 ### Vercel (Recommended)
 
 ```bash
-npm install -g vercel
+pnpm install -g vercel
 vercel login
 vercel
 ```
@@ -156,11 +156,11 @@ Add environment variables in Vercel dashboard.
 
 ## Scripts
 
-- `npm run dev` - Start dev server
-- `npm run build` - Build for production
-- `npm run preview` - Preview production build
-- `npm run lint` - Run ESLint
-- `npm run type-check` - Check TypeScript types
+- `pnpm dev` - Start dev server
+- `pnpm build` - Build for production
+- `pnpm preview` - Preview production build
+- `pnpm lint` - Run ESLint
+- `pnpm type-check` - Check TypeScript types
 
 ## Troubleshooting
 

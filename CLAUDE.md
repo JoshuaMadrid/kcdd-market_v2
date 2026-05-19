@@ -81,14 +81,24 @@ frontend-vite/src/
 ├── routes/index.tsx     # All React Router v6 route definitions
 ├── layouts/             # MainLayout (wraps pages with Navbar)
 ├── pages/
-│   ├── organizations/   # Public org profiles
-│   ├── donor/           # Donor dashboard, profile, donations
-│   └── cbo/             # CBO dashboard, requests, profile management
+│   ├── organizations/   # Public org profiles (inline-editable for owners)
+│   ├── donor/           # Donor dashboard, profile (cause-area alerts), donations
+│   ├── cbo/             # CBO dashboard, requests, profile management
+│   ├── admin/           # Admin dashboard + vetting/users/audit/requests tabs
+│   ├── legal/           # privacy, terms, accessibility, cpsia, do-not-sell, sitemap
+│   ├── CampaignPage.tsx, CampaignDonatePage.tsx   # Campaign feature pages
+│   ├── FaqPage.tsx, ContactPage.tsx               # Static info pages
+│   ├── WelcomePage.tsx, PaymentSuccess/Cancel.tsx
 ├── components/
 │   ├── ui/              # 24 shadcn/ui components (Radix-based)
-│   ├── organization/    # Organization profile sub-components
-│   ├── requests/        # FulfillDialog, DenyDialog
-│   └── notifications/   # NotificationsBell, NotificationsList
+│   ├── home/            # HeroSection, BentoGridSection, ContentBlockSection, FeaturesSection, StatsSection, etc.
+│   ├── organization/    # Profile tabs + AddTeamMemberDialog, PostUpdateDialog (owner CRUD)
+│   ├── requests/        # FulfillDialog, DenyDialog, AcceptPledgeDialog, ConfirmReceiptDialog, InKindPledgeDialog
+│   ├── notifications/   # NotificationsBell, NotificationsList
+│   ├── Footer.tsx       # Site footer with newsletter subscribe
+│   ├── NoticeBanner.tsx # Top-of-page announcement bar
+│   ├── AdminRoute.tsx   # /admin guard (uses useRealUserType for impersonation safety)
+│   └── ErrorBoundary.tsx
 ├── hooks/
 │   ├── useClerkSupabase.ts   # Syncs Clerk user → Supabase user_profiles
 │   └── useNotifications.ts   # In-app notification feed (Phase 5)
@@ -102,15 +112,17 @@ frontend-vite/src/
 
 backend/
 ├── api/
-│   ├── server.js                # Express server: payments + webhook
-│   ├── middleware/clerkAuth.js  # Clerk JWT verification
+│   ├── server.js                  # Express server: payments + Stripe Connect + webhook (Vercel serverless export)
+│   ├── middleware/clerkAuth.js    # Clerk JWT verification (@clerk/backend)
+│   ├── services/pdfGenerator.js   # PDF donation receipts + annual summaries (pdfkit)
 │   └── routes/
-│       ├── requests.js          # POST /fulfill, POST /deny
-│       └── users.js             # POST /become-cbo (bypasses RLS trigger)
+│       ├── requests.js            # POST /fulfill, /deny, /confirm-in-kind-receipt
+│       ├── inKind.js              # POST /pledge, /accept, /reject (Phase 8.5)
+│       └── users.js               # POST /become-cbo, /sync (bypasses RLS trigger)
 └── supabase/
     ├── migrations/      # SQL migration files (run in order)
-    ├── config.toml      # Supabase CLI config
-    └── seed.sql         # DB seed data (taxonomy reference tables)
+    ├── config.toml      # Supabase CLI config (Clerk registered as third-party auth)
+    └── seed.sql         # DB seed data (taxonomy + mock orgs/donors/requests/campaigns)
 
 _docs/                   # Project documentation and history (canonical doc folder)
 ├── status.md            # Implementation status by phase
@@ -126,9 +138,10 @@ _docs/                   # Project documentation and history (canonical doc fold
 
 ### Authentication Flow
 1. User signs in via Clerk
-2. Custom `useClerkSupabase` hook syncs Clerk user to Supabase `user_profiles` table
-3. Frontend uses Supabase anon key for data queries (RLS enforces access)
-4. Backend uses service role key for webhook/admin operations
+2. `useClerkSupabase` hook calls backend `POST /api/users/sync` to create/update Supabase `user_profiles` (server-side bypasses RLS trigger)
+3. Supabase client is initialized with a Clerk `accessToken` getter; every query carries the Clerk JWT so RLS policies see `clerk_user_id()`
+4. Frontend uses the **publishable key** for data queries (`VITE_SUPABASE_PUBLISHABLE_KEY`, formerly `anon`); RLS enforces access
+5. Backend uses the **secret key** (`SUPABASE_SECRET_KEY`, formerly `service_role`) for webhook/admin operations
 
 ### Payment Flow
 1. Donor initiates donation → frontend calls `POST /api/payments/create-intent` with `requestId` + Clerk JWT header
@@ -147,22 +160,46 @@ claimed → open (automatic: on charge.refunded webhook)
 ```
 
 ### Database Schema (key tables)
-- `user_profiles` — extends Supabase auth, stores `user_type` (donor/cbo/admin)
-- `donor_profiles` — donor-specific data (display_name, bio, max_per_request, etc.)
-- `organizations` — CBO organization profiles (logo_url, mission, contact, etc.)
-- `requests` — equipment donation requests with status enum + payment_intent_id
-- `request_notifications` — in-app notification log (recipient_id, is_read)
+Core:
+- `user_profiles` — Clerk user ID (TEXT) + `user_type` (donor/cbo/admin); `id` is no longer FK-bound to `auth.users` after `20260518000000_clerk_user_id_text.sql`
+- `donor_profiles` — donor-specific data (display_name, bio, max_per_request, cause-area match preferences)
+- `organizations` — CBO profiles (logo_url, mission, cover_image_url, social_links, `ages_served`, `pre_eligibility_status`)
+- `requests` — equipment donation requests with status enum + payment_intent_id + Phase 8 form-depth fields (`donation_type`, `device_type_breakdown`, `need_frequency`, etc.)
+- `request_notifications` — in-app notification log (recipient_id, is_read, supports `match_alert` type)
 - `fulfillment_records` — tracks completed donations with method + tracking
 - `request_history` — audit log of status transitions
-- `stripe_events` — idempotency guard for webhook events
-- Junction tables: `organization_cause_areas`, `request_challenge_categories`, `request_identity_categories`
+- `in_kind_pledges` — Phase 8.5 device pledges (donor commits a physical device instead of cash); status `pending|accepted|rejected`
+- `donor_cause_areas` — Phase 9 donor opt-in to cause-area match alerts (junction; trigger inserts notifications on matching requests)
+
+Campaigns (from main):
+- `campaigns` — fundraising campaigns by orgs (funding_goal, amount_raised, story_content)
+- `campaign_questions` — visitor-submitted FAQs awaiting org review
+
+Payments / Stripe Connect:
+- `payment_transactions` — full ledger of donations including fee splits
+- `stripe_events`, `stripe_connect_events` — idempotency guards for webhook events
+- `platform_settings` — platform fee configuration
+
+Documents:
+- `organization_documents` — CBO-uploaded files (501c3, financials, etc.)
+- `donor_documents`, `tax_documents` — donor-facing receipts and annual summaries (PDF)
+
+Misc:
+- `support_faqs`, `support_contact_info` — donor dashboard help content
+- `newsletter_subscriptions` — footer signup form
+- `organization_updates`, `organization_team_members`, `organization_populations` — public profile content
+- `admin_activity_log` — admin action audit
+
+Junction tables: `organization_cause_areas`, `request_challenge_categories`, `request_identity_categories`.
 
 All tables use RLS; migrations are in `backend/supabase/migrations/`.
 
-**Important column names (after migration `20260427000000_schema_reconcile.sql`):**
-- `organizations.logo_url` (was `logo` in initial migration)
-- `request_notifications.recipient_id` (was `user_id`)
+**Important column-name reconciliations:**
+- `organizations.logo_url` (was `logo`; reconciled in `20260427000000_schema_reconcile.sql`)
+- `request_notifications.recipient_id` (was `user_id`; reconciled in the same migration)
 - `request_notifications.is_read` (was `read`)
+- `user_profiles.id` is **TEXT** (Clerk user ID) since `20260518000000_clerk_user_id_text.sql`; no FK to `auth.users`
+- `donor_cause_areas.donor_id` (NOT `user_id`; standardized during the 2026-05-18 merge)
 
 ## Environment Variables
 
@@ -254,7 +291,11 @@ All project documentation lives in `_docs/`. Do not create doc files elsewhere.
 | `_docs/clerk-supabase-auth.md` | How Supabase validates Clerk JWTs (Third-Party Auth) for RLS |
 | `_docs/debug-payment-flow.md` | Postmortem: BUG-8 → BUG-11 cascade. Symptom-by-symptom debug walkthrough for the Clerk/Supabase integration |
 
-**Phases 1–6 are complete.** See `_docs/status.md` for the full breakdown. Next up: Phase 7 (CBO Content Management), Phase 8 (Policy Guardrails).
+**Phases 1–9 (Batch A) are complete.** See `_docs/status.md` for the per-phase breakdown.
+
+Most recently merged from `origin/main` (2026-05-18): full homepage design system (Hero/Bento/Stats/Footer), Stripe Connect + platform fees, campaigns feature with rich-text editor, admin redesign + user management, FAQ/Contact/Legal pages, Vercel serverless backend, PDF receipt pipeline.
+
+In-flight: Phase 9 Batches B–D (Tax receipts, Impact reports), Phase 10 (Public Impact).
 
 ## File Naming Conventions
 
