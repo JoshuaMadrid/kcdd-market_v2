@@ -563,6 +563,22 @@ app.post('/api/payments/webhook', express.raw({ type: 'application/json' }), asy
     return res.status(400).send(`Webhook Error: ${err.message}`)
   }
 
+  // Idempotency: record the event before any side-effect runs. If Stripe
+  // retries (network failure, our 5xx, etc.), the second delivery hits the
+  // stripe_events PK uniqueness on event_id and we exit early.
+  const { error: dedupError } = await supabase
+    .from('stripe_events')
+    .insert({ event_id: event.id, event_type: event.type, payload: event })
+  if (dedupError) {
+    if (dedupError.code === '23505') {
+      // duplicate event_id — Stripe is retrying; we already processed it
+      return res.json({ received: true, duplicate: true })
+    }
+    console.error('Failed to record stripe_event:', dedupError)
+    // Continue anyway — we'd rather double-process than drop. Idempotency
+    // is best-effort if the events table itself is unavailable.
+  }
+
   // Handle the event
   try {
     switch (event.type) {
