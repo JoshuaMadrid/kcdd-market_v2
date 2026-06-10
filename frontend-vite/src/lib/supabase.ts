@@ -15,30 +15,14 @@ import type { Database } from '@/types/database'
 
 // Clerk-Supabase JWT bridge.
 //
-// Two-step setup:
-//  1. Code side (this file + App.tsx): wires a getter for the current Clerk
-//     session token. Always installed.
-//  2. Supabase side: in Supabase Dashboard → Auth → Third Party Auth, add
-//     Clerk as a provider so the project trusts Clerk-signed JWTs. Until
-//     that's done, sending a Clerk JWT in Authorization makes every request
-//     401 because Supabase tries to verify it and can't.
-//
-// To avoid breaking the app before TPA is configured, the bridge is gated by
-// VITE_ENABLE_CLERK_SUPABASE_BRIDGE='true'. Flip the env var on once TPA is
-// set up; the app then sends Clerk JWTs and `auth.uid()` in RLS becomes the
-// signed-in Clerk user ID.
+// Code side (this file + App.tsx) wires a getter for the current Clerk
+// session token. Always installed — once Supabase Third Party Auth trusts
+// Clerk, `auth.uid()` in RLS becomes the signed-in Clerk user ID.
 type ClerkTokenGetter = (() => Promise<string | null>) | null
 let clerkTokenGetter: ClerkTokenGetter = null
 
-const BRIDGE_ENABLED = import.meta.env.VITE_ENABLE_CLERK_SUPABASE_BRIDGE === 'true'
-
-export const ClerkSupabaseBridge = {
-  setTokenGetter(getter: ClerkTokenGetter) {
-    clerkTokenGetter = getter
-  },
-  isEnabled() {
-    return BRIDGE_ENABLED
-  },
+export const registerClerkTokenGetter = (getter: ClerkTokenGetter) => {
+  clerkTokenGetter = getter
 }
 
 // Create Supabase client
@@ -49,22 +33,20 @@ export const supabase = createClient<Database>(supabaseConfig.url, supabaseConfi
   },
   // supabase-js >= 2.42 — called per-request, used as the Bearer in Authorization.
   accessToken: async () => {
-    if (BRIDGE_ENABLED) {
-      try {
-        if (clerkTokenGetter) {
-          const token = await clerkTokenGetter()
-          if (token) return token
-        }
-      } catch {
-        // fall through to anon key
+    try {
+      if (clerkTokenGetter) {
+        const token = await clerkTokenGetter()
+        if (token) return token
       }
+    } catch {
+      // fall through to anon key
     }
     return supabaseConfig.anonKey
   },
 } as any)
 
 /**
- * @deprecated Use ClerkSupabaseBridge.setTokenGetter instead.
+ * @deprecated Use registerClerkTokenGetter instead.
  */
 export const setSupabaseAuth = async (_clerkToken: string | null) => {
   // no-op; preserved for backwards compatibility with callers

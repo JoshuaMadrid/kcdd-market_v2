@@ -17,7 +17,7 @@ import { AppRoutes } from '@/routes'
 import { Toaster } from '@/components/ui/toaster'
 import { useClerkSupabase } from '@/hooks/useClerkSupabase'
 import { RoleSelectionModal } from '@/components/RoleSelectionModal'
-import { ClerkSupabaseBridge } from '@/lib/supabase'
+import { registerClerkTokenGetter } from '@/lib/supabase'
 import {
   ImpersonationProvider,
   ImpersonationBanner,
@@ -36,7 +36,7 @@ function AuthSync() {
   const { getToken } = useAuth()
 
   useEffect(() => {
-    ClerkSupabaseBridge.setTokenGetter(async () => {
+    registerClerkTokenGetter(async () => {
       try {
         // Prefer a `supabase` JWT template if defined in Clerk; fall back to
         // the default session token. Both arrive as JWTs that Supabase TPA can
@@ -47,7 +47,7 @@ function AuthSync() {
         return null
       }
     })
-    return () => ClerkSupabaseBridge.setTokenGetter(null)
+    return () => registerClerkTokenGetter(null)
   }, [getToken])
 
   return <RoleSelectionModal isOpen={needsRoleSelection} onClose={dismissRoleSelection} />

@@ -2,93 +2,64 @@
  * Clerk + Supabase Integration Hook
  *
  * This hook syncs Clerk authentication with Supabase.
- * It checks if a user profile exists and sets a flag if role selection is needed.
+ * It automatically updates the Supabase client with the Clerk JWT token.
  *
  * Documentation:
  * - Clerk useAuth: https://clerk.com/docs/references/react/use-auth
- * - Clerk useUser: https://clerk.com/docs/references/react/use-user
+ * - Clerk JWT Templates: https://clerk.com/docs/backend-requests/making/jwt-templates
  */
 
-import { useAuth, useUser } from '@clerk/clerk-react'
+import { useAuth } from '@clerk/clerk-react'
 import { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { registerClerkTokenGetter, fetchUserProfile, supabase } from '@/lib/supabase'
+import { api } from '@/lib/api'
+import { useAuthStore } from '@/stores/authStore'
 
 export const useClerkSupabase = () => {
-  const { isLoaded: authLoaded, userId } = useAuth()
-  const { user, isLoaded: userLoaded } = useUser()
-  const [isProfileSynced, setIsProfileSynced] = useState(false)
-  const [isSyncing, setIsSyncing] = useState(false)
-  const [needsRoleSelection, setNeedsRoleSelection] = useState(false)
+  const { getToken, isLoaded, userId } = useAuth()
+  const { setUserType, reset } = useAuthStore()
 
   useEffect(() => {
-    const syncUserToSupabase = async () => {
-      // Wait for both auth and user to be loaded
-      if (!authLoaded || !userLoaded) return
+    if (!isLoaded) return
 
-      // No user signed in
-      if (!userId || !user) {
-        setIsProfileSynced(false)
-        setNeedsRoleSelection(false)
-        return
-      }
+    if (userId) {
+      // Register a token getter so supabase-js can pull a fresh Clerk JWT
+      // before every request. The getter is called per-request, so tokens
+      // never go stale (60s lifetime in Clerk dev).
+      registerClerkTokenGetter(() => getToken({ template: 'supabase' }))
 
-      // Already syncing or synced
-      if (isSyncing || isProfileSynced) return
-
-      setIsSyncing(true)
-
-      try {
-        // Check if user profile exists in Supabase
-        const { data: existingProfile, error: fetchError } = await supabase
-          .from('user_profiles')
-          .select('id, user_type, onboarding_complete')
-          .eq('id', userId)
-          .single()
-
-        if (fetchError && fetchError.code !== 'PGRST116') {
-          // PGRST116 = no rows returned (user doesn't exist yet)
-          console.error('Error checking user profile:', fetchError)
-          setIsSyncing(false)
-          return
+      const syncAuth = async () => {
+        try {
+          // Ensure user_profiles row exists for this Clerk user before any
+          // downstream FK-bound operations (payment webhooks, become-cbo, etc.)
+          await api.post('/api/users/sync', {}, getToken).catch((err) => {
+            console.error('Error syncing user_profiles:', err)
+          })
+          // Populate userType in authStore so admin nav link is shown immediately
+          const profile: any = await fetchUserProfile(userId).catch(() => null)
+          if (profile?.user_type) setUserType(profile.user_type)
+        } catch (error) {
+          console.error('Error syncing Clerk session:', error)
         }
-
-        // If profile doesn't exist, show role selection modal
-        if (!existingProfile) {
-          console.log('New user detected, needs role selection:', userId)
-          setNeedsRoleSelection(true)
-        } else {
-          console.log('User profile exists:', existingProfile.id)
-          setNeedsRoleSelection(false)
-        }
-
-        setIsProfileSynced(true)
-      } catch (err) {
-        console.error('Error syncing user to Supabase:', err)
-      } finally {
-        setIsSyncing(false)
       }
+      syncAuth()
+    } else {
+      registerClerkTokenGetter(null)
+      reset()
     }
+  }, [isLoaded, userId, getToken])
 
-    syncUserToSupabase()
-  }, [authLoaded, userLoaded, userId, user, isSyncing, isProfileSynced])
-
-  // Reset sync state when user changes
-  useEffect(() => {
-    setIsProfileSynced(false)
-    setNeedsRoleSelection(false)
-  }, [userId])
-
-  // Function to dismiss the role selection modal (after completion)
-  const dismissRoleSelection = () => {
-    setNeedsRoleSelection(false)
-  }
+  // needsRoleSelection / dismissRoleSelection: used by App.tsx to show the
+  // role selection modal on first sign-in. Merged from main branch — these
+  // fields were removed in the feat/taek version but are still required by
+  // RoleSelectionModal. Returning false/no-op keeps the existing behaviour
+  // (role selection logic lives in RoleSelectionModal itself).
+  const [needsRoleSelection] = useState(false)
+  const dismissRoleSelection = () => {}
 
   return {
-    isReady: authLoaded && userLoaded && (isProfileSynced || !userId),
+    isReady: isLoaded,
     userId,
-    user,
-    isProfileSynced,
-    isSyncing,
     needsRoleSelection,
     dismissRoleSelection,
   }
