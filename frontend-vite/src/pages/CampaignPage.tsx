@@ -102,6 +102,7 @@ interface Campaign {
     slug: string
     mission: string
     logo_url: string | null
+    stripe_charges_enabled?: boolean
   }
 }
 
@@ -631,7 +632,7 @@ export function CampaignPage() {
         .select(
           `
           *,
-          organization:organizations(id, name, mission, logo_url)
+          organization:organizations(id, name, mission, logo_url, stripe_charges_enabled)
         `
         )
       const { data, error } = await (isUuid
