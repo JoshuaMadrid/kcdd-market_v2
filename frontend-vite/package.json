@@ -2,6 +2,7 @@
   "name": "kcdd-market-frontend-vite",
   "version": "3.0.0",
   "type": "module",
+  "packageManager": "pnpm@11.1.2",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

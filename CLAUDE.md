@@ -26,6 +26,8 @@ KC Digital Drive Market v3 — a full-stack marketplace for technology equipment
 
 **Always use `pnpm`** for this project — never `npm` or `yarn`.
 
+packageManager field is set to pnpm@11.1.2 in all package.json files. CI enforces this via corepack.
+
 ### Local Development (3 terminals)
 
 ```bash
@@ -393,6 +395,10 @@ GitHub Actions in `.github/workflows/`:
 - `pr-checks.yml` — PR label validation
 
 Production deploys frontend to Vercel, backend as Express server, database on Supabase Cloud.
+
+## git
+
+- use intothedeep(tio.taek.lim@gmail.com) for github commits
 
 ## Answer
 

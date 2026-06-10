@@ -1,0 +1,18 @@
+{
+  "name": "kcdd-market-backend",
+  "version": "1.0.0",
+  "packageManager": "pnpm@11.1.2",
+  "scripts": {
+    "db:start": "[ -S /var/run/docker.sock ] || sudo ln -sf $HOME/.colima/default/docker.sock /var/run/docker.sock && pnpx supabase start",
+    "db:stop": "pnpx supabase stop",
+    "db:reset": "pnpx supabase db reset",
+    "db:push": "pnpx supabase db push",
+    "db:status": "pnpx supabase status"
+  },
+  "devDependencies": {
+    "supabase": "2.98.2"
+  },
+  "pnpm": {
+    "allowedBuildScripts": ["supabase"]
+  }
+}
