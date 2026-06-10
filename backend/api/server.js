@@ -17,6 +17,7 @@ import { createClient } from '@supabase/supabase-js'
 import { generateDonationReceipt, generateAnnualSummary } from './services/pdfGenerator.js'
 import { clerkAuth } from './middleware/clerkAuth.js'
 import usersRouter from './routes/users.js'
+import { buildPaymentMetadata, appendLifecycle } from './helpers/paymentMetadata.js'
 
 // Load environment variables
 dotenv.config()
@@ -378,6 +379,15 @@ app.post('/api/payments/create-intent', clerkAuth, async (req, res) => {
       platform_fee: platformFee,
       organization_amount: organizationAmount,
       status: 'pending',
+      metadata: buildPaymentMetadata({
+        paymentIntent,
+        kind: 'request',
+        targetSnapshot: {
+          request_id: requestId,
+          organization_name_snapshot: org.name,
+        },
+        req,
+      }),
     })
 
     if (txError) {
@@ -515,6 +525,16 @@ app.post('/api/payments/create-campaign-intent', async (req, res) => {
       platform_fee: platformFee,
       organization_amount: organizationAmount,
       status: 'pending',
+      metadata: buildPaymentMetadata({
+        paymentIntent,
+        kind: 'campaign',
+        targetSnapshot: {
+          campaign_slug: campaign.slug,
+          campaign_title_snapshot: campaign.title,
+          organization_name_snapshot: org?.name || null,
+        },
+        req,
+      }),
     })
 
     if (txError) {
@@ -584,14 +604,32 @@ app.post('/api/payments/webhook', express.raw({ type: 'application/json' }), asy
     switch (event.type) {
       case 'payment_intent.succeeded':
         await handlePaymentSucceeded(event.data.object)
+        await appendLifecycle(supabase, event.data.object.id, {
+          at: new Date().toISOString(),
+          event: 'payment_intent.succeeded',
+          event_id: event.id,
+        })
         break
 
       case 'payment_intent.payment_failed':
         await handlePaymentFailed(event.data.object)
+        await appendLifecycle(supabase, event.data.object.id, {
+          at: new Date().toISOString(),
+          event: 'payment_intent.payment_failed',
+          event_id: event.id,
+          error_message: event.data.object.last_payment_error?.message || null,
+        })
         break
 
       case 'charge.refunded':
         await handleChargeRefunded(event.data.object)
+        // charge.refunded's data.object is a Charge, not a PaymentIntent. The PI ID
+        // lives on charge.payment_intent.
+        await appendLifecycle(supabase, event.data.object.payment_intent, {
+          at: new Date().toISOString(),
+          event: 'charge.refunded',
+          event_id: event.id,
+        })
         break
 
       // Stripe Connect events
