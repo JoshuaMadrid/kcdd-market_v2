@@ -279,5 +279,13 @@ INSERT INTO campaigns (
    'active')
 ON CONFLICT (id) DO NOTHING;
 
+-- Storage bucket for receipt PDFs (local dev only — main's policy says
+-- production buckets are created via Supabase Dashboard, not migrations).
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES ('tax-documents', 'tax-documents', false, 10485760, ARRAY['application/pdf'])
+ON CONFLICT (id) DO NOTHING;
+
 COMMIT;
+
+
 
