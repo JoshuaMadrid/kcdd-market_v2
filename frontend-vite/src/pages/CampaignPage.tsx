@@ -622,17 +622,22 @@ export function CampaignPage() {
     try {
       setLoading(true)
 
-      // Fetch campaign by slug or id
-      const { data, error } = await supabase
+      // Fetch campaign by slug or id. Postgres rejects a non-UUID cast for
+      // the id column (22P02) so the .or() filter only includes id when the
+      // route param actually looks like a UUID.
+      const isUuid = !!slug && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug)
+      const query = supabase
         .from('campaigns')
         .select(
           `
           *,
-          organization:organizations(id, name, mission, logo)
+          organization:organizations(id, name, mission, logo_url)
         `
         )
-        .or(`slug.eq.${slug},id.eq.${slug}`)
-        .single()
+      const { data, error } = await (isUuid
+        ? query.or(`slug.eq.${slug},id.eq.${slug}`)
+        : query.eq('slug', slug)
+      ).single()
 
       if (error) throw error
 
