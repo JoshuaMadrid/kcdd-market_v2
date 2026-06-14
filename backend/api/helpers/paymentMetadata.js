@@ -4,7 +4,11 @@ const SALT = process.env.IP_HASH_SALT || 'dev-only-replace-in-prod'
 
 export function hashIp(ip) {
   if (!ip) return null
-  return crypto.createHash('sha256').update(ip + SALT).digest('hex').slice(0, 16)
+  return crypto
+    .createHash('sha256')
+    .update(ip + SALT)
+    .digest('hex')
+    .slice(0, 16)
 }
 
 // Builds the metadata JSONB written to payment_transactions on INSERT.

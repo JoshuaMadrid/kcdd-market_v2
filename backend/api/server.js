@@ -694,9 +694,12 @@ app.post('/api/payments/webhook', express.raw({ type: 'application/json' }), asy
       case 'charge.dispute.closed': {
         const dispute = event.data.object
         await upsertDispute(supabase, dispute)
-        const newStatus = dispute.status === 'won' ? 'dispute_won'
-          : dispute.status === 'lost' ? 'dispute_lost'
-          : 'disputed'
+        const newStatus =
+          dispute.status === 'won'
+            ? 'dispute_won'
+            : dispute.status === 'lost'
+              ? 'dispute_lost'
+              : 'disputed'
         await supabase
           .from('payment_transactions')
           .update({ status: newStatus })
