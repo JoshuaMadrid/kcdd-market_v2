@@ -85,11 +85,13 @@ git checkout feat/pnpm-jwt-integration
 # Install dependencies in three places:
 pnpm install                                    # root (workspace manifest)
 cd frontend-vite && pnpm install && cd ..
-cd backend && pnpm install && cd ..
+cd backend && pnpm install && pnpm approve-builds --all && cd ..
 cd backend/api && pnpm install && cd ../..
 ```
 
 Note: pnpm uses content-addressed storage so subsequent `pnpm install` calls in sibling directories are fast.
+
+> **About `pnpm approve-builds --all` in `backend/`:** pnpm 11.x blocks dependency build scripts by default and needs an explicit user approval — config alone (`onlyBuiltDependencies`) is not enough. Skipping this step leaves `node_modules/.bin/supabase` missing, so `pnpm db:start` / `db:status` / `db:reset` all fail with `[ERR_PNPM_IGNORED_BUILDS]`. Run once per fresh `node_modules`.
 
 ### 3.2 Environment files
 

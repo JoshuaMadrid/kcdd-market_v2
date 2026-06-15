@@ -105,8 +105,9 @@ NODE_ENV=development
 ## Step 4 — Install Packages
 
 ```bash
-# Supabase CLI (backend/)
-cd backend && pnpm add supabase --save-dev --allow-build=supabase
+# Backend (Supabase CLI is already in devDependencies)
+cd backend && pnpm install
+pnpm approve-builds --all   # one-time: approve supabase postinstall (downloads CLI binary)
 
 # Backend API
 cd backend/api && pnpm install
@@ -114,6 +115,8 @@ cd backend/api && pnpm install
 # Frontend
 cd frontend-vite && pnpm install
 ```
+
+> **Why `pnpm approve-builds --all` is required on a fresh clone:** pnpm 11.x refuses to run any dependency's install scripts unless the user has explicitly approved them, even when `onlyBuiltDependencies` is listed in `package.json` / `pnpm-workspace.yaml`. Without this step, `node_modules/.bin/supabase` is never created and every `pnpm db:*` script fails with `[ERR_PNPM_IGNORED_BUILDS]`. The approval is recorded in `backend/node_modules/.modules.yaml` and persists until `node_modules` is deleted.
 
 ---
 
