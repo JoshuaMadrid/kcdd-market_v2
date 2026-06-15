@@ -6,11 +6,9 @@ dotenv.config()
 
 const router = express.Router()
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SECRET_KEY,
-  { auth: { autoRefreshToken: false, persistSession: false } }
-)
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SECRET_KEY, {
+  auth: { autoRefreshToken: false, persistSession: false },
+})
 
 // POST /api/users/sync
 // Ensures a user_profiles row exists for the authenticated Clerk user.
@@ -23,10 +21,7 @@ router.post('/sync', async (req, res) => {
 
     const { error } = await supabase
       .from('user_profiles')
-      .upsert(
-        { id: clerkUserId, user_type: 'donor' },
-        { onConflict: 'id', ignoreDuplicates: true }
-      )
+      .upsert({ id: clerkUserId, user_type: 'donor' }, { onConflict: 'id', ignoreDuplicates: true })
 
     if (error) throw error
 

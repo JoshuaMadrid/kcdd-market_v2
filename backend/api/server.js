@@ -1282,7 +1282,9 @@ if (!process.env.VERCEL) {
     console.log('🚀 KCDD Market API Server')
     console.log(`📡 Server running on http://localhost:${PORT}`)
     console.log(`🌍 Environment: ${process.env.NODE_ENV}`)
-    console.log(`💳 Stripe: ${process.env.STRIPE_SECRET_KEY ? '✅ Connected' : '❌ Not configured'}`)
+    console.log(
+      `💳 Stripe: ${process.env.STRIPE_SECRET_KEY ? '✅ Connected' : '❌ Not configured'}`
+    )
     console.log(`🗄️  Supabase: ${process.env.SUPABASE_URL}`)
     console.log(`🔗 Frontend: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`)
     console.log('\n📝 Available endpoints:')
