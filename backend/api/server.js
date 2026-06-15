@@ -83,6 +83,88 @@ app.get('/health', (req, res) => {
 app.use('/api/users', clerkAuth, usersRouter)
 
 // ============================================
+// SEO ENDPOINTS (sitemap + public meta)
+// ============================================
+//
+// Expose `campaigns.last_edit_approved_at` as the canonical "content updated"
+// timestamp for crawlers. `last_edited_at` is intentionally NOT exposed (it
+// leaks unapproved edit cadence). See architect decision 2026-06-15.
+
+function escapeXml(s) {
+  return String(s).replace(/[<>&'"]/g, (c) => ({
+    '<': '&lt;',
+    '>': '&gt;',
+    '&': '&amp;',
+    "'": '&apos;',
+    '"': '&quot;',
+  }[c]))
+}
+
+/**
+ * GET /sitemap.xml
+ * Public, no auth. Lists all donor-visible campaigns (published_revision_id
+ * IS NOT NULL). Uses last_edit_approved_at (fallback created_at) for <lastmod>.
+ */
+app.get('/sitemap.xml', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('campaigns')
+      .select('slug, last_edit_approved_at, created_at')
+      .not('published_revision_id', 'is', null)
+    if (error) throw error
+    const base = process.env.FRONTEND_BASE_URL || 'http://localhost:5173'
+    const urls = (data ?? [])
+      .map((c) => {
+        const lastmod = c.last_edit_approved_at || c.created_at
+        return `  <url>
+    <loc>${escapeXml(`${base}/campaign/${c.slug}`)}</loc>
+    <lastmod>${new Date(lastmod).toISOString()}</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>`
+      })
+      .join('\n')
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${urls}
+</urlset>`
+    res.set('Content-Type', 'application/xml')
+    res.set('Cache-Control', 'public, max-age=300')
+    res.send(xml)
+  } catch (err) {
+    console.error('sitemap error:', err)
+    res.status(500).send('<?xml version="1.0"?><error/>')
+  }
+})
+
+/**
+ * GET /api/campaigns/:slug/public-meta
+ * Tiny public-meta endpoint that returns { slug, last_edit_approved_at } and
+ * sets HTTP `Last-Modified` header so crawlers can pick up the canonical
+ * content-updated timestamp even though the SPA renders client-side.
+ */
+app.get('/api/campaigns/:slug/public-meta', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('campaigns')
+      .select('slug, last_edit_approved_at, created_at, published_revision_id')
+      .eq('slug', req.params.slug)
+      .single()
+    if (error || !data || !data.published_revision_id) {
+      return res.status(404).json({ error: 'Not found' })
+    }
+    const lm = new Date(data.last_edit_approved_at || data.created_at)
+    res.set('Last-Modified', lm.toUTCString())
+    res.set('Cache-Control', 'public, max-age=60')
+    res.json({ slug: data.slug, last_edit_approved_at: lm.toISOString() })
+  } catch (err) {
+    console.error('public-meta error:', err)
+    res.status(500).json({ error: 'internal' })
+  }
+})
+
+
+// ============================================
 // STRIPE CONNECT ENDPOINTS
 // ============================================
 

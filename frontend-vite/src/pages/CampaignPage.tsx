@@ -272,6 +272,23 @@ export function CampaignPage() {
     }
   }, [campaign?.story_content])
 
+  // SEO: write <meta name="last-modified"> from the canonical
+  // `last_edit_approved_at` so crawlers see the approved content
+  // timestamp (NOT the unapproved-edit cadence in `last_edited_at`).
+  useEffect(() => {
+    if (!campaign?.last_edit_approved_at) return
+    let tag = document.querySelector('meta[name="last-modified"]')
+    if (!tag) {
+      tag = document.createElement('meta')
+      tag.setAttribute('name', 'last-modified')
+      document.head.appendChild(tag)
+    }
+    tag.setAttribute(
+      'content',
+      new Date(campaign.last_edit_approved_at).toISOString()
+    )
+  }, [campaign?.last_edit_approved_at])
+
   // Fetch FAQs, updates, submitted questions, and images when campaign loads
   useEffect(() => {
     if (campaign?.id) {

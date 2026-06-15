@@ -69,6 +69,7 @@ export interface PublishedCampaignView {
   created_at: string
   created_by?: string | null
   status?: string
+  last_edit_approved_at: string | null
 
   // ----- Content (overlay from snapshot) -----
   title: string
@@ -130,6 +131,7 @@ export function buildPublishedCampaignView(
     created_at: campaign.created_at,
     created_by: campaign.created_by,
     status: campaign.status,
+    last_edit_approved_at: (campaign.last_edit_approved_at as string | null) ?? null,
     organization: campaign.organization,
   }
 
