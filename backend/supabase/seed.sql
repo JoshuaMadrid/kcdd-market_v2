@@ -22,7 +22,7 @@ INSERT INTO challenge_categories (name) VALUES
   ('Environmental Justice'),
   ('Food Security');
 
--- Insert identity categories  
+-- Insert identity categories
 INSERT INTO identity_categories (name) VALUES
   ('Black/African American'),
   ('Hispanic/Latinx'),
@@ -284,6 +284,183 @@ ON CONFLICT (id) DO NOTHING;
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES ('tax-documents', 'tax-documents', false, 10485760, ARRAY['application/pdf'])
 ON CONFLICT (id) DO NOTHING;
+
+-- ============================================================
+-- A13 / approval-lifecycle mock data — admin user, revisions,
+-- published states, mock notifications. So `pnpm db:reset`
+-- yields a UI-visible setup out of the box.
+-- ============================================================
+
+-- STEP A13-1: Admin user_profile.
+-- Schema note: user_profiles.name (VARCHAR(200)) — there is no full_name
+-- column; the existing seed (M1) uses `name`, so we match.
+INSERT INTO user_profiles (id, user_type, email, name, created_at)
+VALUES (
+  '00000000-0000-0000-0001-000000000001',
+  'admin',
+  'admin@kcdd.local',
+  'KCDD Admin',
+  NOW()
+) ON CONFLICT (id) DO NOTHING;
+
+-- STEP A13-2a: Approved revision #1 for the 5 "previously approved" campaigns
+-- (1, 2, 4, 5, 7). Campaign 7 will then get an additional pending rev #2 below.
+INSERT INTO campaign_revisions (
+  campaign_id, revision_number, snapshot, changed_by,
+  approval_status, approved_by, approved_at, change_summary, created_at
+)
+SELECT
+  c.id,
+  1,
+  to_jsonb(c.*),
+  COALESCE(c.created_by, 'system'),
+  'approved',
+  '00000000-0000-0000-0001-000000000001',  -- admin
+  NOW() - INTERVAL '7 days',
+  NULL,
+  NOW() - INTERVAL '7 days'
+FROM campaigns c
+WHERE c.id IN (
+  '00000000-0000-0000-0009-000000000001',
+  '00000000-0000-0000-0009-000000000002',
+  '00000000-0000-0000-0009-000000000004',
+  '00000000-0000-0000-0009-000000000005',
+  '00000000-0000-0000-0009-000000000007'
+)
+ON CONFLICT (campaign_id, revision_number) DO NOTHING;
+
+-- STEP A13-2b: Mark campaigns 1, 2, 4, 5 active and point published_revision_id
+-- at their rev #1. Campaign 7 is handled in 2c (it gets a pending rev #2).
+UPDATE campaigns c
+SET
+  approval_status = 'active',
+  first_approved_at = NOW() - INTERVAL '7 days',
+  last_edit_approved_at = NOW() - INTERVAL '7 days',
+  published_revision_id = r.id
+FROM campaign_revisions r
+WHERE r.campaign_id = c.id
+  AND r.revision_number = 1
+  AND c.id IN (
+    '00000000-0000-0000-0009-000000000001',
+    '00000000-0000-0000-0009-000000000002',
+    '00000000-0000-0000-0009-000000000004',
+    '00000000-0000-0000-0009-000000000005'
+  );
+
+-- STEP A13-2c: Campaign 7 (Health-Tech Kiosk) — publish rev #1 first so we
+-- have a baseline, then create pending rev #2 with a visible title tweak, then
+-- flip campaign to pending_edit_approval (published_revision_id still points
+-- at rev #1).
+UPDATE campaigns c
+SET
+  approval_status = 'active',
+  first_approved_at = NOW() - INTERVAL '7 days',
+  last_edit_approved_at = NOW() - INTERVAL '7 days',
+  published_revision_id = r.id
+FROM campaign_revisions r
+WHERE r.campaign_id = c.id
+  AND r.revision_number = 1
+  AND c.id = '00000000-0000-0000-0009-000000000007';
+
+INSERT INTO campaign_revisions (
+  campaign_id, revision_number, snapshot, changed_by,
+  approval_status, change_summary, created_at
+)
+SELECT
+  c.id,
+  2,
+  jsonb_set(to_jsonb(c.*), '{title}', '"Health-Tech Kiosk at the Roots Community Hub — Updated"'::jsonb),
+  c.created_by,
+  'pending_edit_approval',
+  'Renamed to clarify scope; raised funding goal',
+  NOW() - INTERVAL '2 hours'
+FROM campaigns c
+WHERE c.id = '00000000-0000-0000-0009-000000000007'
+ON CONFLICT (campaign_id, revision_number) DO NOTHING;
+
+UPDATE campaigns
+SET approval_status = 'pending_edit_approval',
+    last_edited_at = NOW() - INTERVAL '2 hours'
+WHERE id = '00000000-0000-0000-0009-000000000007';
+
+-- STEP A13-2d: Campaigns 3 + 6 — pending_initial_approval (no published rev).
+INSERT INTO campaign_revisions (
+  campaign_id, revision_number, snapshot, changed_by,
+  approval_status, change_summary, created_at
+)
+SELECT
+  c.id,
+  1,
+  to_jsonb(c.*),
+  COALESCE(c.created_by, 'system'),
+  'pending_initial_approval',
+  'Initial submission',
+  NOW() - INTERVAL '1 day'
+FROM campaigns c
+WHERE c.id IN (
+  '00000000-0000-0000-0009-000000000003',
+  '00000000-0000-0000-0009-000000000006'
+)
+ON CONFLICT (campaign_id, revision_number) DO NOTHING;
+
+UPDATE campaigns
+SET approval_status = 'pending_initial_approval',
+    last_edited_at = NOW() - INTERVAL '1 day'
+WHERE id IN (
+  '00000000-0000-0000-0009-000000000003',
+  '00000000-0000-0000-0009-000000000006'
+);
+
+-- STEP A13-3: Notifications. 3 unread campaign_edit_pending for the admin
+-- (campaigns 3, 6, and 7's rev #2), plus 1 already-read campaign_first_approved
+-- for the CBO of campaign 1 so the bell shows mixed read/unread state.
+-- ON CONFLICT clause matches the partial unique index
+-- idx_notifications_recipient_dedupe_key (WHERE dedupe_key IS NOT NULL).
+INSERT INTO notifications (
+  recipient_clerk_user_id, kind, payload, link_url,
+  entity_type, entity_id, dedupe_key, read_at, created_at
+)
+SELECT
+  '00000000-0000-0000-0001-000000000001',
+  'campaign_edit_pending',
+  jsonb_build_object(
+    'campaign_id', r.campaign_id,
+    'campaign_title', c.title,
+    'revision_id', r.id
+  ),
+  '/admin/pending-edits/' || r.campaign_id,
+  'campaign_revision',
+  r.id,
+  'campaign_edit_pending:' || r.id || ':' || r.revision_number,
+  NULL,
+  r.created_at
+FROM campaign_revisions r
+JOIN campaigns c ON c.id = r.campaign_id
+WHERE r.approval_status IN ('pending_initial_approval', 'pending_edit_approval')
+ON CONFLICT (recipient_clerk_user_id, dedupe_key) WHERE dedupe_key IS NOT NULL
+  DO NOTHING;
+
+INSERT INTO notifications (
+  recipient_clerk_user_id, kind, payload, link_url,
+  entity_type, entity_id, dedupe_key, read_at, created_at
+)
+SELECT
+  c.created_by,
+  'campaign_first_approved',
+  jsonb_build_object(
+    'campaign_id', c.id,
+    'campaign_title', c.title
+  ),
+  '/campaign/' || c.slug,
+  'campaign',
+  c.id,
+  'campaign_first_approved:' || c.id || ':1',
+  NOW() - INTERVAL '6 days',
+  NOW() - INTERVAL '7 days'
+FROM campaigns c
+WHERE c.id = '00000000-0000-0000-0009-000000000001'
+ON CONFLICT (recipient_clerk_user_id, dedupe_key) WHERE dedupe_key IS NOT NULL
+  DO NOTHING;
 
 COMMIT;
 
