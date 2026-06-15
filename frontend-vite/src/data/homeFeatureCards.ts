@@ -26,7 +26,7 @@ export const homeFeatureCards: FeatureCardsSectionData = {
     {
       title: 'Track Your Impact',
       description:
-        'Every device you funded shows up in your donor dashboard — with the recipient\'s thank-you note, a photo from delivery day, and our 90-day check-in.',
+        "Every device you funded shows up in your donor dashboard — with the recipient's thank-you note, a photo from delivery day, and our 90-day check-in.",
       linkText: 'See Donor Dashboard',
       linkHref: '/about#impact',
     },

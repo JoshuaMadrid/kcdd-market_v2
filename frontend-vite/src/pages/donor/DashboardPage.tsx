@@ -51,7 +51,6 @@ import {
   Search,
   AlertTriangle,
   Loader2,
-  ShieldCheck,
   Download,
   ExternalLink,
   Mail,

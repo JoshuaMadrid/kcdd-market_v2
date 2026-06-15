@@ -211,8 +211,8 @@ export function AboutPage() {
                     1
                   </span>
                   <span>
-                    <strong className="text-foreground">Application</strong> — Organizations register
-                    and provide their EIN and 501(c)(3) documentation.
+                    <strong className="text-foreground">Application</strong> — Organizations
+                    register and provide their EIN and 501(c)(3) documentation.
                   </span>
                 </li>
                 <li className="flex items-start gap-3">

@@ -626,18 +626,16 @@ export function CampaignPage() {
       // Fetch campaign by slug or id. Postgres rejects a non-UUID cast for
       // the id column (22P02) so the .or() filter only includes id when the
       // route param actually looks like a UUID.
-      const isUuid = !!slug && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug)
-      const query = supabase
-        .from('campaigns')
-        .select(
-          `
+      const isUuid =
+        !!slug && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug)
+      const query = supabase.from('campaigns').select(
+        `
           *,
           organization:organizations(id, name, mission, logo_url, stripe_charges_enabled)
         `
-        )
-      const { data, error } = await (isUuid
-        ? query.or(`slug.eq.${slug},id.eq.${slug}`)
-        : query.eq('slug', slug)
+      )
+      const { data, error } = await (
+        isUuid ? query.or(`slug.eq.${slug},id.eq.${slug}`) : query.eq('slug', slug)
       ).single()
 
       if (error) throw error
@@ -1292,16 +1290,16 @@ export function CampaignPage() {
                   ) : campaign.story_content ? (
                     <div
                       className="campaign-story max-w-none text-base leading-relaxed text-[#0a0a0a]
-                                 [&_h2]:mb-3 [&_h2]:mt-8 [&_h2]:text-2xl [&_h2]:font-semibold [&_h2]:tracking-tight [&_h2]:text-[#0a0a0a] first:[&_h2]:mt-0
-                                 [&_h3]:mb-2 [&_h3]:mt-6 [&_h3]:text-xl [&_h3]:font-semibold [&_h3]:text-[#0a0a0a]
-                                 [&_p]:mb-4 [&_p]:leading-relaxed
-                                 [&_ul]:mb-4 [&_ul]:mt-2 [&_ul]:list-disc [&_ul]:space-y-1 [&_ul]:pl-6
-                                 [&_ol]:mb-4 [&_ol]:mt-2 [&_ol]:list-decimal [&_ol]:space-y-1 [&_ol]:pl-6
-                                 [&_li]:pl-1
-                                 [&_strong]:font-semibold [&_strong]:text-[#0a0a0a]
-                                 [&_a]:font-medium [&_a]:text-[#ea580c] [&_a]:underline [&_a]:underline-offset-2
-                                 [&_iframe]:mt-2 [&_iframe]:w-full [&_iframe]:rounded-lg
-                                 [&_blockquote]:my-4 [&_blockquote]:border-l-4 [&_blockquote]:border-[#ea580c] [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-[#404040]"
+                                 [&_a]:font-medium [&_a]:text-[#ea580c] [&_a]:underline [&_a]:underline-offset-2 [&_blockquote]:my-4 [&_blockquote]:border-l-4 [&_blockquote]:border-[#ea580c]
+                                 [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-[#404040] [&_h2]:mb-3 [&_h2]:mt-8
+                                 [&_h2]:text-2xl [&_h2]:font-semibold
+                                 [&_h2]:tracking-tight [&_h2]:text-[#0a0a0a] first:[&_h2]:mt-0 [&_h3]:mb-2 [&_h3]:mt-6
+                                 [&_h3]:text-xl [&_h3]:font-semibold [&_h3]:text-[#0a0a0a] [&_iframe]:mt-2 [&_iframe]:w-full
+                                 [&_iframe]:rounded-lg
+                                 [&_li]:pl-1 [&_ol]:mb-4
+                                 [&_ol]:mt-2 [&_ol]:list-decimal [&_ol]:space-y-1 [&_ol]:pl-6
+                                 [&_p]:mb-4 [&_p]:leading-relaxed [&_strong]:font-semibold
+                                 [&_strong]:text-[#0a0a0a] [&_ul]:mb-4 [&_ul]:mt-2 [&_ul]:list-disc [&_ul]:space-y-1 [&_ul]:pl-6"
                       dangerouslySetInnerHTML={{
                         __html: renderStoryHtml(campaign.story_content),
                       }}

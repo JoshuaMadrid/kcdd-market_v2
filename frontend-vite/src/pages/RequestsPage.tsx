@@ -138,8 +138,8 @@ export function RequestsPage() {
             Browse Campaigns & Requests
           </h1>
           <p className="mt-2 text-lg text-[#737373]">
-            Fund a multi-device campaign, or pick a single open request — both go to verified
-            Kansas Citians.
+            Fund a multi-device campaign, or pick a single open request — both go to verified Kansas
+            Citians.
           </p>
         </div>
 
@@ -239,8 +239,8 @@ export function RequestsPage() {
             <div className="mb-4 flex items-center justify-between text-sm text-[#737373]">
               <span>
                 Showing {filteredCampaigns.length === 0 ? 0 : startIdx + 1}
-                {filteredCampaigns.length > 0 ? `–${endIdx}` : ''} of{' '}
-                {filteredCampaigns.length} campaign
+                {filteredCampaigns.length > 0 ? `–${endIdx}` : ''} of {filteredCampaigns.length}{' '}
+                campaign
                 {filteredCampaigns.length !== 1 ? 's' : ''}
               </span>
               {totalPages > 1 && (
@@ -275,110 +275,110 @@ export function RequestsPage() {
                     PAGE_SIZE
                 )
                 .map((campaign) => (
-                <Link key={campaign.id} to={`/campaign/${campaign.slug}`} className="group">
-                  <Card className="flex h-full flex-col overflow-hidden border-[#e5e5e5] transition-shadow duration-200 hover:shadow-lg">
-                    {/* Campaign Image */}
-                    <div className="relative aspect-video overflow-hidden bg-[#f5f5f5]">
-                      {campaign.image_url ? (
-                        <>
-                          <img
-                            src={campaign.image_url}
-                            alt={campaign.title}
-                            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                          />
-                          {campaign.image_url.includes('kcdd_placeholder=1') && (
-                            <span className="pointer-events-none absolute right-2 top-2 z-10 rounded bg-black/60 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white">
-                              Placeholder photo
-                            </span>
-                          )}
-                        </>
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#1b5858] to-[#103032]">
-                          {campaign.logo_url ? (
+                  <Link key={campaign.id} to={`/campaign/${campaign.slug}`} className="group">
+                    <Card className="flex h-full flex-col overflow-hidden border-[#e5e5e5] transition-shadow duration-200 hover:shadow-lg">
+                      {/* Campaign Image */}
+                      <div className="relative aspect-video overflow-hidden bg-[#f5f5f5]">
+                        {campaign.image_url ? (
+                          <>
                             <img
-                              src={campaign.logo_url}
-                              alt={campaign.organization?.name}
-                              className="h-16 w-16 rounded-full object-cover"
+                              src={campaign.image_url}
+                              alt={campaign.title}
+                              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                             />
-                          ) : (
-                            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white/20">
-                              <span className="text-2xl font-bold text-white">
-                                {campaign.organization?.name?.charAt(0) || 'C'}
+                            {campaign.image_url.includes('kcdd_placeholder=1') && (
+                              <span className="pointer-events-none absolute right-2 top-2 z-10 rounded bg-black/60 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white">
+                                Placeholder photo
                               </span>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                      {/* Cause Area Tags */}
-                      {campaign.cause_area_ids?.length > 0 && (
-                        <div className="absolute bottom-2 left-2 flex gap-1">
-                          {getCauseAreaNames(campaign.cause_area_ids).map((name) => (
-                            <Badge
-                              key={name}
-                              variant="secondary"
-                              className="bg-white/90 text-xs text-[#0a0a0a]"
-                            >
-                              {name}
-                            </Badge>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    <CardHeader className="pb-2">
-                      <CardDescription className="font-medium text-[#ea580c]">
-                        <Link
-                          to={`/organizations/${campaign.organization?.slug || campaign.organization?.id}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="hover:underline"
-                        >
-                          {campaign.organization?.name}
-                        </Link>
-                      </CardDescription>
-                      <CardTitle className="line-clamp-2 text-lg transition-colors group-hover:text-[#ea580c]">
-                        {campaign.title}
-                      </CardTitle>
-                    </CardHeader>
-
-                    <CardContent className="flex-1 pb-3">
-                      <p className="line-clamp-2 text-sm text-[#737373]">
-                        {campaign.short_description}
-                      </p>
-                    </CardContent>
-
-                    <CardFooter className="flex-col items-stretch gap-3 pt-0">
-                      {/* Progress Bar */}
-                      <div className="space-y-1.5">
-                        <div className="h-2 w-full overflow-hidden rounded-full bg-[#e5e5e5]">
-                          <div
-                            className="h-full rounded-full bg-[#ea580c] transition-all duration-500"
-                            style={{
-                              width: `${calculateProgress(campaign.amount_raised, campaign.funding_goal)}%`,
-                            }}
-                          />
-                        </div>
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="font-semibold text-[#0a0a0a]">
-                            {formatCurrency(campaign.amount_raised)}
-                          </span>
-                          <span className="text-[#737373]">
-                            of {formatCurrency(campaign.funding_goal)}
-                          </span>
-                        </div>
+                            )}
+                          </>
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#1b5858] to-[#103032]">
+                            {campaign.logo_url ? (
+                              <img
+                                src={campaign.logo_url}
+                                alt={campaign.organization?.name}
+                                className="h-16 w-16 rounded-full object-cover"
+                              />
+                            ) : (
+                              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white/20">
+                                <span className="text-2xl font-bold text-white">
+                                  {campaign.organization?.name?.charAt(0) || 'C'}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        {/* Cause Area Tags */}
+                        {campaign.cause_area_ids?.length > 0 && (
+                          <div className="absolute bottom-2 left-2 flex gap-1">
+                            {getCauseAreaNames(campaign.cause_area_ids).map((name) => (
+                              <Badge
+                                key={name}
+                                variant="secondary"
+                                className="bg-white/90 text-xs text-[#0a0a0a]"
+                              >
+                                {name}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
                       </div>
 
-                      {/* Stats */}
-                      <div className="flex items-center justify-between text-xs text-[#737373]">
-                        <div className="flex items-center gap-1">
-                          <Users className="h-3.5 w-3.5" />
-                          <span>{campaign.supporters_count} supporters</span>
+                      <CardHeader className="pb-2">
+                        <CardDescription className="font-medium text-[#ea580c]">
+                          <Link
+                            to={`/organizations/${campaign.organization?.slug || campaign.organization?.id}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="hover:underline"
+                          >
+                            {campaign.organization?.name}
+                          </Link>
+                        </CardDescription>
+                        <CardTitle className="line-clamp-2 text-lg transition-colors group-hover:text-[#ea580c]">
+                          {campaign.title}
+                        </CardTitle>
+                      </CardHeader>
+
+                      <CardContent className="flex-1 pb-3">
+                        <p className="line-clamp-2 text-sm text-[#737373]">
+                          {campaign.short_description}
+                        </p>
+                      </CardContent>
+
+                      <CardFooter className="flex-col items-stretch gap-3 pt-0">
+                        {/* Progress Bar */}
+                        <div className="space-y-1.5">
+                          <div className="h-2 w-full overflow-hidden rounded-full bg-[#e5e5e5]">
+                            <div
+                              className="h-full rounded-full bg-[#ea580c] transition-all duration-500"
+                              style={{
+                                width: `${calculateProgress(campaign.amount_raised, campaign.funding_goal)}%`,
+                              }}
+                            />
+                          </div>
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="font-semibold text-[#0a0a0a]">
+                              {formatCurrency(campaign.amount_raised)}
+                            </span>
+                            <span className="text-[#737373]">
+                              of {formatCurrency(campaign.funding_goal)}
+                            </span>
+                          </div>
                         </div>
-                        <span>{formatRelativeTime(campaign.created_at)}</span>
-                      </div>
-                    </CardFooter>
-                  </Card>
-                </Link>
-              ))}
+
+                        {/* Stats */}
+                        <div className="flex items-center justify-between text-xs text-[#737373]">
+                          <div className="flex items-center gap-1">
+                            <Users className="h-3.5 w-3.5" />
+                            <span>{campaign.supporters_count} supporters</span>
+                          </div>
+                          <span>{formatRelativeTime(campaign.created_at)}</span>
+                        </div>
+                      </CardFooter>
+                    </Card>
+                  </Link>
+                ))}
             </div>
           )}
         </div>

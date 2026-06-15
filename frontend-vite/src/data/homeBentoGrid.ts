@@ -4,7 +4,7 @@ export const homeBentoGrid: [BentoCardData, BentoCardData, BentoCardData, BentoC
   {
     title: 'Built for Kansas City',
     description:
-      "Every device we ship stays in the metro. Partner pantries, classrooms, shelters, libraries — and individuals applying through our direct intake — are all within a 30-minute drive of our warehouse.",
+      'Every device we ship stays in the metro. Partner pantries, classrooms, shelters, libraries — and individuals applying through our direct intake — are all within a 30-minute drive of our warehouse.',
     linkText: 'See Local Partners',
     linkHref: '/requests',
     backgroundColor: '#1b5858',

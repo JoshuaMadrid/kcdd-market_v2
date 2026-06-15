@@ -296,13 +296,7 @@ function UrgencyBadge({ urgency }: { urgency: string }) {
 
 // Renders an org logo with graceful fallback when Clearbit returns 404
 // (common for smaller orgs that don't have a Clearbit profile).
-function OrgLogo({
-  logoUrl,
-  size = 'md',
-}: {
-  logoUrl?: string | null
-  size?: 'md' | 'lg'
-}) {
+function OrgLogo({ logoUrl, size = 'md' }: { logoUrl?: string | null; size?: 'md' | 'lg' }) {
   const [failed, setFailed] = useState(false)
   const dims = size === 'lg' ? 'h-12 w-12' : 'h-10 w-10'
   const iconSize = size === 'lg' ? 'h-6 w-6' : 'h-5 w-5'
@@ -869,9 +863,7 @@ function UsersContent({
                               View Details
                             </DropdownMenuItem>
                             <DropdownMenuItem
-                              onClick={() =>
-                                onImpersonate(user.id, user.user_type, displayName)
-                              }
+                              onClick={() => onImpersonate(user.id, user.user_type, displayName)}
                             >
                               <LogIn className="mr-2 h-4 w-4" />
                               Impersonate
@@ -1075,9 +1067,7 @@ function UsersContent({
                   name: addUserForm.name.trim(),
                   email: addUserForm.email.trim(),
                   org_tier:
-                    addUserForm.user_type === 'cbo'
-                      ? addUserForm.org_tier
-                      : ORG_TIERS.INDIVIDUAL,
+                    addUserForm.user_type === 'cbo' ? addUserForm.org_tier : ORG_TIERS.INDIVIDUAL,
                   verification_status: addUserForm.verification_status,
                 })
                 setAddUserOpen(false)
@@ -1112,9 +1102,7 @@ function UsersContent({
               <Input
                 value={addUserForm.name}
                 onChange={(e) => setAddUserForm((f) => ({ ...f, name: e.target.value }))}
-                placeholder={
-                  addUserForm.user_type === 'cbo' ? 'Acme Community Org' : 'Jane Donor'
-                }
+                placeholder={addUserForm.user_type === 'cbo' ? 'Acme Community Org' : 'Jane Donor'}
               />
             </div>
 
@@ -1138,9 +1126,7 @@ function UsersContent({
                       type="button"
                       variant={addUserForm.org_tier === key ? 'default' : 'outline'}
                       size="sm"
-                      onClick={() =>
-                        setAddUserForm((f) => ({ ...f, org_tier: key as OrgTier }))
-                      }
+                      onClick={() => setAddUserForm((f) => ({ ...f, org_tier: key as OrgTier }))}
                     >
                       {label}
                     </Button>

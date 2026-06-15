@@ -129,7 +129,9 @@ export function RequestDetailPage() {
               This request may have been fulfilled, closed, or removed.
             </p>
             <Link to="/requests">
-              <Button className="mt-6 bg-[#ea580c] hover:bg-[#ea580c]/90">Browse open requests</Button>
+              <Button className="mt-6 bg-[#ea580c] hover:bg-[#ea580c]/90">
+                Browse open requests
+              </Button>
             </Link>
           </CardContent>
         </Card>

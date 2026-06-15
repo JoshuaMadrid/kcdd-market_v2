@@ -18,10 +18,7 @@ import { Toaster } from '@/components/ui/toaster'
 import { useClerkSupabase } from '@/hooks/useClerkSupabase'
 import { RoleSelectionModal } from '@/components/RoleSelectionModal'
 import { registerClerkTokenGetter } from '@/lib/supabase'
-import {
-  ImpersonationProvider,
-  ImpersonationBanner,
-} from '@/contexts/ImpersonationContext'
+import { ImpersonationProvider, ImpersonationBanner } from '@/contexts/ImpersonationContext'
 
 // Initialize Stripe
 const stripePromise = getStripe()

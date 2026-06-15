@@ -7,11 +7,7 @@ type GetToken = (options?: { template?: string }) => Promise<string | null>
  * Automatically adds the Clerk JWT as Authorization header.
  */
 export const api = {
-  async post<T>(
-    path: string,
-    body: unknown,
-    getToken: GetToken
-  ): Promise<T> {
+  async post<T>(path: string, body: unknown, getToken: GetToken): Promise<T> {
     const token = await getToken({ template: 'supabase' })
 
     const response = await fetch(`${apiConfig.baseUrl}${path}`, {
