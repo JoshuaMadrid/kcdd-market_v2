@@ -62,7 +62,7 @@ If you do not have these files (different machine or fresh clone), the executive
 | **D1** | Revision storage shape | **Full JSONB snapshot per revision** | Mirrors PH-2 `payment_transactions.metadata` pattern; survives schema drift |
 | **D2** | Approval state machine | **Postgres CHECK + trigger** | Single source of truth across webhook, admin UI, future crons |
 | **D3** | "What changed" diff UI | **`last_edited_at` + "Edited" badge only; defer real diff** | 90% of trust signal at 5% of build cost; revisit if usage warrants |
-| **D4** | Email notification infra | **Resend** (with risk: in-app + daily digest is defensible v0) | Smallest integration surface; pair with `request_notifications` for NotificationsBell |
+| **D4** | Email notification infra | **Hand-rolled JS module** at backend/api/services/campaignStateMachine.js (updated 2026-06-15) | Single-source-of-truth state machine in code; DB-layer CHECK constraint only, no triggers; XState rejected for integration cost |
 | **D5** | Schema fields on `campaigns` | **5 columns + new `campaign_revisions` table** | See schema block below |
 
 ### Schema additions (D5)
@@ -71,7 +71,7 @@ On `campaigns`:
 
 | Column | Type | Drives |
 |---|---|---|
-| `approval_status` | TEXT CHECK in `(draft, pending_review, approved, changes_pending_review, rejected, archived)` | Replaces loose VARCHAR(20) status |
+| `approval_status` | TEXT CHECK in `(draft, pending_initial_approval, active, pending_edit_approval, rejected, archived)` | Replaces loose VARCHAR(20) status |
 | `first_approved_at` | TIMESTAMPTZ NULL | "Has ever been approved" sentinel — gates the re-approval rule |
 | `last_approved_at` | TIMESTAMPTZ NULL | Public snapshot timestamp |
 | `last_edited_at` | TIMESTAMPTZ NULL | Drives "Edited" badge when `> last_approved_at` |
@@ -94,7 +94,7 @@ Service-role-only (PH-3 `stripe_disputes` pattern). Indexes on:
 1. D5 (schema migration) — adds all 5 columns + `campaign_revisions` + backfill (`first_approved_at = created_at` for existing rows + seed revision row per existing campaign)
 2. D2 (CHECK + trigger) — same migration block as D5
 3. D1 (backend revision writes) — `/api/campaigns/edit` route snapshots into `campaign_revisions`
-4. D3 (badge UI) + D4 (Resend email) — can run in parallel
+4. D3 (badge UI) can run after the state machine ships. D4 (state machine JS module) now BLOCKS A3 backend route work — implement D4 first, then unlock A3+A6 in parallel.
 5. Admin pending-edits queue UI — downstream of D2 + D5
 6. Tighten `campaigns` RLS in the same PR as D5 (currently wide open per `20240303000000_support_and_documents.sql:154-157`)
 
