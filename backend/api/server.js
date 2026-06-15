@@ -19,6 +19,11 @@ import { clerkAuth } from './middleware/clerkAuth.js'
 import usersRouter from './routes/users.js'
 import { buildPaymentMetadata, appendLifecycle } from './helpers/paymentMetadata.js'
 import { upsertDispute } from './helpers/disputes.js'
+import {
+  nextState as campaignNextState,
+  getAdminUserIds,
+  emitNotification,
+} from './services/campaignStateMachine.js'
 
 // Load environment variables
 dotenv.config()
@@ -941,6 +946,401 @@ async function handleTransferCreated(transfer) {
       .eq('stripe_charge_id', transfer.source_transaction)
   }
 }
+
+// ============================================
+// CAMPAIGN APPROVAL LIFECYCLE ENDPOINTS
+// ============================================
+// Phase A, Task A3 — state machine routes for the campaigns
+// approval lifecycle. Backed by `services/campaignStateMachine.js`.
+// Notifications are written to the `notifications` table with a
+// synthesized dedupe_key so duplicate emits are no-ops.
+
+/**
+ * Submit a draft / new edit for admin review.
+ * POST /api/campaigns/:id/submit-edit
+ *
+ * Auth: Clerk JWT — caller must own the campaign's organization.
+ * Body: { snapshot: object, change_summary: string|null }
+ *   `snapshot` is the FULL proposed campaign row as JSONB. The
+ *   frontend merges current campaign + form changes before posting.
+ *
+ * Behavior:
+ *   - status in (draft, rejected) → action=submit_initial
+ *   - status === 'active'         → action=submit_edit
+ *   - otherwise                   → 409 (edit already pending / archived)
+ *
+ * Side effects:
+ *   1. INSERT campaign_revisions row (revision_number = max+1).
+ *   2. UPDATE campaigns.approval_status + last_edited_at.
+ *   3. Fan-out notifications to every admin user.
+ */
+app.post('/api/campaigns/:id/submit-edit', clerkAuth, async (req, res) => {
+  try {
+    const campaignId = req.params.id
+    const callerUserId = req.auth.userId
+    const { snapshot, change_summary = null } = req.body || {}
+
+    if (!snapshot || typeof snapshot !== 'object') {
+      return res.status(400).json({ error: 'Missing or invalid snapshot' })
+    }
+
+    // 1. Load campaign + owning organization for auth + state read.
+    const { data: campaign, error: fetchError } = await supabase
+      .from('campaigns')
+      .select('id, title, approval_status, organization_id, organizations(user_id)')
+      .eq('id', campaignId)
+      .single()
+
+    if (fetchError || !campaign) {
+      return res.status(404).json({ error: 'Campaign not found' })
+    }
+
+    const orgOwner = campaign.organizations?.user_id
+    if (!orgOwner || orgOwner !== callerUserId) {
+      return res.status(403).json({ error: 'Forbidden: not the campaign owner' })
+    }
+
+    // 2. Resolve action from current status.
+    const currentStatus = campaign.approval_status
+    let action
+    if (currentStatus === 'draft' || currentStatus === 'rejected') {
+      action = 'submit_initial'
+    } else if (currentStatus === 'active') {
+      action = 'submit_edit'
+    } else {
+      return res.status(409).json({
+        error: 'Cannot submit edit from current state',
+        code: 'INVALID_STATE',
+        currentStatus,
+      })
+    }
+
+    // 3. Compute new status via the state machine (also guards bad inputs).
+    let newStatus
+    try {
+      newStatus = campaignNextState(currentStatus, action)
+    } catch (err) {
+      return res.status(409).json({ error: err.message, code: 'INVALID_TRANSITION' })
+    }
+
+    // 4. Compute next revision_number.
+    const { data: maxRow, error: maxErr } = await supabase
+      .from('campaign_revisions')
+      .select('revision_number')
+      .eq('campaign_id', campaignId)
+      .order('revision_number', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (maxErr) throw maxErr
+    const nextRevisionNumber = (maxRow?.revision_number ?? 0) + 1
+
+    // 5. INSERT campaign_revisions row.
+    const revisionApprovalStatus =
+      newStatus === 'pending_initial_approval'
+        ? 'pending_initial_approval'
+        : 'pending_edit_approval'
+
+    const { data: revision, error: insertErr } = await supabase
+      .from('campaign_revisions')
+      .insert({
+        campaign_id: campaignId,
+        revision_number: nextRevisionNumber,
+        snapshot,
+        changed_by: callerUserId,
+        change_summary,
+        approval_status: revisionApprovalStatus,
+      })
+      .select('id, revision_number')
+      .single()
+
+    if (insertErr) throw insertErr
+
+    // 6. UPDATE campaigns.approval_status + last_edited_at.
+    const { error: updateErr } = await supabase
+      .from('campaigns')
+      .update({
+        approval_status: newStatus,
+        last_edited_at: new Date().toISOString(),
+      })
+      .eq('id', campaignId)
+
+    if (updateErr) throw updateErr
+
+    // 7. Fan-out notifications to admins.
+    try {
+      const adminIds = await getAdminUserIds(supabase)
+      await Promise.all(
+        adminIds.map((adminId) =>
+          emitNotification(supabase, {
+            recipient_clerk_user_id: adminId,
+            kind: 'campaign_edit_pending',
+            entity_type: 'campaign_revision',
+            entity_id: revision.id,
+            revision_number: revision.revision_number,
+            payload: {
+              campaign_id: campaignId,
+              campaign_title: campaign.title,
+            },
+            link_url: `/admin/pending-edits/${campaignId}`,
+          })
+        )
+      )
+    } catch (notifyErr) {
+      // Notification failures must not break the submission flow.
+      console.error('Error fanning out submit-edit notifications:', notifyErr)
+    }
+
+    return res.json({
+      revision_id: revision.id,
+      revision_number: revision.revision_number,
+      status: newStatus,
+    })
+  } catch (err) {
+    console.error('Error in submit-edit:', err)
+    return res.status(500).json({ error: err.message })
+  }
+})
+
+/**
+ * Approve a pending campaign revision.
+ * POST /api/admin/campaigns/:campaignId/revisions/:revisionId/approve
+ *
+ * Auth: Clerk JWT — caller must have user_profiles.user_type='admin'.
+ * Body: none.
+ *
+ * Side effects:
+ *   - UPDATE revision row: approved + approved_by + approved_at.
+ *   - UPDATE campaign: approval_status='active',
+ *     published_revision_id=revisionId, last_edit_approved_at=now(),
+ *     first_approved_at=now() if previously NULL.
+ *   - Emit notification to CBO (campaigns.created_by).
+ */
+app.post(
+  '/api/admin/campaigns/:campaignId/revisions/:revisionId/approve',
+  clerkAuth,
+  async (req, res) => {
+    try {
+      const { campaignId, revisionId } = req.params
+      const callerUserId = req.auth.userId
+
+      // 1. Admin auth.
+      const { data: profile, error: profileErr } = await supabase
+        .from('user_profiles')
+        .select('user_type')
+        .eq('id', callerUserId)
+        .single()
+      if (profileErr || !profile || profile.user_type !== 'admin') {
+        return res.status(403).json({ error: 'Forbidden: admin only' })
+      }
+
+      // 2. Load revision + campaign.
+      const { data: revision, error: revErr } = await supabase
+        .from('campaign_revisions')
+        .select('id, campaign_id, revision_number, approval_status')
+        .eq('id', revisionId)
+        .single()
+      if (revErr || !revision) {
+        return res.status(404).json({ error: 'Revision not found' })
+      }
+      if (revision.campaign_id !== campaignId) {
+        return res.status(400).json({ error: 'Revision does not belong to campaign' })
+      }
+
+      const { data: campaign, error: campErr } = await supabase
+        .from('campaigns')
+        .select('id, slug, title, approval_status, created_by, first_approved_at')
+        .eq('id', campaignId)
+        .single()
+      if (campErr || !campaign) {
+        return res.status(404).json({ error: 'Campaign not found' })
+      }
+
+      // 3. State machine: only valid from pending_* states.
+      let newStatus
+      try {
+        newStatus = campaignNextState(campaign.approval_status, 'approve')
+      } catch (err) {
+        return res.status(409).json({ error: err.message, code: 'INVALID_TRANSITION' })
+      }
+
+      const nowIso = new Date().toISOString()
+
+      // 4. UPDATE revision row.
+      const { error: revUpdErr } = await supabase
+        .from('campaign_revisions')
+        .update({
+          approval_status: 'approved',
+          approved_by: callerUserId,
+          approved_at: nowIso,
+        })
+        .eq('id', revisionId)
+      if (revUpdErr) throw revUpdErr
+
+      // 5. UPDATE campaign — set published snapshot + timestamps.
+      const isFirstApproval = !campaign.first_approved_at
+      const campaignPatch = {
+        approval_status: newStatus,
+        published_revision_id: revisionId,
+        last_edit_approved_at: nowIso,
+      }
+      if (isFirstApproval) {
+        campaignPatch.first_approved_at = nowIso
+      }
+
+      const { error: campUpdErr } = await supabase
+        .from('campaigns')
+        .update(campaignPatch)
+        .eq('id', campaignId)
+      if (campUpdErr) throw campUpdErr
+
+      // 6. Notify CBO.
+      try {
+        if (campaign.created_by) {
+          await emitNotification(supabase, {
+            recipient_clerk_user_id: campaign.created_by,
+            kind: isFirstApproval ? 'campaign_first_approved' : 'campaign_edit_approved',
+            entity_type: 'campaign',
+            entity_id: campaign.id,
+            revision_number: revision.revision_number,
+            payload: {
+              campaign_id: campaign.id,
+              campaign_title: campaign.title,
+            },
+            link_url: `/campaign/${campaign.slug}`,
+          })
+        }
+      } catch (notifyErr) {
+        console.error('Error notifying CBO of approval:', notifyErr)
+      }
+
+      return res.json({
+        status: newStatus,
+        published_revision_id: revisionId,
+      })
+    } catch (err) {
+      console.error('Error in revision approve:', err)
+      return res.status(500).json({ error: err.message })
+    }
+  }
+)
+
+/**
+ * Reject a pending campaign revision.
+ * POST /api/admin/campaigns/:campaignId/revisions/:revisionId/reject
+ *
+ * Auth: Clerk JWT — admin only.
+ * Body: { review_note: string }  (required, min length 1)
+ *
+ * Side effects:
+ *   - UPDATE revision: rejected + approved_by + approved_at + review_note.
+ *   - UPDATE campaign.approval_status only (published_revision_id stays).
+ *   - Emit `campaign_edit_rejected` notification to the CBO.
+ */
+app.post(
+  '/api/admin/campaigns/:campaignId/revisions/:revisionId/reject',
+  clerkAuth,
+  async (req, res) => {
+    try {
+      const { campaignId, revisionId } = req.params
+      const callerUserId = req.auth.userId
+      const reviewNote = typeof req.body?.review_note === 'string' ? req.body.review_note : ''
+
+      if (!reviewNote || reviewNote.trim().length < 1) {
+        return res.status(400).json({ error: 'review_note is required' })
+      }
+
+      // 1. Admin auth.
+      const { data: profile, error: profileErr } = await supabase
+        .from('user_profiles')
+        .select('user_type')
+        .eq('id', callerUserId)
+        .single()
+      if (profileErr || !profile || profile.user_type !== 'admin') {
+        return res.status(403).json({ error: 'Forbidden: admin only' })
+      }
+
+      // 2. Load revision + campaign.
+      const { data: revision, error: revErr } = await supabase
+        .from('campaign_revisions')
+        .select('id, campaign_id, revision_number, approval_status')
+        .eq('id', revisionId)
+        .single()
+      if (revErr || !revision) {
+        return res.status(404).json({ error: 'Revision not found' })
+      }
+      if (revision.campaign_id !== campaignId) {
+        return res.status(400).json({ error: 'Revision does not belong to campaign' })
+      }
+
+      const { data: campaign, error: campErr } = await supabase
+        .from('campaigns')
+        .select('id, title, approval_status, created_by')
+        .eq('id', campaignId)
+        .single()
+      if (campErr || !campaign) {
+        return res.status(404).json({ error: 'Campaign not found' })
+      }
+
+      // 3. State machine: reject reverts pending_edit_approval → active,
+      //    pending_initial_approval → rejected.
+      let newStatus
+      try {
+        newStatus = campaignNextState(campaign.approval_status, 'reject')
+      } catch (err) {
+        return res.status(409).json({ error: err.message, code: 'INVALID_TRANSITION' })
+      }
+
+      const nowIso = new Date().toISOString()
+
+      // 4. UPDATE revision row.
+      const { error: revUpdErr } = await supabase
+        .from('campaign_revisions')
+        .update({
+          approval_status: 'rejected',
+          approved_by: callerUserId,
+          approved_at: nowIso,
+          review_note: reviewNote,
+        })
+        .eq('id', revisionId)
+      if (revUpdErr) throw revUpdErr
+
+      // 5. UPDATE campaign approval_status ONLY. Do NOT touch
+      //    published_revision_id — the last approved snapshot stays live.
+      const { error: campUpdErr } = await supabase
+        .from('campaigns')
+        .update({ approval_status: newStatus })
+        .eq('id', campaignId)
+      if (campUpdErr) throw campUpdErr
+
+      // 6. Notify CBO.
+      try {
+        if (campaign.created_by) {
+          await emitNotification(supabase, {
+            recipient_clerk_user_id: campaign.created_by,
+            kind: 'campaign_edit_rejected',
+            entity_type: 'campaign',
+            entity_id: campaign.id,
+            revision_number: revision.revision_number,
+            payload: {
+              campaign_id: campaign.id,
+              campaign_title: campaign.title,
+              review_note: reviewNote,
+            },
+            link_url: `/dashboard/campaigns/${campaign.id}`,
+          })
+        }
+      } catch (notifyErr) {
+        console.error('Error notifying CBO of rejection:', notifyErr)
+      }
+
+      return res.json({ status: newStatus })
+    } catch (err) {
+      console.error('Error in revision reject:', err)
+      return res.status(500).json({ error: err.message })
+    }
+  }
+)
 
 // ============================================
 // TAX DOCUMENT ENDPOINTS
