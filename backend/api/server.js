@@ -709,54 +709,151 @@ app.post('/api/payments/webhook', express.raw({ type: 'application/json' }), asy
     return res.status(400).send(`Webhook Error: ${err.message}`)
   }
 
-  // Idempotency: record the event before any side-effect runs. If Stripe
-  // retries (network failure, our 5xx, etc.), the second delivery hits the
-  // stripe_events PK uniqueness on event_id and we exit early.
-  const { error: dedupError } = await supabase
-    .from('stripe_events')
-    .insert({ event_id: event.id, event_type: event.type, payload: event })
-  if (dedupError) {
-    if (dedupError.code === '23505') {
-      // duplicate event_id — Stripe is retrying; we already processed it
-      return res.json({ received: true, duplicate: true })
+  // Event routing.
+  //
+  // RPC_HANDLED events have their stripe_events dedup INSERT performed
+  // INSIDE a SECURITY DEFINER RPC together with their side-effect writes
+  // (see 20260617000004_process_stripe_event_rpc.sql). This guarantees
+  // dedup + writes commit/rollback together; a mid-handler crash no
+  // longer leaves a dedup row that blocks Stripe's retry.
+  //
+  // For non-RPC events (Connect, dispute open/withdraw/reinstate) we keep
+  // the legacy pattern: pre-INSERT the dedup row, then dispatch. Those
+  // handlers are simple enough that splitting the dedup INSERT from the
+  // handler body is acceptable.
+  const RPC_HANDLED = new Set([
+    'payment_intent.succeeded',
+    'payment_intent.payment_failed',
+    'charge.refunded',
+    'charge.dispute.closed',
+  ])
+
+  if (!RPC_HANDLED.has(event.type)) {
+    const { error: dedupError } = await supabase
+      .from('stripe_events')
+      .insert({ event_id: event.id, event_type: event.type, payload: event })
+    if (dedupError) {
+      if (dedupError.code === '23505') {
+        // duplicate event_id — Stripe is retrying; we already processed it
+        return res.json({ received: true, duplicate: true })
+      }
+      console.error('Failed to record stripe_event:', dedupError)
+      // Continue anyway — we'd rather double-process than drop. Idempotency
+      // is best-effort if the events table itself is unavailable.
     }
-    console.error('Failed to record stripe_event:', dedupError)
-    // Continue anyway — we'd rather double-process than drop. Idempotency
-    // is best-effort if the events table itself is unavailable.
   }
 
   // Handle the event
   try {
     switch (event.type) {
-      case 'payment_intent.succeeded':
-        await handlePaymentSucceeded(event.data.object)
-        await appendLifecycle(supabase, event.data.object.id, {
+      case 'payment_intent.succeeded': {
+        const pi = event.data.object
+        const { requestId, campaignId, organizationId, donorId } = pi.metadata || {}
+        const lifecycleEntry = {
           at: new Date().toISOString(),
           event: 'payment_intent.succeeded',
           event_id: event.id,
+        }
+        const { error: rpcError } = await supabase.rpc('process_payment_succeeded', {
+          p_event_id: event.id,
+          p_event_type: event.type,
+          p_payload: event,
+          p_payment_intent_id: pi.id,
+          p_amount_cents: pi.amount,
+          p_charge_id: pi.latest_charge || null,
+          p_request_id: requestId || null,
+          p_campaign_id: campaignId || null,
+          p_organization_id: organizationId || null,
+          p_donor_id: donorId || null,
+          p_lifecycle_entry: lifecycleEntry,
         })
+        if (rpcError) {
+          if (rpcError.code === '23505') {
+            return res.json({ received: true, duplicate: true })
+          }
+          throw new Error(`process_payment_succeeded RPC failed: ${rpcError.message}`)
+        }
+        console.log('Payment succeeded:', {
+          paymentIntentId: pi.id,
+          requestId: requestId || campaignId,
+          amount: pi.amount / 100,
+        })
+        // Non-transactional follow-up: tax receipt PDF. Network + storage
+        // upload cannot live inside the Postgres txn; a flaky receipt
+        // generator must not block money tracking.
+        try {
+          const receipt = await generateAndStoreReceipt(pi)
+          if (receipt) {
+            console.log('Auto-generated receipt:', receipt.receipt_number)
+          }
+        } catch (receiptError) {
+          console.error('Error auto-generating receipt:', receiptError)
+        }
         break
+      }
 
-      case 'payment_intent.payment_failed':
-        await handlePaymentFailed(event.data.object)
-        await appendLifecycle(supabase, event.data.object.id, {
+      case 'payment_intent.payment_failed': {
+        const pi = event.data.object
+        const errorMessage = pi.last_payment_error?.message || 'Payment failed'
+        const lifecycleEntry = {
           at: new Date().toISOString(),
           event: 'payment_intent.payment_failed',
           event_id: event.id,
-          error_message: event.data.object.last_payment_error?.message || null,
+          error_message: pi.last_payment_error?.message || null,
+        }
+        const { error: rpcError } = await supabase.rpc('process_payment_failed', {
+          p_event_id: event.id,
+          p_event_type: event.type,
+          p_payload: event,
+          p_payment_intent_id: pi.id,
+          p_error_message: errorMessage,
+          p_lifecycle_entry: lifecycleEntry,
+        })
+        if (rpcError) {
+          if (rpcError.code === '23505') {
+            return res.json({ received: true, duplicate: true })
+          }
+          throw new Error(`process_payment_failed RPC failed: ${rpcError.message}`)
+        }
+        console.log('Payment failed:', {
+          paymentIntentId: pi.id,
+          error: pi.last_payment_error,
         })
         break
+      }
 
-      case 'charge.refunded':
-        await handleChargeRefunded(event.data.object)
+      case 'charge.refunded': {
+        const charge = event.data.object
         // charge.refunded's data.object is a Charge, not a PaymentIntent. The PI ID
         // lives on charge.payment_intent.
-        await appendLifecycle(supabase, event.data.object.payment_intent, {
+        const newStatus =
+          charge.amount_refunded === charge.amount ? 'refunded' : 'partially_refunded'
+        const lifecycleEntry = {
           at: new Date().toISOString(),
           event: 'charge.refunded',
           event_id: event.id,
+        }
+        const { error: rpcError } = await supabase.rpc('process_charge_refunded', {
+          p_event_id: event.id,
+          p_event_type: event.type,
+          p_payload: event,
+          p_payment_intent_id: charge.payment_intent,
+          p_charge_id: charge.id,
+          p_new_status: newStatus,
+          p_lifecycle_entry: lifecycleEntry,
+        })
+        if (rpcError) {
+          if (rpcError.code === '23505') {
+            return res.json({ received: true, duplicate: true })
+          }
+          throw new Error(`process_charge_refunded RPC failed: ${rpcError.message}`)
+        }
+        console.log('Charge refunded:', {
+          chargeId: charge.id,
+          amount: charge.amount_refunded / 100,
         })
         break
+      }
 
       // Stripe Connect events
       case 'account.updated':
@@ -817,6 +914,9 @@ app.post('/api/payments/webhook', express.raw({ type: 'application/json' }), asy
 
       case 'charge.dispute.closed': {
         const dispute = event.data.object
+        // upsertDispute is non-transactional bookkeeping on the disputes
+        // table; run it before the RPC so the disputes row exists even if
+        // the RPC's PK dedup raises (duplicate Stripe delivery).
         await upsertDispute(supabase, dispute)
         const newStatus =
           dispute.status === 'won'
@@ -824,45 +924,54 @@ app.post('/api/payments/webhook', express.raw({ type: 'application/json' }), asy
             : dispute.status === 'lost'
               ? 'dispute_lost'
               : 'disputed'
-        await supabase
-          .from('payment_transactions')
-          .update({ status: newStatus })
-          .eq('stripe_payment_intent_id', dispute.payment_intent)
-        if (newStatus === 'dispute_lost') {
-          // Compensating UPDATE on campaign: dispute_lost means we ultimately lost
-          // the funds, so the campaign tally was overstated. Read current values,
-          // decrement by the dispute amount (in dollars). Same fallback pattern
-          // the succeeded handler uses for the increment side.
+        const isDisputeLost = newStatus === 'dispute_lost'
+
+        // H3-C: partial-dispute semantics. Stripe lets cardholders dispute
+        // any subset of the original charge; dispute.amount can be < the
+        // original. We always decrement amount_raised by the disputed
+        // amount (the money really is gone), but only decrement
+        // supporters_count when the ENTIRE charge was disputed — a partial
+        // dispute means the donor still successfully contributed some
+        // money, so they remain a supporter. Look up the original charge
+        // amount via payment_transactions.amount_total (cents) keyed on
+        // the payment_intent.
+        let isFullDispute = true
+        if (isDisputeLost) {
           const { data: tx } = await supabase
             .from('payment_transactions')
-            .select('campaign_id')
+            .select('amount_total')
             .eq('stripe_payment_intent_id', dispute.payment_intent)
             .single()
-          if (tx?.campaign_id) {
-            const amountDollars = (dispute.amount || 0) / 100
-            const { data: campaign } = await supabase
-              .from('campaigns')
-              .select('amount_raised, supporters_count')
-              .eq('id', tx.campaign_id)
-              .single()
-            if (campaign) {
-              await supabase
-                .from('campaigns')
-                .update({
-                  amount_raised: Math.max(0, (campaign.amount_raised || 0) - amountDollars),
-                  supporters_count: Math.max(0, (campaign.supporters_count || 0) - 1),
-                })
-                .eq('id', tx.campaign_id)
-            }
+          if (tx && typeof tx.amount_total === 'number') {
+            isFullDispute = (dispute.amount || 0) === tx.amount_total
           }
         }
-        await appendLifecycle(supabase, dispute.payment_intent, {
+
+        const lifecycleEntry = {
           at: new Date().toISOString(),
           event: 'charge.dispute.closed',
           event_id: event.id,
           dispute_id: dispute.id,
           outcome: dispute.status,
+          is_full_dispute: isDisputeLost ? isFullDispute : null,
+        }
+        const { error: rpcError } = await supabase.rpc('process_dispute_closed', {
+          p_event_id: event.id,
+          p_event_type: event.type,
+          p_payload: event,
+          p_payment_intent_id: dispute.payment_intent,
+          p_dispute_amount_cents: dispute.amount || 0,
+          p_new_status: newStatus,
+          p_is_dispute_lost: isDisputeLost,
+          p_is_full_dispute: isFullDispute,
+          p_lifecycle_entry: lifecycleEntry,
         })
+        if (rpcError) {
+          if (rpcError.code === '23505') {
+            return res.json({ received: true, duplicate: true })
+          }
+          throw new Error(`process_dispute_closed RPC failed: ${rpcError.message}`)
+        }
         break
       }
 
@@ -881,124 +990,10 @@ app.post('/api/payments/webhook', express.raw({ type: 'application/json' }), asy
 // WEBHOOK HANDLERS
 // ============================================
 
-async function handlePaymentSucceeded(paymentIntent) {
-  const { requestId, campaignId, organizationId, donorId } = paymentIntent.metadata
-
-  console.log('Payment succeeded:', {
-    paymentIntentId: paymentIntent.id,
-    requestId: requestId || campaignId,
-    amount: paymentIntent.amount / 100,
-  })
-
-  // Update payment transaction record
-  const { error: txError } = await supabase
-    .from('payment_transactions')
-    .update({
-      status: 'succeeded',
-      stripe_charge_id: paymentIntent.latest_charge,
-      completed_at: new Date().toISOString(),
-    })
-    .eq('stripe_payment_intent_id', paymentIntent.id)
-
-  if (txError) {
-    console.error('Error updating transaction:', txError)
-  }
-
-  // Update request status in database (only for request donations)
-  if (requestId) {
-    const { error } = await supabase
-      .from('requests')
-      .update({
-        status: 'claimed',
-        claimed_at: new Date().toISOString(),
-        donor_id: donorId || null,
-      })
-      .eq('id', requestId)
-
-    if (error) {
-      console.error('Error updating request:', error)
-    }
-
-    // Create notification for organization
-    await supabase.from('request_notifications').insert({
-      request_id: requestId,
-      notification_type: 'claimed',
-      title: 'Donation Received!',
-      message: `A donor has claimed your request with a $${(paymentIntent.amount / 100).toFixed(2)} donation.`,
-      recipient_id: organizationId,
-    })
-  }
-
-  // Update campaign amounts (for campaign donations). On branches without
-  // the increment_campaign_amount RPC (added in 20260605000100), fall back
-  // to a SELECT + UPDATE. supabase-js v2 returns { data, error } from .rpc()
-  // and never rejects, so we branch on `rpcError` instead of .catch().
-  if (campaignId) {
-    const amountDollars = paymentIntent.amount / 100
-    const { error: rpcError } = await supabase.rpc('increment_campaign_amount', {
-      campaign_id: campaignId,
-      amount: amountDollars,
-    })
-    if (rpcError) {
-      const { data: campaign } = await supabase
-        .from('campaigns')
-        .select('amount_raised, supporters_count')
-        .eq('id', campaignId)
-        .single()
-      if (campaign) {
-        await supabase
-          .from('campaigns')
-          .update({
-            amount_raised: (campaign.amount_raised || 0) + amountDollars,
-            supporters_count: (campaign.supporters_count || 0) + 1,
-          })
-          .eq('id', campaignId)
-      }
-    }
-  }
-
-  // Generate tax receipt PDF automatically
-  try {
-    const receipt = await generateAndStoreReceipt(paymentIntent)
-    if (receipt) {
-      console.log('Auto-generated receipt:', receipt.receipt_number)
-    }
-  } catch (receiptError) {
-    console.error('Error auto-generating receipt:', receiptError)
-    // Don't fail the webhook - receipt generation is non-critical
-  }
-}
-
-async function handlePaymentFailed(paymentIntent) {
-  console.log('Payment failed:', {
-    paymentIntentId: paymentIntent.id,
-    error: paymentIntent.last_payment_error,
-  })
-
-  // Update payment transaction record
-  await supabase
-    .from('payment_transactions')
-    .update({
-      status: 'failed',
-      error_message: paymentIntent.last_payment_error?.message || 'Payment failed',
-    })
-    .eq('stripe_payment_intent_id', paymentIntent.id)
-}
-
-async function handleChargeRefunded(charge) {
-  console.log('Charge refunded:', {
-    chargeId: charge.id,
-    amount: charge.amount_refunded / 100,
-  })
-
-  // Update payment transaction record
-  await supabase
-    .from('payment_transactions')
-    .update({
-      status: charge.amount_refunded === charge.amount ? 'refunded' : 'partially_refunded',
-    })
-    .eq('stripe_charge_id', charge.id)
-}
+// Note: handlers for payment_intent.succeeded, payment_intent.payment_failed,
+// and charge.refunded now live in Postgres as SECURITY DEFINER RPCs
+// (see 20260617000004_process_stripe_event_rpc.sql). Side effects + the
+// stripe_events dedup row commit/rollback together.
 
 // Stripe Connect webhook handlers
 async function handleAccountUpdated(account) {

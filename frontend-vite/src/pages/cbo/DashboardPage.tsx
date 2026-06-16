@@ -462,10 +462,9 @@ function CampaignsContent({
     : campaigns.filter((c) => !c.deleted_at)
   // Derived status values come from getCampaignsByOrganization() and
   // mirror the backend state machine: draft / pending / active / rejected /
-  // deleted. There is no "completed" state post-REFB, so that bucket
-  // always renders 0 until/unless a completion state is introduced.
+  // deleted. There is no "completed" state post-REFB; the previous
+  // "completed" count card was dead code and has been removed (H3-F).
   const pendingCampaigns = visibleCampaigns.filter((c) => c.status === 'pending')
-  const completedCampaigns = visibleCampaigns.filter((c) => c.status === 'completed')
 
   const handleSoftDelete = async (campaignId: string, title: string) => {
     if (!window.confirm(`Delete campaign "${title}"? It will be hidden from donors but kept for audit and admin restore.`)) {
@@ -509,7 +508,7 @@ function CampaignsContent({
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 gap-4">
         <Card
           className="cursor-pointer p-5 text-center transition-shadow hover:shadow-md"
           onClick={onCreateCampaign}
@@ -528,13 +527,6 @@ function CampaignsContent({
           <p className="text-sm text-[#737373]">
             {pendingCampaigns.length} campaigns awaiting review
           </p>
-        </Card>
-        <Card className="cursor-pointer p-5 text-center transition-shadow hover:shadow-md">
-          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-green-100">
-            <CheckCircle2 className="h-6 w-6 text-green-600" />
-          </div>
-          <h3 className="font-medium">Completed</h3>
-          <p className="text-sm text-[#737373]">{completedCampaigns.length} campaigns completed</p>
         </Card>
       </div>
 

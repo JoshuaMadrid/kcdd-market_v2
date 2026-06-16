@@ -969,31 +969,19 @@ const slugifyTitle = (title: string): string =>
 //
 // Post-REFB the campaigns row is metadata-only — title, funding_goal,
 // story_content, social URLs, etc. all live in campaign_details.content.
-// We split creation into two writes:
-//   1. INSERT campaigns           — { organization_id, slug, created_by }
-//   2. INSERT campaign_details v1 — { campaign_id, version: 1,
-//                                     status: 'pending_initial_approval',
-//                                     content: <jsonb>, changed_by }
+// Both inserts MUST commit together; otherwise a failure on the
+// campaign_details A14 CHECK leaves an orphan campaigns row.
+//
+// H3-E: collapsed two-step pattern into a single SECURITY DEFINER RPC
+// (public.create_campaign_with_detail, migration 20260617000003). The
+// RPC validates org ownership and stamps created_by/changed_by from the
+// caller's clerk_user_id() — the client cannot spoof either field.
 //
 // Required content keys per migration A14: title, funding_goal,
 // contact_email. The returned shape preserves { id, slug, ...campaign }
 // for caller compatibility (callers navigate via campaign.slug).
 export const createCampaign = async (campaignData: CampaignData) => {
   const slug = `${slugifyTitle(campaignData.title)}-${Date.now().toString(36)}`
-
-  const { data: campaign, error: campaignError } = await (
-    supabase.from('campaigns') as any
-  )
-    .insert({
-      organization_id: campaignData.organization_id,
-      created_by: campaignData.created_by,
-      slug,
-    })
-    .select()
-    .single()
-
-  if (campaignError) throw campaignError
-  if (!campaign) throw new Error('createCampaign: insert returned no row')
 
   const content: Record<string, unknown> = {
     title: campaignData.title,
@@ -1017,27 +1005,36 @@ export const createCampaign = async (campaignData: CampaignData) => {
   if (campaignData.tiktok_url !== undefined) content.tiktok_url = campaignData.tiktok_url
   if (campaignData.website_url !== undefined) content.website_url = campaignData.website_url
 
-  const { data: detail, error: detailError } = await (
-    supabase.from('campaign_details') as any
+  const { data: rpcResult, error: rpcError } = await (supabase as any).rpc(
+    'create_campaign_with_detail',
+    {
+      p_organization_id: campaignData.organization_id,
+      p_slug: slug,
+      p_created_by: campaignData.created_by,
+      p_content: content,
+      p_change_summary: null,
+    }
   )
-    .insert({
-      campaign_id: (campaign as { id: string }).id,
-      version: 1,
-      status: 'pending_initial_approval',
-      content,
-      changed_by: campaignData.created_by,
-    })
-    .select()
-    .single()
 
-  if (detailError) throw detailError
+  if (rpcError) throw rpcError
+  if (!rpcResult) throw new Error('createCampaign: RPC returned no row')
 
-  // Return the merged metadata + detail as an opaque record so callers
-  // can read .id / .slug via their existing `as { id: string; slug?: string }`
-  // narrowing pattern without TS complaining about a fixed `detail` field.
+  const { campaign_id, detail_id } = rpcResult as {
+    campaign_id: string
+    detail_id: string
+  }
+
+  // Preserve the prior return shape: { id, slug, ...other campaign cols,
+  // detail }. The two columns callers actually read are .id and .slug;
+  // everything else (organization_id, created_by, timestamps) is
+  // reconstructable from inputs or fetched later. Skipping the extra
+  // SELECT keeps the path single-roundtrip.
   const result: Record<string, unknown> = {
-    ...(campaign as Record<string, unknown>),
-    detail,
+    id: campaign_id,
+    slug,
+    organization_id: campaignData.organization_id,
+    created_by: campaignData.created_by,
+    detail: { id: detail_id, version: 1, status: 'pending_initial_approval', content },
   }
   return result
 }
@@ -1163,7 +1160,7 @@ export const getActiveCampaigns = async (limit: number = 10) => {
       `
       *,
       organization:organizations(id, name, slug, logo_url),
-      detail:campaign_details!inner(content, status)
+      detail:campaign_details!inner(content, status, version)
     `
     )
     .eq('detail.status', 'approved')
@@ -1172,14 +1169,30 @@ export const getActiveCampaigns = async (limit: number = 10) => {
     .limit(limit)
 
   if (error) throw error
-  return (data || []).map((row: any) => {
+
+  type Detail = { content?: Record<string, unknown>; status?: string; version?: number }
+  const mapped = (data || []).map((row: any) => {
     // PostgREST can return the inner embed as an array OR a single object
     // depending on FK cardinality. Normalize.
-    const detail = Array.isArray(row.detail) ? row.detail[0] : row.detail
+    const detail: Detail = Array.isArray(row.detail) ? row.detail[0] : row.detail
     const content = (detail?.content as Record<string, unknown> | undefined) || {}
+    const version = detail?.version ?? 0
     const { detail: _detail, ...rest } = row
-    return { ...content, ...rest }
+    return { ...content, ...rest, __detail_version: version }
   })
+
+  // H3-D: a campaign with multiple approved detail versions (post
+  // edit-approval) will appear once per approved row. PostgREST's !inner
+  // join expands them into duplicate parent rows. Collapse to one row per
+  // campaign.id, keeping the highest detail.version.
+  const byId = new Map<string, any>()
+  for (const row of mapped) {
+    const existing = byId.get(row.id)
+    if (!existing || (row.__detail_version ?? 0) > (existing.__detail_version ?? 0)) {
+      byId.set(row.id, row)
+    }
+  }
+  return Array.from(byId.values()).map(({ __detail_version: _v, ...rest }) => rest)
 }
 
 // Upload campaign image

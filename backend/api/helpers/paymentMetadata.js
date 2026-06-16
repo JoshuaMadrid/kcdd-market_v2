@@ -40,19 +40,25 @@ export function buildPaymentMetadata({ paymentIntent, kind, targetSnapshot, req,
   }
 }
 
-// Appends a lifecycle event onto an existing payment_transactions row.
-// SELECT-merge-UPDATE rather than RPC to avoid a new migration.
+// Append a single lifecycle event onto an existing payment_transactions row.
+// Atomic via SECURITY DEFINER RPC (public.append_lifecycle) — see
+// backend/supabase/migrations/20260617000002_append_lifecycle_rpc.sql.
+// Replaces the prior SELECT-merge-UPDATE pattern which lost concurrent
+// appends (Stripe can deliver two webhooks for the same PI ~50ms apart).
+//
+// Signature preserved: (supabase, stripePaymentIntentId, entry). Errors
+// are logged but not thrown — lifecycle is an audit log; the caller's
+// money-tracking writes are the source of truth and must not be blocked
+// by an audit failure.
 export async function appendLifecycle(supabase, stripePaymentIntentId, entry) {
-  const { data: row, error: selectError } = await supabase
-    .from('payment_transactions')
-    .select('metadata')
-    .eq('stripe_payment_intent_id', stripePaymentIntentId)
-    .single()
-  if (selectError || !row) return
-  const lifecycle = Array.isArray(row.metadata?.lifecycle) ? row.metadata.lifecycle : []
-  const newMetadata = { ...row.metadata, lifecycle: [...lifecycle, entry] }
-  await supabase
-    .from('payment_transactions')
-    .update({ metadata: newMetadata })
-    .eq('stripe_payment_intent_id', stripePaymentIntentId)
+  const { error } = await supabase.rpc('append_lifecycle', {
+    p_stripe_payment_intent_id: stripePaymentIntentId,
+    p_event: entry,
+  })
+  if (error) {
+    console.error('appendLifecycle RPC failed:', {
+      stripePaymentIntentId,
+      error: error.message,
+    })
+  }
 }
