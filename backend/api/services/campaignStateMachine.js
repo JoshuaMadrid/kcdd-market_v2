@@ -20,15 +20,17 @@
  *   - emitNotification(supabase, params)
  */
 
-// Lifecycle states. ARCHIVED is dropped pending a follow-up — soft-delete via
-// campaigns.deleted_at covers the only post-REFB use case. The remaining 5
-// values match what every caller branches on.
+// Lifecycle states. DELETED is the sentinel value returned when
+// campaigns.deleted_at IS NOT NULL — it short-circuits every transition.
+// ARCHIVED was dropped pending a follow-up — soft-delete via campaigns.deleted_at
+// covers the only post-REFB use case.
 export const STATES = Object.freeze({
   DRAFT: 'draft',
   PENDING_INITIAL_APPROVAL: 'pending_initial_approval',
   ACTIVE: 'active',
   PENDING_EDIT_APPROVAL: 'pending_edit_approval',
   REJECTED: 'rejected',
+  DELETED: 'deleted',
 })
 
 // Actions a route handler can request. Kept as a stable vocabulary even
@@ -45,6 +47,7 @@ export const ACTIONS = Object.freeze({
  * Derive the campaign's current lifecycle state from its campaign_details rows.
  *
  * Decision table (latest = highest `version`):
+ *   campaigns.deleted_at IS NOT NULL            → DELETED  (short-circuits)
  *   no detail rows                              → DRAFT
  *   latest.status = pending_initial_approval    → PENDING_INITIAL_APPROVAL
  *   latest.status = pending_edit_approval       → PENDING_EDIT_APPROVAL
@@ -64,6 +67,17 @@ export async function getCampaignState(supabase, campaignId) {
   if (!campaignId) {
     throw new Error('getCampaignState: campaignId is required')
   }
+
+  // Soft-delete short-circuit: a deleted campaign returns DELETED regardless
+  // of its detail rows. Done as a separate round-trip (cheap PK lookup) so
+  // every other branch in this function keeps its pre-existing semantics.
+  const { data: campaignRow, error: campaignErr } = await supabase
+    .from('campaigns')
+    .select('deleted_at')
+    .eq('id', campaignId)
+    .maybeSingle()
+  if (campaignErr) throw campaignErr
+  if (campaignRow?.deleted_at) return STATES.DELETED
 
   // Single round-trip: latest detail row + a boolean "any approved exists".
   // PostgREST does not expose SQL subqueries via the JS client, so we issue

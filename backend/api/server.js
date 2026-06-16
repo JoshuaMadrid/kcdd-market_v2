@@ -1104,6 +1104,14 @@ app.post('/api/campaigns/:id/submit-edit', clerkAuth, async (req, res) => {
     // 2. Derive current state from campaign_details rows.
     const currentState = await getCampaignState(supabase, campaignId)
 
+    if (currentState === CAMPAIGN_STATES.DELETED) {
+      return res.status(409).json({
+        error: 'Cannot submit edit on a deleted campaign',
+        code: 'CAMPAIGN_DELETED',
+        currentState,
+      })
+    }
+
     // 3. Resolve detail status from current state.
     let detailStatus
     if (
@@ -1263,6 +1271,13 @@ app.post(
       // 3. Verify state from the detail rows themselves: only valid from a
       //    pending_* derived state.
       const currentState = await getCampaignState(supabase, campaignId)
+      if (currentState === CAMPAIGN_STATES.DELETED) {
+        return res.status(409).json({
+          error: 'Cannot approve a deleted campaign',
+          code: 'CAMPAIGN_DELETED',
+          currentState,
+        })
+      }
       if (
         currentState !== CAMPAIGN_STATES.PENDING_INITIAL_APPROVAL &&
         currentState !== CAMPAIGN_STATES.PENDING_EDIT_APPROVAL
@@ -1396,6 +1411,13 @@ app.post(
 
       // 3. Verify derived state — only valid from pending_*.
       const beforeState = await getCampaignState(supabase, campaignId)
+      if (beforeState === CAMPAIGN_STATES.DELETED) {
+        return res.status(409).json({
+          error: 'Cannot reject a deleted campaign',
+          code: 'CAMPAIGN_DELETED',
+          currentState: beforeState,
+        })
+      }
       if (
         beforeState !== CAMPAIGN_STATES.PENDING_INITIAL_APPROVAL &&
         beforeState !== CAMPAIGN_STATES.PENDING_EDIT_APPROVAL
@@ -1463,6 +1485,200 @@ app.post(
 )
 
 // ============================================
+// CAMPAIGN SOFT-DELETE ENDPOINTS
+// ============================================
+// SOFT-DEL task — campaign soft-delete (CBO + admin) and admin restore.
+// Soft-deleted campaigns return state `deleted` from the state machine and
+// are excluded from the public RLS SELECT policy. campaign_details rows are
+// preserved for audit + restore.
+
+/**
+ * Soft-delete a campaign.
+ * POST /api/campaigns/:id/soft-delete
+ *
+ * Auth: Clerk JWT — caller must own the campaign's organization OR be admin.
+ * Body: none.
+ *
+ * Side effects:
+ *   - UPDATE campaigns SET deleted_at = NOW() WHERE id = :id AND deleted_at IS NULL.
+ *
+ * Errors:
+ *   - 404 if campaign not found.
+ *   - 403 if caller is neither org owner nor admin.
+ *   - 409 if campaign is already soft-deleted.
+ */
+app.post('/api/campaigns/:id/soft-delete', clerkAuth, async (req, res) => {
+  try {
+    const campaignId = req.params.id
+    const callerUserId = req.auth.userId
+
+    // 1. Load campaign + owning organization for auth.
+    const { data: campaign, error: fetchError } = await supabase
+      .from('campaigns')
+      .select('id, deleted_at, organization_id, organizations(user_id)')
+      .eq('id', campaignId)
+      .single()
+
+    if (fetchError || !campaign) {
+      return res.status(404).json({ error: 'Campaign not found' })
+    }
+
+    // 2. Authorization: org owner OR admin.
+    const orgOwner = campaign.organizations?.user_id ?? null
+    const isOwner = orgOwner === callerUserId
+    let isAdmin = false
+    if (!isOwner) {
+      const { data: profile, error: profileErr } = await supabase
+        .from('user_profiles')
+        .select('user_type')
+        .eq('id', callerUserId)
+        .single()
+      if (!profileErr && profile?.user_type === 'admin') {
+        isAdmin = true
+      }
+    }
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ error: 'Forbidden: not the campaign owner or admin' })
+    }
+
+    // 3. Idempotency guard: already deleted → 409.
+    if (campaign.deleted_at) {
+      return res.status(409).json({ error: 'Already deleted' })
+    }
+
+    // 4. Stamp deleted_at.
+    const nowIso = new Date().toISOString()
+    const { error: updateErr } = await supabase
+      .from('campaigns')
+      .update({ deleted_at: nowIso })
+      .eq('id', campaignId)
+      .is('deleted_at', null)
+    if (updateErr) throw updateErr
+
+    return res.json({ deleted_at: nowIso })
+  } catch (err) {
+    console.error('Error in soft-delete:', err)
+    return res.status(500).json({ error: err.message })
+  }
+})
+
+/**
+ * Restore a soft-deleted campaign. Admin only.
+ * POST /api/admin/campaigns/:id/restore
+ *
+ * Auth: Clerk JWT — admin only.
+ * Body: none.
+ *
+ * Errors:
+ *   - 404 if campaign not found.
+ *   - 403 if caller is not admin.
+ *   - 409 if campaign is not soft-deleted.
+ */
+app.post('/api/admin/campaigns/:id/restore', clerkAuth, async (req, res) => {
+  try {
+    const campaignId = req.params.id
+    const callerUserId = req.auth.userId
+
+    // 1. Admin auth.
+    const { data: profile, error: profileErr } = await supabase
+      .from('user_profiles')
+      .select('user_type')
+      .eq('id', callerUserId)
+      .single()
+    if (profileErr || !profile || profile.user_type !== 'admin') {
+      return res.status(403).json({ error: 'Forbidden: admin only' })
+    }
+
+    // 2. Load campaign.
+    const { data: campaign, error: fetchError } = await supabase
+      .from('campaigns')
+      .select('id, deleted_at')
+      .eq('id', campaignId)
+      .single()
+    if (fetchError || !campaign) {
+      return res.status(404).json({ error: 'Campaign not found' })
+    }
+    if (!campaign.deleted_at) {
+      return res.status(409).json({ error: 'Not deleted' })
+    }
+
+    // 3. Clear deleted_at.
+    const { error: updateErr } = await supabase
+      .from('campaigns')
+      .update({ deleted_at: null })
+      .eq('id', campaignId)
+    if (updateErr) throw updateErr
+
+    return res.json({ restored: true })
+  } catch (err) {
+    console.error('Error in restore:', err)
+    return res.status(500).json({ error: err.message })
+  }
+})
+
+/**
+ * List soft-deleted campaigns. Admin only.
+ * GET /api/admin/deleted-campaigns
+ *
+ * Auth: Clerk JWT — admin only.
+ * Returns: { rows: [{ id, title, deleted_at, organization_name }] }
+ *   `title` is sourced from the latest `campaign_details` row's content blob.
+ */
+app.get('/api/admin/deleted-campaigns', clerkAuth, async (req, res) => {
+  try {
+    const callerUserId = req.auth.userId
+
+    // 1. Admin auth.
+    const { data: profile, error: profileErr } = await supabase
+      .from('user_profiles')
+      .select('user_type')
+      .eq('id', callerUserId)
+      .single()
+    if (profileErr || !profile || profile.user_type !== 'admin') {
+      return res.status(403).json({ error: 'Forbidden: admin only' })
+    }
+
+    // 2. Pull every soft-deleted campaign + its organization.
+    const { data: campaigns, error: campErr } = await supabase
+      .from('campaigns')
+      .select('id, slug, deleted_at, organizations(id, name)')
+      .not('deleted_at', 'is', null)
+      .order('deleted_at', { ascending: false })
+    if (campErr) throw campErr
+
+    // 3. For each campaign, fetch the latest detail (any status) and read its title.
+    //    Volume here is small (admin-only, soft-deletes rare) so N+1 is acceptable.
+    const rows = []
+    for (const c of campaigns ?? []) {
+      const { data: detail } = await supabase
+        .from('campaign_details')
+        .select('content')
+        .eq('campaign_id', c.id)
+        .order('version', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      const title =
+        detail?.content && typeof detail.content.title === 'string'
+          ? detail.content.title
+          : null
+      rows.push({
+        id: c.id,
+        slug: c.slug,
+        title,
+        deleted_at: c.deleted_at,
+        organization_id: c.organizations?.id ?? null,
+        organization_name: c.organizations?.name ?? null,
+      })
+    }
+
+    return res.json({ rows, total: rows.length })
+  } catch (err) {
+    console.error('Error in GET /api/admin/deleted-campaigns:', err)
+    return res.status(500).json({ error: err.message })
+  }
+})
+
+// ============================================
 // PENDING REVIEWS + NOTIFICATIONS ENDPOINTS
 // ============================================
 // Phase A, Tasks A4 + A9 — admin pending-edits queue, revision
@@ -1504,6 +1720,7 @@ app.get('/api/admin/pending-edits', clerkAuth, async (req, res) => {
           'campaigns!inner(id, slug, organization_id, organizations(id, name))'
       )
       .in('status', ['pending_initial_approval', 'pending_edit_approval'])
+      .is('campaigns.deleted_at', null)
       .order('created_at', { ascending: true })
     if (detailErr) throw detailErr
 

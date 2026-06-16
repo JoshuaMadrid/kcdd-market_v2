@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useUser } from '@clerk/clerk-react'
+import { useUser, useAuth } from '@clerk/clerk-react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -92,6 +92,8 @@ import {
   type OrganizationDocument,
 } from '@/lib/supabase'
 import { Link } from 'react-router-dom'
+import { api } from '@/lib/api'
+import { useToast } from '@/components/ui/use-toast'
 import { StripeConnectCard } from '@/components/StripeConnectButton'
 import { useStripeConnect } from '@/hooks/useStripeConnect'
 import { IconByName, IconPicker } from '@/components/ui/icon-picker'
@@ -106,6 +108,7 @@ interface Campaign {
   amount_raised?: number
   supporters_count?: number
   created_at: string
+  deleted_at?: string | null
 }
 
 // Default empty states
@@ -444,13 +447,42 @@ function DashboardContent({
 function CampaignsContent({
   campaigns,
   onCreateCampaign,
+  onRefresh,
 }: {
   campaigns: Campaign[]
   onCreateCampaign: () => void
+  onRefresh: () => void
 }) {
-  const pendingCampaigns = campaigns.filter((c) => c.status === 'pending')
-  const _activeCampaigns = campaigns.filter((c) => c.status === 'active')
-  const completedCampaigns = campaigns.filter((c) => c.status === 'completed')
+  const { getToken } = useAuth()
+  const { toast } = useToast()
+  const [showDeleted, setShowDeleted] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const visibleCampaigns = showDeleted
+    ? campaigns
+    : campaigns.filter((c) => !c.deleted_at)
+  const pendingCampaigns = visibleCampaigns.filter((c) => c.status === 'pending')
+  const _activeCampaigns = visibleCampaigns.filter((c) => c.status === 'active')
+  const completedCampaigns = visibleCampaigns.filter((c) => c.status === 'completed')
+
+  const handleSoftDelete = async (campaignId: string, title: string) => {
+    if (!window.confirm(`Delete campaign "${title}"? It will be hidden from donors but kept for audit and admin restore.`)) {
+      return
+    }
+    setDeletingId(campaignId)
+    try {
+      await api.post(`/api/campaigns/${campaignId}/soft-delete`, {}, getToken)
+      toast({ title: 'Campaign deleted', description: title })
+      onRefresh()
+    } catch (err) {
+      toast({
+        title: 'Delete failed',
+        description: err instanceof Error ? err.message : 'Unknown error',
+        variant: 'destructive',
+      })
+    } finally {
+      setDeletingId(null)
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -459,10 +491,19 @@ function CampaignsContent({
           <h2 className="text-xl font-semibold text-[#0a0a0a]">My Campaigns</h2>
           <p className="text-sm text-[#737373]">Create and manage your donation campaigns</p>
         </div>
-        <Button className="bg-[#1b5858] hover:bg-[#164444]" onClick={onCreateCampaign}>
-          <Plus className="mr-2 h-4 w-4" />
-          New Campaign
-        </Button>
+        <div className="flex items-center gap-3">
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-[#737373]">
+            <Checkbox
+              checked={showDeleted}
+              onCheckedChange={(v) => setShowDeleted(v === true)}
+            />
+            Show deleted
+          </label>
+          <Button className="bg-[#1b5858] hover:bg-[#164444]" onClick={onCreateCampaign}>
+            <Plus className="mr-2 h-4 w-4" />
+            New Campaign
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-3 gap-4">
@@ -495,11 +536,11 @@ function CampaignsContent({
       </div>
 
       {/* Active/Recent Campaigns List */}
-      {campaigns.length > 0 && (
+      {visibleCampaigns.length > 0 && (
         <div className="space-y-4">
           <h3 className="font-medium">Your Campaigns</h3>
-          {campaigns.map((campaign) => (
-            <Card key={campaign.id} className="p-4">
+          {visibleCampaigns.map((campaign) => (
+            <Card key={campaign.id} className={`p-4 ${campaign.deleted_at ? 'opacity-60' : ''}`}>
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="mb-1 flex items-center gap-2">
@@ -508,18 +549,21 @@ function CampaignsContent({
                       className="font-medium text-[#0a0a0a] hover:text-[#1b5858] hover:underline"
                     >
                       {campaign.title}
+                      {campaign.deleted_at ? ' (deleted)' : ''}
                     </Link>
                     <Badge
                       variant="outline"
                       className={
-                        campaign.status === 'active'
-                          ? 'border-green-200 bg-green-50 text-green-700'
-                          : campaign.status === 'pending'
-                            ? 'border-amber-200 bg-amber-50 text-amber-700'
-                            : 'border-gray-200 bg-gray-50 text-gray-700'
+                        campaign.deleted_at
+                          ? 'border-red-200 bg-red-50 text-red-700'
+                          : campaign.status === 'active'
+                            ? 'border-green-200 bg-green-50 text-green-700'
+                            : campaign.status === 'pending'
+                              ? 'border-amber-200 bg-amber-50 text-amber-700'
+                              : 'border-gray-200 bg-gray-50 text-gray-700'
                       }
                     >
-                      {campaign.status}
+                      {campaign.deleted_at ? 'deleted' : campaign.status}
                     </Badge>
                   </div>
                   <div className="flex items-center gap-4 text-sm text-[#737373]">
@@ -550,10 +594,16 @@ function CampaignsContent({
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem>Edit Campaign</DropdownMenuItem>
-                      <DropdownMenuItem>View Analytics</DropdownMenuItem>
-                      <DropdownMenuItem>Share</DropdownMenuItem>
-                      <DropdownMenuItem className="text-red-600">Delete</DropdownMenuItem>
+                      <DropdownMenuItem disabled>Edit Campaign</DropdownMenuItem>
+                      <DropdownMenuItem disabled>View Analytics</DropdownMenuItem>
+                      <DropdownMenuItem disabled>Share</DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="text-red-600"
+                        disabled={!!campaign.deleted_at || deletingId === campaign.id}
+                        onClick={() => handleSoftDelete(campaign.id, campaign.title)}
+                      >
+                        {campaign.deleted_at ? 'Deleted' : 'Delete'}
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
@@ -578,7 +628,7 @@ function CampaignsContent({
         </div>
       )}
 
-      {campaigns.length === 0 && (
+      {visibleCampaigns.length === 0 && (
         <Card className="p-6">
           <h3 className="mb-4 font-medium">Quick Tips</h3>
           <ul className="space-y-2 text-sm text-[#737373]">
@@ -3029,7 +3079,13 @@ export function CBODashboard() {
       case 'profile':
         return <ProfileContent organization={organization} onRefresh={fetchData} />
       case 'campaigns':
-        return <CampaignsContent campaigns={campaigns} onCreateCampaign={handleCreateCampaign} />
+        return (
+          <CampaignsContent
+            campaigns={campaigns}
+            onCreateCampaign={handleCreateCampaign}
+            onRefresh={fetchData}
+          />
+        )
       case 'create-campaign':
         return (
           <CampaignForm

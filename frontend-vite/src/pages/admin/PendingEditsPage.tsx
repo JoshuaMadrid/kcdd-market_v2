@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '@clerk/clerk-react'
-import { Loader2, RefreshCw, Inbox } from 'lucide-react'
+import { Loader2, RefreshCw, Inbox, Trash2, RotateCcw } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -59,6 +59,20 @@ type DetailPreview = {
   }
 }
 
+type DeletedRow = {
+  id: string
+  slug: string
+  title: string | null
+  deleted_at: string
+  organization_id: string | null
+  organization_name: string | null
+}
+
+type DeletedListResponse = {
+  rows: DeletedRow[]
+  total: number
+}
+
 type TabKey = 'initial' | 'edits'
 
 function isTabKey(v: string | null): v is TabKey {
@@ -80,6 +94,10 @@ export function PendingEditsPage() {
   const [rejectRow, setRejectRow] = useState<PendingRow | null>(null)
   const [reviewNote, setReviewNote] = useState('')
   const [actionPending, setActionPending] = useState(false)
+  const [showDeleted, setShowDeleted] = useState(false)
+  const [deletedRows, setDeletedRows] = useState<DeletedRow[]>([])
+  const [deletedLoading, setDeletedLoading] = useState(false)
+  const [restoringId, setRestoringId] = useState<string | null>(null)
 
   const fetchList = useCallback(async () => {
     try {
@@ -96,6 +114,45 @@ export function PendingEditsPage() {
       setLoading(false)
     }
   }, [getToken, toast])
+
+  const fetchDeleted = useCallback(async () => {
+    try {
+      setDeletedLoading(true)
+      const data = await api.get<DeletedListResponse>('/api/admin/deleted-campaigns', getToken)
+      setDeletedRows(data.rows)
+    } catch (err) {
+      toast({
+        title: 'Failed to load deleted campaigns',
+        description: err instanceof Error ? err.message : 'Unknown error',
+        variant: 'destructive',
+      })
+    } finally {
+      setDeletedLoading(false)
+    }
+  }, [getToken, toast])
+
+  const handleRestore = async (row: DeletedRow) => {
+    setRestoringId(row.id)
+    try {
+      await api.post(`/api/admin/campaigns/${row.id}/restore`, {}, getToken)
+      toast({ title: 'Restored', description: row.title ?? row.slug })
+      await fetchDeleted()
+      await fetchList()
+    } catch (err) {
+      toast({
+        title: 'Restore failed',
+        description: err instanceof Error ? err.message : 'Unknown error',
+        variant: 'destructive',
+      })
+    } finally {
+      setRestoringId(null)
+    }
+  }
+
+  const openDeleted = () => {
+    setShowDeleted(true)
+    fetchDeleted()
+  }
 
   useEffect(() => {
     fetchList()
@@ -212,10 +269,16 @@ export function PendingEditsPage() {
             {rows.length} pending detail{rows.length === 1 ? '' : 's'} awaiting action.
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={fetchList} disabled={loading}>
-          <RefreshCw className={`mr-1 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-          Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={openDeleted}>
+            <Trash2 className="mr-1 h-4 w-4" />
+            View deleted
+          </Button>
+          <Button variant="outline" size="sm" onClick={fetchList} disabled={loading}>
+            <RefreshCw className={`mr-1 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={(v) => isTabKey(v) && setTab(v)}>
@@ -348,6 +411,63 @@ export function PendingEditsPage() {
               disabled={actionPending || previewLoading}
             >
               Approve
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Deleted campaigns modal */}
+      <Dialog open={showDeleted} onOpenChange={(open) => !open && setShowDeleted(false)}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Soft-deleted campaigns</DialogTitle>
+          </DialogHeader>
+          {deletedLoading ? (
+            <div className="flex items-center justify-center py-10">
+              <Loader2 className="h-6 w-6 animate-spin text-[#ea580c]" />
+            </div>
+          ) : deletedRows.length === 0 ? (
+            <div className="flex flex-col items-center gap-2 py-10 text-center">
+              <Inbox className="h-10 w-10 text-gray-300" />
+              <p className="text-sm text-[#737373]">No soft-deleted campaigns.</p>
+            </div>
+          ) : (
+            <div className="max-h-[60vh] space-y-2 overflow-auto">
+              {deletedRows.map((row) => (
+                <div
+                  key={row.id}
+                  className="flex items-center justify-between gap-4 rounded-lg border border-[#e5e5e5] p-3"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-[#0a0a0a]">
+                      {row.title ?? row.slug}
+                    </p>
+                    <p className="text-xs text-[#737373]">
+                      {row.organization_name ?? 'Unknown organization'} ·{' '}
+                      deleted {formatRelativeTime(row.deleted_at)}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-[#1b5858] text-[#1b5858] hover:bg-[#1b5858]/10"
+                    onClick={() => handleRestore(row)}
+                    disabled={restoringId === row.id}
+                  >
+                    {restoringId === row.id ? (
+                      <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                    ) : (
+                      <RotateCcw className="mr-1 h-4 w-4" />
+                    )}
+                    Restore
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setShowDeleted(false)}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>
