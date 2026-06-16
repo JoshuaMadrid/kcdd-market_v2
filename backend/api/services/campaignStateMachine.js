@@ -1,90 +1,109 @@
 /**
  * Campaign Approval State Machine
  *
- * Phase A, Task A3 — hand-rolled state transition module for the
- * `campaigns.approval_status` lifecycle. Mirrors the DB CHECK constraint
- * in `20260615000000_campaigns_approval_lifecycle.sql` and the transition
- * rules locked in `_docs/00.post-launch-feedback.architecture.md` (D2).
+ * Phase A, Task A3 — original module.
+ * Phase REFB (2026-06-16) — `campaigns.approval_status` was dropped. The
+ * lifecycle state is now DERIVED from `campaign_details` rows. The TRANSITIONS
+ * lookup table + `nextState()` are gone with it. Route handlers compute the
+ * current state via `getCampaignState(supabase, campaignId)` and pick the
+ * action themselves (DRAFT/REJECTED → submit_initial, ACTIVE → submit_edit).
  *
  * Pure module: no Express, no logging, no IO except via an injected
  * `supabase` client passed by the caller. Every function returns
  * deterministic output given identical inputs.
  *
  * Public surface:
- *   - STATES, ACTIONS, TRANSITIONS
- *   - nextState(currentState, action)
+ *   - STATES, ACTIONS                       — constants kept for callers.
+ *   - getCampaignState(supabase, campaignId) — derives state from details rows.
  *   - synthesizeDedupeKey({ kind, entity_id, version })
  *   - getAdminUserIds(supabase)
  *   - emitNotification(supabase, params)
  */
 
-// 6-state enum, mirrors the DB CHECK constraint exactly.
+// Lifecycle states. ARCHIVED is dropped pending a follow-up — soft-delete via
+// campaigns.deleted_at covers the only post-REFB use case. The remaining 5
+// values match what every caller branches on.
 export const STATES = Object.freeze({
   DRAFT: 'draft',
   PENDING_INITIAL_APPROVAL: 'pending_initial_approval',
   ACTIVE: 'active',
   PENDING_EDIT_APPROVAL: 'pending_edit_approval',
   REJECTED: 'rejected',
-  ARCHIVED: 'archived',
 })
 
-// Actions a route handler can request.
+// Actions a route handler can request. Kept as a stable vocabulary even
+// though TRANSITIONS is gone — callers still use these strings as labels
+// when logging / fanning out notifications.
 export const ACTIONS = Object.freeze({
   SUBMIT_INITIAL: 'submit_initial',
   SUBMIT_EDIT: 'submit_edit',
   APPROVE: 'approve',
   REJECT: 'reject',
-  ARCHIVE: 'archive',
-})
-
-// Transition table: source state → action → next state.
-// `pending_edit_approval + reject` reverts to `active` per the
-// 2026-06-15 locked decision (Open question #2). Disallowed
-// transitions are absent and cause nextState() to throw.
-export const TRANSITIONS = Object.freeze({
-  draft: {
-    submit_initial: 'pending_initial_approval',
-    archive: 'archived',
-  },
-  pending_initial_approval: {
-    approve: 'active',
-    reject: 'rejected',
-  },
-  active: {
-    submit_edit: 'pending_edit_approval',
-    archive: 'archived',
-  },
-  pending_edit_approval: {
-    approve: 'active',
-    reject: 'active',
-  },
-  rejected: {
-    submit_initial: 'pending_initial_approval',
-    archive: 'archived',
-  },
-  archived: {},
 })
 
 /**
- * Compute the next approval_status given the current status and an action.
+ * Derive the campaign's current lifecycle state from its campaign_details rows.
  *
- * @param {string} currentState — value from `STATES`.
- * @param {string} action — value from `ACTIONS`.
- * @returns {string} next state.
- * @throws {Error} when the transition is not in `TRANSITIONS`.
+ * Decision table (latest = highest `version`):
+ *   no detail rows                              → DRAFT
+ *   latest.status = pending_initial_approval    → PENDING_INITIAL_APPROVAL
+ *   latest.status = pending_edit_approval       → PENDING_EDIT_APPROVAL
+ *   latest.status = rejected AND has_approved=F → REJECTED
+ *   has_approved = TRUE                         → ACTIVE
+ *
+ * Edge: an approved detail exists but the latest detail is rejected. Donor
+ * still sees the last approved snapshot, so semantically the campaign is
+ * ACTIVE. The decision table above lands on ACTIVE for that case because
+ * the `has_approved=T` branch fires before any "latest=rejected" check.
+ *
+ * @param {import('@supabase/supabase-js').SupabaseClient} supabase
+ * @param {string} campaignId
+ * @returns {Promise<string>} one of STATES.*
  */
-export function nextState(currentState, action) {
-  const branch = TRANSITIONS[currentState]
-  if (!branch) {
-    throw new Error(`Unknown campaign state: "${currentState}"`)
+export async function getCampaignState(supabase, campaignId) {
+  if (!campaignId) {
+    throw new Error('getCampaignState: campaignId is required')
   }
-  const target = branch[action]
-  if (!target) {
-    throw new Error(
-      `Invalid transition: action "${action}" is not allowed from state "${currentState}"`
-    )
+
+  // Single round-trip: latest detail row + a boolean "any approved exists".
+  // PostgREST does not expose SQL subqueries via the JS client, so we issue
+  // two simple queries in parallel. Both hit the same partial / composite
+  // indexes from REFA1 (idx_campaign_details_campaign_status_version).
+  const [latestRes, approvedRes] = await Promise.all([
+    supabase
+      .from('campaign_details')
+      .select('status, version')
+      .eq('campaign_id', campaignId)
+      .order('version', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('campaign_details')
+      .select('id', { head: true, count: 'exact' })
+      .eq('campaign_id', campaignId)
+      .eq('status', 'approved')
+      .limit(1),
+  ])
+
+  if (latestRes.error) throw latestRes.error
+  if (approvedRes.error) throw approvedRes.error
+
+  const latest = latestRes.data
+  const hasApproved = (approvedRes.count ?? 0) > 0
+
+  if (!latest) return STATES.DRAFT
+
+  if (latest.status === 'pending_initial_approval') {
+    return STATES.PENDING_INITIAL_APPROVAL
   }
-  return target
+  if (latest.status === 'pending_edit_approval') {
+    return STATES.PENDING_EDIT_APPROVAL
+  }
+  if (hasApproved) return STATES.ACTIVE
+  if (latest.status === 'rejected') return STATES.REJECTED
+  // Defensive: detail row present but not in any of the buckets above
+  // (e.g. an unexpected `draft` status). Treat as DRAFT.
+  return STATES.DRAFT
 }
 
 /**

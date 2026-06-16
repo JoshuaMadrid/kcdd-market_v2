@@ -176,48 +176,49 @@ UPDATE organizations SET
 WHERE id = '00000000-0000-0000-0004-000000000003';
 
 -- STEP M5: campaigns (6 active + 1 pending, spread across the 3 CBOs)
--- After REFA6, campaigns table holds only identity + runtime counters + status +
--- approval lifecycle columns. All editorial content lives in campaign_details.content
--- (JSONB), inserted in the A13-* steps below.
+-- After REFB, campaigns table holds only identity + runtime counters + lifecycle
+-- stamps + soft-delete. State is DERIVED from campaign_details rows (inserted
+-- in the A13-* steps below). No status / approval_status / published_detail_id
+-- columns exist anymore.
 INSERT INTO campaigns (
   id, organization_id, created_by, slug,
-  amount_raised, supporters_count, status, created_at
+  amount_raised, supporters_count, created_at
 ) VALUES
   ('00000000-0000-0000-0009-000000000001',
    '00000000-0000-0000-0004-000000000001',
    '00000000-0000-0000-0002-000000000001',
    'laptops-for-roots-afterschool',
-   7350.00, 47, 'active', NOW()),
+   7350.00, 47, NOW()),
   ('00000000-0000-0000-0009-000000000002',
    '00000000-0000-0000-0004-000000000003',
    '00000000-0000-0000-0002-000000000003',
    'digital-futures-mobile-lab',
-   18900.00, 121, 'active', NOW()),
+   18900.00, 121, NOW()),
   ('00000000-0000-0000-0009-000000000003',
    '00000000-0000-0000-0004-000000000002',
    '00000000-0000-0000-0002-000000000002',
    'tech-bridge-senior-cohort-spring-2026',
-   0.00, 0, 'pending', NOW()),
+   0.00, 0, NOW()),
   ('00000000-0000-0000-0009-000000000004',
    '00000000-0000-0000-0004-000000000002',
    '00000000-0000-0000-0002-000000000002',
    'workforce-computer-lab-tech-bridge',
-   4250.00, 19, 'active', NOW()),
+   4250.00, 19, NOW()),
   ('00000000-0000-0000-0009-000000000005',
    '00000000-0000-0000-0004-000000000001',
    '00000000-0000-0000-0002-000000000001',
    'arts-studio-tablets-roots-teens',
-   4200.00, 38, 'active', NOW()),
+   4200.00, 38, NOW()),
   ('00000000-0000-0000-0009-000000000006',
    '00000000-0000-0000-0004-000000000003',
    '00000000-0000-0000-0002-000000000003',
    'stay-connected-phones-housing-stability',
-   6500.00, 73, 'active', NOW()),
+   6500.00, 73, NOW()),
   ('00000000-0000-0000-0009-000000000007',
    '00000000-0000-0000-0004-000000000001',
    '00000000-0000-0000-0002-000000000001',
    'health-tech-kiosk-roots-community-hub',
-   1850.00, 12, 'active', NOW())
+   1850.00, 12, NOW())
 ON CONFLICT (id) DO NOTHING;
 
 -- Storage bucket for receipt PDFs (local dev only — main's policy says
@@ -360,38 +361,31 @@ INSERT INTO campaign_details (
    NOW() - INTERVAL '7 days')
 ON CONFLICT (campaign_id, version) DO NOTHING;
 
--- STEP A13-2b: Mark campaigns 1, 2, 4, 5 active and point published_detail_id
--- at their v1. Campaign 7 is handled in 2c (it gets a pending v2).
-UPDATE campaigns c
+-- STEP A13-2b: Stamp first_approved_at / last_edit_approved_at for
+-- campaigns 1, 2, 4, 5. State is now derived from campaign_details rows
+-- (their v1 detail is already status='approved' above), so no
+-- approval_status / published_detail_id columns to set.
+UPDATE campaigns
 SET
-  approval_status = 'active',
   first_approved_at = NOW() - INTERVAL '7 days',
-  last_edit_approved_at = NOW() - INTERVAL '7 days',
-  published_detail_id = d.id
-FROM campaign_details d
-WHERE d.campaign_id = c.id
-  AND d.version = 1
-  AND c.id IN (
-    '00000000-0000-0000-0009-000000000001',
-    '00000000-0000-0000-0009-000000000002',
-    '00000000-0000-0000-0009-000000000004',
-    '00000000-0000-0000-0009-000000000005'
-  );
+  last_edit_approved_at = NOW() - INTERVAL '7 days'
+WHERE id IN (
+  '00000000-0000-0000-0009-000000000001',
+  '00000000-0000-0000-0009-000000000002',
+  '00000000-0000-0000-0009-000000000004',
+  '00000000-0000-0000-0009-000000000005'
+);
 
--- STEP A13-2c: Campaign 7 (Health-Tech Kiosk) — publish v1 first so we
--- have a baseline, then create pending v2 with a visible title tweak, then
--- flip campaign to pending_edit_approval (published_detail_id still points
--- at v1).
-UPDATE campaigns c
+-- STEP A13-2c: Campaign 7 (Health-Tech Kiosk) — v1 is already
+-- status='approved' above, so derived state will be ACTIVE once we stamp
+-- the lifecycle timestamps. Then we insert a pending v2 below; the
+-- derived state will flip to PENDING_EDIT_APPROVAL because v2 is the
+-- latest detail row.
+UPDATE campaigns
 SET
-  approval_status = 'active',
   first_approved_at = NOW() - INTERVAL '7 days',
-  last_edit_approved_at = NOW() - INTERVAL '7 days',
-  published_detail_id = d.id
-FROM campaign_details d
-WHERE d.campaign_id = c.id
-  AND d.version = 1
-  AND c.id = '00000000-0000-0000-0009-000000000007';
+  last_edit_approved_at = NOW() - INTERVAL '7 days'
+WHERE id = '00000000-0000-0000-0009-000000000007';
 
 INSERT INTO campaign_details (
   campaign_id, version, content, changed_by,
@@ -417,9 +411,11 @@ INSERT INTO campaign_details (
    NOW() - INTERVAL '2 hours')
 ON CONFLICT (campaign_id, version) DO NOTHING;
 
+-- Derived state for campaign 7 is now PENDING_EDIT_APPROVAL because the
+-- v2 detail above is the latest row with status='pending_edit_approval'.
+-- Only stamp last_edited_at to reflect the edit timestamp.
 UPDATE campaigns
-SET approval_status = 'pending_edit_approval',
-    last_edited_at = NOW() - INTERVAL '2 hours'
+SET last_edited_at = NOW() - INTERVAL '2 hours'
 WHERE id = '00000000-0000-0000-0009-000000000007';
 
 -- STEP A13-2d: Campaigns 3 + 6 — pending_initial_approval (no published detail).
@@ -465,9 +461,11 @@ INSERT INTO campaign_details (
    NOW() - INTERVAL '1 day')
 ON CONFLICT (campaign_id, version) DO NOTHING;
 
+-- Derived state for campaigns 3 and 6 is now PENDING_INITIAL_APPROVAL
+-- because their only detail row above has status='pending_initial_approval'
+-- and no approved row exists. Stamp last_edited_at only.
 UPDATE campaigns
-SET approval_status = 'pending_initial_approval',
-    last_edited_at = NOW() - INTERVAL '1 day'
+SET last_edited_at = NOW() - INTERVAL '1 day'
 WHERE id IN (
   '00000000-0000-0000-0009-000000000003',
   '00000000-0000-0000-0009-000000000006'

@@ -618,8 +618,7 @@ export function CampaignPage() {
       const query = supabase.from('campaigns').select(
         `
           *,
-          organization:organizations(id, name, slug, mission, logo_url, stripe_charges_enabled),
-          published_detail:campaign_details!campaigns_published_detail_id_fkey(content)
+          organization:organizations(id, name, slug, mission, logo_url, stripe_charges_enabled)
         `
       )
       const { data, error } = await (
@@ -628,14 +627,23 @@ export function CampaignPage() {
 
       if (error) throw error
 
-      // D-public-page: render content from the published campaign_details row,
-      // not from the live campaigns row. The live row still sources identity
-      // + runtime counters (amount_raised, supporters_count, approval_status,
-      // organization join). Falls back to the live row when no published
-      // content exists (defensive: backfill should make this impossible).
+      // Post-REFB: campaigns has no published_detail_id pointer. Fetch the
+      // latest approved campaign_details row in a separate query and overlay
+      // its content onto the live row. Live row still owns identity +
+      // runtime counters (amount_raised, supporters_count, organization join).
+      const { data: approvedDetail } = await supabase
+        .from('campaign_details')
+        .select('content, version')
+        .eq('campaign_id', (data as { id: string }).id)
+        .eq('status', 'approved')
+        .order('version', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      // approvedDetail is typed `never` by the supabase generic for tables that
+      // don't yet exist in `src/types/database.types.ts`. Cast through unknown.
       const content =
-        (data as { published_detail?: { content?: PublishedCampaignContent } | null })
-          .published_detail?.content ?? null
+        ((approvedDetail as unknown as { content?: PublishedCampaignContent } | null)?.content) ?? null
 
       const view = buildPublishedCampaignView(
         data as Record<string, unknown>,

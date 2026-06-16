@@ -20,7 +20,8 @@ import usersRouter from './routes/users.js'
 import { buildPaymentMetadata, appendLifecycle } from './helpers/paymentMetadata.js'
 import { upsertDispute } from './helpers/disputes.js'
 import {
-  nextState as campaignNextState,
+  STATES as CAMPAIGN_STATES,
+  getCampaignState,
   getAdminUserIds,
   emitNotification,
 } from './services/campaignStateMachine.js'
@@ -102,18 +103,29 @@ function escapeXml(s) {
 
 /**
  * GET /sitemap.xml
- * Public, no auth. Lists all donor-visible campaigns (published_detail_id
- * IS NOT NULL). Uses last_edit_approved_at (fallback created_at) for <lastmod>.
+ * Public, no auth. Lists all donor-visible campaigns — i.e. those with at
+ * least one approved campaign_details row and not soft-deleted. Uses
+ * last_edit_approved_at (fallback created_at) for <lastmod>.
  */
 app.get('/sitemap.xml', async (req, res) => {
   try {
+    // Post-REFB: derive donor-visibility from an INNER JOIN on
+    // campaign_details where status='approved'. PostgREST's `inner` hint
+    // turns the embed into an INNER JOIN; the filter on the embed restricts
+    // to approved rows. Duplicate rows (multiple approved versions per
+    // campaign) are collapsed by slug in the JS Map below.
     const { data, error } = await supabase
       .from('campaigns')
-      .select('slug, last_edit_approved_at, created_at')
-      .not('published_detail_id', 'is', null)
+      .select('slug, last_edit_approved_at, created_at, deleted_at, campaign_details!inner(status)')
+      .eq('campaign_details.status', 'approved')
+      .is('deleted_at', null)
     if (error) throw error
+    const bySlug = new Map()
+    for (const c of data ?? []) {
+      if (!bySlug.has(c.slug)) bySlug.set(c.slug, c)
+    }
     const base = process.env.FRONTEND_BASE_URL || 'http://localhost:5173'
-    const urls = (data ?? [])
+    const urls = Array.from(bySlug.values())
       .map((c) => {
         const lastmod = c.last_edit_approved_at || c.created_at
         return `  <url>
@@ -145,12 +157,17 @@ ${urls}
  */
 app.get('/api/campaigns/:slug/public-meta', async (req, res) => {
   try {
+    // Post-REFB: donor-visibility = at least one approved detail row exists.
+    // Inner-join via PostgREST and require status='approved'.
     const { data, error } = await supabase
       .from('campaigns')
-      .select('slug, last_edit_approved_at, created_at, published_detail_id')
+      .select('slug, last_edit_approved_at, created_at, deleted_at, campaign_details!inner(status)')
       .eq('slug', req.params.slug)
-      .single()
-    if (error || !data || !data.published_detail_id) {
+      .eq('campaign_details.status', 'approved')
+      .is('deleted_at', null)
+      .limit(1)
+      .maybeSingle()
+    if (error || !data) {
       return res.status(404).json({ error: 'Not found' })
     }
     const lm = new Date(data.last_edit_approved_at || data.created_at)
@@ -1047,14 +1064,14 @@ async function handleTransferCreated(transfer) {
  *   (title, description, story, etc.). The frontend posts the full
  *   proposed content for this version.
  *
- * Behavior:
- *   - status in (draft, rejected) → action=submit_initial
- *   - status === 'active'         → action=submit_edit
- *   - otherwise                   → 409 (edit already pending / archived)
+ * Behavior (post-REFB; campaign state is DERIVED from campaign_details):
+ *   - DRAFT / REJECTED → action=submit_initial, new detail status=pending_initial_approval
+ *   - ACTIVE           → action=submit_edit,    new detail status=pending_edit_approval
+ *   - otherwise        → 409 INVALID_TRANSITION (edit already pending, etc.)
  *
  * Side effects:
  *   1. INSERT campaign_details row (version = max+1).
- *   2. UPDATE campaigns.approval_status + last_edited_at.
+ *   2. UPDATE campaigns.last_edited_at  (NO campaign-level state column anymore).
  *   3. Fan-out notifications to every admin user.
  */
 app.post('/api/campaigns/:id/submit-edit', clerkAuth, async (req, res) => {
@@ -1067,10 +1084,11 @@ app.post('/api/campaigns/:id/submit-edit', clerkAuth, async (req, res) => {
       return res.status(400).json({ error: 'Missing or invalid content' })
     }
 
-    // 1. Load campaign + owning organization for auth + state read.
+    // 1. Load campaign + owning organization for auth. Title is read from the
+    //    submitted content (campaigns row no longer carries it).
     const { data: campaign, error: fetchError } = await supabase
       .from('campaigns')
-      .select('id, title, approval_status, organization_id, organizations(user_id)')
+      .select('id, organization_id, organizations(user_id)')
       .eq('id', campaignId)
       .single()
 
@@ -1083,27 +1101,24 @@ app.post('/api/campaigns/:id/submit-edit', clerkAuth, async (req, res) => {
       return res.status(403).json({ error: 'Forbidden: not the campaign owner' })
     }
 
-    // 2. Resolve action from current status.
-    const currentStatus = campaign.approval_status
-    let action
-    if (currentStatus === 'draft' || currentStatus === 'rejected') {
-      action = 'submit_initial'
-    } else if (currentStatus === 'active') {
-      action = 'submit_edit'
+    // 2. Derive current state from campaign_details rows.
+    const currentState = await getCampaignState(supabase, campaignId)
+
+    // 3. Resolve detail status from current state.
+    let detailStatus
+    if (
+      currentState === CAMPAIGN_STATES.DRAFT ||
+      currentState === CAMPAIGN_STATES.REJECTED
+    ) {
+      detailStatus = 'pending_initial_approval'
+    } else if (currentState === CAMPAIGN_STATES.ACTIVE) {
+      detailStatus = 'pending_edit_approval'
     } else {
       return res.status(409).json({
-        error: 'Cannot submit edit from current state',
-        code: 'INVALID_STATE',
-        currentStatus,
+        error: `Cannot submit edit from state "${currentState}"`,
+        code: 'INVALID_TRANSITION',
+        currentState,
       })
-    }
-
-    // 3. Compute new status via the state machine (also guards bad inputs).
-    let newStatus
-    try {
-      newStatus = campaignNextState(currentStatus, action)
-    } catch (err) {
-      return res.status(409).json({ error: err.message, code: 'INVALID_TRANSITION' })
     }
 
     // 4. Compute next version.
@@ -1119,11 +1134,6 @@ app.post('/api/campaigns/:id/submit-edit', clerkAuth, async (req, res) => {
     const nextVersion = (maxRow?.version ?? 0) + 1
 
     // 5. INSERT campaign_details row.
-    const detailStatus =
-      newStatus === 'pending_initial_approval'
-        ? 'pending_initial_approval'
-        : 'pending_edit_approval'
-
     const { data: detail, error: insertErr } = await supabase
       .from('campaign_details')
       .insert({
@@ -1139,18 +1149,18 @@ app.post('/api/campaigns/:id/submit-edit', clerkAuth, async (req, res) => {
 
     if (insertErr) throw insertErr
 
-    // 6. UPDATE campaigns.approval_status + last_edited_at.
+    // 6. UPDATE campaigns.last_edited_at. No campaign-level state column to set.
     const { error: updateErr } = await supabase
       .from('campaigns')
-      .update({
-        approval_status: newStatus,
-        last_edited_at: new Date().toISOString(),
-      })
+      .update({ last_edited_at: new Date().toISOString() })
       .eq('id', campaignId)
 
     if (updateErr) throw updateErr
 
-    // 7. Fan-out notifications to admins.
+    // 7. Fan-out notifications to admins. Title is sourced from the submitted
+    //    content (campaigns row no longer carries it).
+    const campaignTitle =
+      (content && typeof content.title === 'string' ? content.title : null) ?? null
     try {
       const adminIds = await getAdminUserIds(supabase)
       await Promise.all(
@@ -1163,7 +1173,7 @@ app.post('/api/campaigns/:id/submit-edit', clerkAuth, async (req, res) => {
             version: detail.version,
             payload: {
               campaign_id: campaignId,
-              campaign_title: campaign.title,
+              campaign_title: campaignTitle,
             },
             link_url: `/admin/pending-edits/${campaignId}`,
           })
@@ -1174,10 +1184,18 @@ app.post('/api/campaigns/:id/submit-edit', clerkAuth, async (req, res) => {
       console.error('Error fanning out submit-edit notifications:', notifyErr)
     }
 
+    // Derived next state after a successful submit:
+    //   submit_initial → pending_initial_approval
+    //   submit_edit    → pending_edit_approval
+    const newState =
+      detailStatus === 'pending_initial_approval'
+        ? CAMPAIGN_STATES.PENDING_INITIAL_APPROVAL
+        : CAMPAIGN_STATES.PENDING_EDIT_APPROVAL
+
     return res.json({
       detail_id: detail.id,
       version: detail.version,
-      status: newStatus,
+      status: newState,
     })
   } catch (err) {
     console.error('Error in submit-edit:', err)
@@ -1192,12 +1210,15 @@ app.post('/api/campaigns/:id/submit-edit', clerkAuth, async (req, res) => {
  * Auth: Clerk JWT — caller must have user_profiles.user_type='admin'.
  * Body: none.
  *
- * Side effects:
+ * Side effects (post-REFB):
  *   - UPDATE detail row: approved + approved_by + approved_at.
- *   - UPDATE campaign: approval_status='active',
- *     published_detail_id=detailId, last_edit_approved_at=now(),
- *     first_approved_at=now() if previously NULL.
+ *   - UPDATE campaign: last_edit_approved_at=now(),
+ *     first_approved_at=COALESCE(first_approved_at, now()).
+ *     (NO approval_status / published_detail_id columns anymore.)
  *   - Emit notification to CBO (campaigns.created_by).
+ *
+ * Response: { status: 'active' } — derived state after a successful approve
+ *   on a pending_* detail is always ACTIVE.
  */
 app.post(
   '/api/admin/campaigns/:campaignId/details/:detailId/approve',
@@ -1220,7 +1241,7 @@ app.post(
       // 2. Load detail + campaign.
       const { data: detail, error: detailErr } = await supabase
         .from('campaign_details')
-        .select('id, campaign_id, version, status')
+        .select('id, campaign_id, version, status, content')
         .eq('id', detailId)
         .single()
       if (detailErr || !detail) {
@@ -1232,22 +1253,29 @@ app.post(
 
       const { data: campaign, error: campErr } = await supabase
         .from('campaigns')
-        .select('id, slug, title, approval_status, created_by, first_approved_at')
+        .select('id, slug, created_by, first_approved_at')
         .eq('id', campaignId)
         .single()
       if (campErr || !campaign) {
         return res.status(404).json({ error: 'Campaign not found' })
       }
 
-      // 3. State machine: only valid from pending_* states.
-      let newStatus
-      try {
-        newStatus = campaignNextState(campaign.approval_status, 'approve')
-      } catch (err) {
-        return res.status(409).json({ error: err.message, code: 'INVALID_TRANSITION' })
+      // 3. Verify state from the detail rows themselves: only valid from a
+      //    pending_* derived state.
+      const currentState = await getCampaignState(supabase, campaignId)
+      if (
+        currentState !== CAMPAIGN_STATES.PENDING_INITIAL_APPROVAL &&
+        currentState !== CAMPAIGN_STATES.PENDING_EDIT_APPROVAL
+      ) {
+        return res.status(409).json({
+          error: `Cannot approve from state "${currentState}"`,
+          code: 'INVALID_TRANSITION',
+          currentState,
+        })
       }
 
       const nowIso = new Date().toISOString()
+      const isFirstApproval = !campaign.first_approved_at
 
       // 4. UPDATE detail row.
       const { error: detailUpdErr } = await supabase
@@ -1260,24 +1288,23 @@ app.post(
         .eq('id', detailId)
       if (detailUpdErr) throw detailUpdErr
 
-      // 5. UPDATE campaign — set published detail pointer + timestamps.
-      const isFirstApproval = !campaign.first_approved_at
-      const campaignPatch = {
-        approval_status: newStatus,
-        published_detail_id: detailId,
-        last_edit_approved_at: nowIso,
-      }
+      // 5. UPDATE campaign timestamps. No state column to set.
+      //    first_approved_at uses COALESCE-style: only write it when NULL.
+      const campaignPatch = { last_edit_approved_at: nowIso }
       if (isFirstApproval) {
         campaignPatch.first_approved_at = nowIso
       }
-
       const { error: campUpdErr } = await supabase
         .from('campaigns')
         .update(campaignPatch)
         .eq('id', campaignId)
       if (campUpdErr) throw campUpdErr
 
-      // 6. Notify CBO.
+      // 6. Notify CBO. Title comes from the approved detail's content.
+      const campaignTitle =
+        detail.content && typeof detail.content.title === 'string'
+          ? detail.content.title
+          : null
       try {
         if (campaign.created_by) {
           await emitNotification(supabase, {
@@ -1288,7 +1315,7 @@ app.post(
             version: detail.version,
             payload: {
               campaign_id: campaign.id,
-              campaign_title: campaign.title,
+              campaign_title: campaignTitle,
             },
             link_url: `/campaign/${campaign.slug}`,
           })
@@ -1297,10 +1324,7 @@ app.post(
         console.error('Error notifying CBO of approval:', notifyErr)
       }
 
-      return res.json({
-        status: newStatus,
-        published_detail_id: detailId,
-      })
+      return res.json({ status: CAMPAIGN_STATES.ACTIVE })
     } catch (err) {
       console.error('Error in detail approve:', err)
       return res.status(500).json({ error: err.message })
@@ -1315,10 +1339,15 @@ app.post(
  * Auth: Clerk JWT — admin only.
  * Body: { review_note: string }  (required, min length 1)
  *
- * Side effects:
+ * Side effects (post-REFB):
  *   - UPDATE detail: rejected + approved_by + approved_at + review_note.
- *   - UPDATE campaign.approval_status only (published_detail_id stays).
+ *   - Campaign row is NOT mutated (no state column to set; the last
+ *     approved detail continues to be the donor-visible one).
  *   - Emit `campaign_edit_rejected` notification to the CBO.
+ *
+ * Response: { status } — derived state AFTER the reject.
+ *   pending_edit_approval    → ACTIVE       (prior approved detail stays live)
+ *   pending_initial_approval → REJECTED
  */
 app.post(
   '/api/admin/campaigns/:campaignId/details/:detailId/reject',
@@ -1346,7 +1375,7 @@ app.post(
       // 2. Load detail + campaign.
       const { data: detail, error: detailErr } = await supabase
         .from('campaign_details')
-        .select('id, campaign_id, version, status')
+        .select('id, campaign_id, version, status, content')
         .eq('id', detailId)
         .single()
       if (detailErr || !detail) {
@@ -1358,20 +1387,24 @@ app.post(
 
       const { data: campaign, error: campErr } = await supabase
         .from('campaigns')
-        .select('id, title, approval_status, created_by')
+        .select('id, created_by')
         .eq('id', campaignId)
         .single()
       if (campErr || !campaign) {
         return res.status(404).json({ error: 'Campaign not found' })
       }
 
-      // 3. State machine: reject reverts pending_edit_approval → active,
-      //    pending_initial_approval → rejected.
-      let newStatus
-      try {
-        newStatus = campaignNextState(campaign.approval_status, 'reject')
-      } catch (err) {
-        return res.status(409).json({ error: err.message, code: 'INVALID_TRANSITION' })
+      // 3. Verify derived state — only valid from pending_*.
+      const beforeState = await getCampaignState(supabase, campaignId)
+      if (
+        beforeState !== CAMPAIGN_STATES.PENDING_INITIAL_APPROVAL &&
+        beforeState !== CAMPAIGN_STATES.PENDING_EDIT_APPROVAL
+      ) {
+        return res.status(409).json({
+          error: `Cannot reject from state "${beforeState}"`,
+          code: 'INVALID_TRANSITION',
+          currentState: beforeState,
+        })
       }
 
       const nowIso = new Date().toISOString()
@@ -1388,15 +1421,19 @@ app.post(
         .eq('id', detailId)
       if (detailUpdErr) throw detailUpdErr
 
-      // 5. UPDATE campaign approval_status ONLY. Do NOT touch
-      //    published_detail_id — the last approved detail stays live.
-      const { error: campUpdErr } = await supabase
-        .from('campaigns')
-        .update({ approval_status: newStatus })
-        .eq('id', campaignId)
-      if (campUpdErr) throw campUpdErr
+      // 5. Compute the derived state AFTER the reject.
+      //    pending_edit_approval → ACTIVE (prior approved detail still exists)
+      //    pending_initial_approval → REJECTED (no approved detail exists)
+      const afterState =
+        beforeState === CAMPAIGN_STATES.PENDING_EDIT_APPROVAL
+          ? CAMPAIGN_STATES.ACTIVE
+          : CAMPAIGN_STATES.REJECTED
 
-      // 6. Notify CBO.
+      // 6. Notify CBO. Title sourced from the rejected detail's content.
+      const campaignTitle =
+        detail.content && typeof detail.content.title === 'string'
+          ? detail.content.title
+          : null
       try {
         if (campaign.created_by) {
           await emitNotification(supabase, {
@@ -1407,7 +1444,7 @@ app.post(
             version: detail.version,
             payload: {
               campaign_id: campaign.id,
-              campaign_title: campaign.title,
+              campaign_title: campaignTitle,
               review_note: reviewNote,
             },
             link_url: `/dashboard/campaigns/${campaign.id}`,
@@ -1417,7 +1454,7 @@ app.post(
         console.error('Error notifying CBO of rejection:', notifyErr)
       }
 
-      return res.json({ status: newStatus })
+      return res.json({ status: afterState })
     } catch (err) {
       console.error('Error in detail reject:', err)
       return res.status(500).json({ error: err.message })
@@ -1458,11 +1495,13 @@ app.get('/api/admin/pending-edits', clerkAuth, async (req, res) => {
 
     // 2. Pull every pending detail joined to its campaign + org.
     //    Sorted oldest-first so admins burn down the queue FIFO.
+    //    Post-REFB: campaigns row no longer carries approval_status / title;
+    //    title is read from the detail's content blob.
     const { data: details, error: detailErr } = await supabase
       .from('campaign_details')
       .select(
-        'id, version, status, change_summary, changed_by, created_at, campaign_id, ' +
-          'campaigns!inner(id, title, slug, approval_status, organization_id, organizations(id, name))'
+        'id, version, status, change_summary, changed_by, created_at, campaign_id, content, ' +
+          'campaigns!inner(id, slug, organization_id, organizations(id, name))'
       )
       .in('status', ['pending_initial_approval', 'pending_edit_approval'])
       .order('created_at', { ascending: true })
@@ -1478,9 +1517,11 @@ app.get('/api/admin/pending-edits', clerkAuth, async (req, res) => {
       seen.add(d.campaign_id)
       const c = d.campaigns || {}
       const org = c.organizations || {}
+      const title =
+        d.content && typeof d.content.title === 'string' ? d.content.title : null
       rows.push({
         campaign_id: c.id,
-        campaign_title: c.title,
+        campaign_title: title,
         campaign_slug: c.slug,
         organization_id: c.organization_id,
         organization_name: org.name ?? null,
@@ -1490,7 +1531,6 @@ app.get('/api/admin/pending-edits', clerkAuth, async (req, res) => {
         change_summary: d.change_summary,
         submitted_by: d.changed_by,
         submitted_at: d.created_at,
-        campaign_approval_status: c.approval_status,
         is_initial: d.status === 'pending_initial_approval',
       })
     }

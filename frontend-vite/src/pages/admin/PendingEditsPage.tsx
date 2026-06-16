@@ -38,7 +38,6 @@ type PendingRow = {
   change_summary: string | null
   submitted_by: string
   submitted_at: string
-  campaign_approval_status: string
   is_initial: boolean
 }
 
