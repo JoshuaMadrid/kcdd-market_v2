@@ -70,7 +70,11 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 function ProtectedAdminRoute({ children }: { children: React.ReactNode }) {
   const { userType, loading } = useRealUserType()
 
-  if (loading) {
+  // H4-B: treat null as "still resolving / transient fetch error" so a
+  // network blip during user_profiles select does not demote an admin
+  // to Access Denied mid-session. useRealUserType now returns null on
+  // fetch error (was: 'donor'), and we surface that as a spinner here.
+  if (loading || userType == null) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-[#ea580c]" />

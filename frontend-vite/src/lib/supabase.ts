@@ -19,10 +19,29 @@ import type { Database } from '@/types/database'
 // session token. Always installed — once Supabase Third Party Auth trusts
 // Clerk, `auth.uid()` in RLS becomes the signed-in Clerk user ID.
 type ClerkTokenGetter = (() => Promise<string | null>) | null
+type ClerkSignedInGetter = (() => boolean) | null
 let clerkTokenGetter: ClerkTokenGetter = null
+let clerkIsSignedInGetter: ClerkSignedInGetter = null
 
-export const registerClerkTokenGetter = (getter: ClerkTokenGetter) => {
+// H4-A: thrown when a signed-in user's Clerk session token cannot be
+// refreshed for a Supabase request. The anon-key fallback is reserved
+// for signed-out users only; a signed-in user with a stale/missing
+// token must fail loud so callers don't silently render anon-keyed
+// (RLS-blocked) empty data.
+export class SupabaseAuthRefreshError extends Error {
+  constructor(cause?: unknown) {
+    super('Failed to refresh Clerk session for Supabase request')
+    this.name = 'SupabaseAuthRefreshError'
+    ;(this as any).cause = cause
+  }
+}
+
+export const registerClerkTokenGetter = (
+  getter: ClerkTokenGetter,
+  isSignedInGetter: ClerkSignedInGetter = null
+) => {
   clerkTokenGetter = getter
+  clerkIsSignedInGetter = isSignedInGetter
 }
 
 // Create Supabase client
@@ -32,16 +51,29 @@ export const supabase = createClient<Database>(supabaseConfig.url, supabaseConfi
     autoRefreshToken: false,
   },
   // supabase-js >= 2.42 — called per-request, used as the Bearer in Authorization.
+  //
+  // H4-A: distinguish "signed out" (return anon, valid) from "signed in
+  // but token fetch failed" (throw SupabaseAuthRefreshError). The anon
+  // path is preserved only for signed-out users to keep public pages
+  // working; signed-in transient failures must surface, not silently
+  // degrade authority to anon (which RLS returns 0 rows for protected
+  // queries).
   accessToken: async () => {
-    try {
-      if (clerkTokenGetter) {
-        const token = await clerkTokenGetter()
-        if (token) return token
-      }
-    } catch {
-      // fall through to anon key
+    const signedIn = clerkIsSignedInGetter ? clerkIsSignedInGetter() : false
+    if (!signedIn) {
+      return supabaseConfig.anonKey
     }
-    return supabaseConfig.anonKey
+    if (!clerkTokenGetter) {
+      throw new SupabaseAuthRefreshError('clerkTokenGetter not registered while signed in')
+    }
+    try {
+      const token = await clerkTokenGetter()
+      if (token) return token
+      throw new SupabaseAuthRefreshError('Clerk getToken returned null while signed in')
+    } catch (err) {
+      if (err instanceof SupabaseAuthRefreshError) throw err
+      throw new SupabaseAuthRefreshError(err)
+    }
   },
 } as any)
 
