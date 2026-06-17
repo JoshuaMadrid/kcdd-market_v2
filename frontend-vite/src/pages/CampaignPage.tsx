@@ -1077,9 +1077,9 @@ export function CampaignPage() {
                 <div className="space-y-2.5">
                   <Link
                     to={`/organizations/${campaign.organization?.slug || campaign.organization?.id || campaign.organization_id}`}
-                    className="flex items-center gap-2.5 transition-opacity hover:opacity-80"
+                    className="group flex cursor-pointer items-center gap-2.5 transition-opacity hover:opacity-80"
                   >
-                    <Avatar className="h-[42px] w-[42px]">
+                    <Avatar className="h-[42px] w-[42px] transition-all group-hover:ring-2 group-hover:ring-[hsl(var(--brand-primary))] group-hover:ring-offset-2">
                       <AvatarImage
                         src={campaign.logo_url || campaign.organization?.logo_url || undefined}
                       />
@@ -1090,12 +1090,15 @@ export function CampaignPage() {
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1">
-                      <p className="text-lg font-bold text-[#0a0a0a] transition-colors hover:text-[#ea580c]">
+                      <p className="text-lg font-bold text-[#0a0a0a] transition-colors hover:text-[#ea580c] group-hover:text-[hsl(var(--brand-primary))] group-hover:underline">
                         {campaign.creator_name || campaign.organization?.name}
                       </p>
                       <p className="text-sm text-[#737373]">
                         {campaign.creator_role || 'Campaign Creator'}
                       </p>
+                      <span className="mt-1 inline-flex items-center gap-1 text-xs text-neutral-400 group-hover:text-[hsl(var(--brand-primary))]">
+                        View organization profile <span aria-hidden="true">→</span>
+                      </span>
                     </div>
                   </Link>
 
