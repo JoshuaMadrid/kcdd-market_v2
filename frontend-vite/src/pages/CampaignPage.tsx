@@ -1327,11 +1327,24 @@ export function CampaignPage() {
                         </button>
                       ))}
                     </nav>
-                  ) : (
-                    <p className="text-sm italic text-[#737373]">
-                      Add headings (H1-H6) to your story to generate an outline
-                    </p>
-                  )}
+                  ) : isOwner ? (
+                    <div className="rounded-lg border-2 border-dashed border-neutral-300 bg-neutral-50/50 p-4 text-sm">
+                      <p className="mb-2 text-neutral-700">
+                        Visitors can jump to sections of your story using this outline.
+                      </p>
+                      <p className="mb-3 text-neutral-600">
+                        Add H1–H3 headings to your story, then approve to publish.
+                      </p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleStartEdit}
+                        className="border-[hsl(var(--brand-primary))] text-[hsl(var(--brand-primary))] hover:bg-[hsl(var(--brand-primary))] hover:text-white"
+                      >
+                        Edit campaign
+                      </Button>
+                    </div>
+                  ) : null}
 
                   {/* Short description */}
                   <div className="border-t border-gray-200 pt-4">
