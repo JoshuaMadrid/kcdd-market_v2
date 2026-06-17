@@ -83,21 +83,24 @@ export function HeroSection() {
               individuals — so the digital divide gets smaller, one device at a time.
             </p>
 
-            <nav className="flex items-center gap-4" aria-label="Primary actions">
-              <Link to={routes.requests}>
+            <nav
+              className="flex w-full flex-col items-stretch gap-4 sm:w-auto sm:flex-row sm:items-center"
+              aria-label="Primary actions"
+            >
+              <Link to={routes.requests} className="block w-full sm:w-auto">
                 <Button
                   size="lg"
-                  className="h-10 rounded-full border-2 border-[hsl(var(--brand-primary))] bg-[hsl(var(--brand-primary))] px-4 text-white transition-all duration-200 hover:bg-transparent hover:text-[hsl(var(--brand-primary))] focus-visible:ring-2 focus-visible:ring-[hsl(var(--brand-primary))] focus-visible:ring-offset-2 active:scale-95"
+                  className="h-10 w-full rounded-full border-2 border-[hsl(var(--brand-primary))] bg-[hsl(var(--brand-primary))] px-6 text-white transition-all duration-200 hover:bg-transparent hover:text-[hsl(var(--brand-primary))] focus-visible:ring-2 focus-visible:ring-[hsl(var(--brand-primary))] focus-visible:ring-offset-2 active:scale-95 sm:w-auto"
                 >
-                  Browse Requests
+                  Browse requests &amp; donate
                 </Button>
               </Link>
-              <Link to={routes.about}>
+              <Link to={routes.about} className="block w-full sm:w-auto">
                 <Button
                   size="lg"
-                  className="h-10 rounded-full border-2 border-[hsl(var(--brand-primary))] bg-transparent px-4 text-[hsl(var(--brand-primary))] transition-all duration-200 hover:bg-[hsl(var(--brand-primary))] hover:text-white focus-visible:ring-2 focus-visible:ring-[hsl(var(--brand-primary))] focus-visible:ring-offset-2 active:scale-95"
+                  className="h-10 w-full rounded-full border-2 border-[hsl(var(--brand-primary))] bg-transparent px-6 text-[hsl(var(--brand-primary))] transition-all duration-200 hover:bg-[hsl(var(--brand-primary))] hover:text-white focus-visible:ring-2 focus-visible:ring-[hsl(var(--brand-primary))] focus-visible:ring-offset-2 active:scale-95 sm:w-auto"
                 >
-                  Learn More
+                  For organizations
                 </Button>
               </Link>
             </nav>
