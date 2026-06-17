@@ -154,20 +154,11 @@ export function Navbar() {
             <>
               <SignInButton mode="modal">
                 <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-9 rounded-full px-4 text-[hsl(var(--brand-primary))] hover:bg-[hsl(var(--brand-primary)/0.08)]"
-                >
-                  Sign in
-                </Button>
-              </SignInButton>
-              <SignInButton mode="modal">
-                <Button
                   variant="outline"
                   size="sm"
-                  className="h-9 rounded-full border-[hsl(var(--brand-primary))] px-4 text-[hsl(var(--brand-primary))] hover:bg-[hsl(var(--brand-primary))] hover:text-white"
+                  className="h-9 rounded-full border-2 border-[hsl(var(--brand-primary))] px-4 text-[hsl(var(--brand-primary))] hover:bg-[hsl(var(--brand-primary))] hover:text-white"
                 >
-                  For Organizations
+                  Sign in
                 </Button>
               </SignInButton>
               <SignUpButton mode="modal">
@@ -176,7 +167,7 @@ export function Navbar() {
                   className="h-9 gap-2 rounded-full bg-[hsl(var(--brand-primary))] px-4 text-white hover:bg-[hsl(var(--brand-primary)/0.9)]"
                 >
                   <Heart className="h-4 w-4 fill-white" />
-                  Donate
+                  Sign up
                 </Button>
               </SignUpButton>
             </>
