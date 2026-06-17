@@ -1122,6 +1122,54 @@ export const getCampaignBySlug = async (slugOrId: string) => {
   return data
 }
 
+/**
+ * Shape returned by getCampaignsByOrganization — flat-spread of campaigns
+ * row + latest content JSONB + derived lifecycle status.
+ *
+ * Used by duplicateCampaign and CBO dashboard kebab actions.
+ */
+export interface CampaignWithDerivedStatus {
+  // Identity (from campaigns row)
+  id: string
+  organization_id: string
+  slug?: string | null
+  created_by?: string | null
+  created_at?: string | null
+  deleted_at?: string | null
+
+  // Lifecycle (derived in getCampaignsByOrganization)
+  status: 'draft' | 'pending' | 'active' | 'rejected' | 'deleted'
+
+  // Content (flat-spread from latest campaign_details.content)
+  // Mirrors CampaignData optional fields — see L997+
+  title?: string
+  funding_goal?: number | string
+  contact_email?: string
+  creator_name?: string
+  creator_role?: string
+  cause_area_ids?: string[]
+  short_description?: string
+  story_title?: string
+  story_content?: string
+  image_url?: string | null
+  logo_url?: string | null
+  phone?: string | null
+  facebook_url?: string | null
+  twitter_url?: string | null
+  instagram_url?: string | null
+  linkedin_url?: string | null
+  youtube_url?: string | null
+  tiktok_url?: string | null
+  website_url?: string | null
+
+  // Forward-compat nested shapes (some callers may preserve these)
+  latestApproved?: { content?: Record<string, unknown> }
+  latest?: { content?: Record<string, unknown> }
+
+  // Allow unknown extras (campaigns row may have other columns spread in)
+  [key: string]: unknown
+}
+
 // Get campaigns by organization with derived title + status.
 //
 // Post-REFB, campaigns has no title / funding_goal / status. The CBO
@@ -2612,9 +2660,9 @@ function formatFileSize(bytes: number): string {
 // `latestApproved.content` shape from the architect brief is also
 // honoured if present, for forward compatibility.
 export const duplicateCampaign = async (
-  sourceCampaign: any,
+  sourceCampaign: CampaignWithDerivedStatus,
   createdBy: string
-): Promise<unknown> => {
+): Promise<Awaited<ReturnType<typeof createCampaign>>> => {
   if (!sourceCampaign) {
     throw new Error('No source campaign to duplicate')
   }

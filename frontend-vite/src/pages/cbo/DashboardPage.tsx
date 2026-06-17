@@ -77,6 +77,7 @@ import {
   getOrganizationByUserId,
   getCampaignsByOrganization,
   duplicateCampaign,
+  type CampaignWithDerivedStatus,
   fetchOrganizationQuestions,
   answerQuestion,
   dismissQuestion,
@@ -508,7 +509,7 @@ function CampaignsContent({
     }
     setDuplicatingId(campaign.id)
     try {
-      await duplicateCampaign(campaign, adminClerkId)
+      await duplicateCampaign(campaign as unknown as CampaignWithDerivedStatus, adminClerkId)
       toast({
         title: 'Campaign duplicated',
         description: 'A draft copy is pending admin review.',
