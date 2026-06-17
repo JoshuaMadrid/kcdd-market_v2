@@ -19,6 +19,7 @@ import { clerkAuth } from './middleware/clerkAuth.js'
 import usersRouter from './routes/users.js'
 import { buildPaymentMetadata, appendLifecycle } from './helpers/paymentMetadata.js'
 import { upsertDispute } from './helpers/disputes.js'
+import { postToSlack, formatPayload } from './helpers/slack.js'
 import {
   STATES as CAMPAIGN_STATES,
   getCampaignState,
@@ -2435,6 +2436,63 @@ app.get('/api/documents/list/:donorId', clerkAuth, async (req, res) => {
 })
 
 // ============================================
+// CRON — SLACK NOTIFICATION QUEUE FLUSH
+// ============================================
+
+// Flush pending Slack notifications. Called by Vercel cron every 5 min.
+// Vercel cron uses GET with Authorization: Bearer $CRON_SECRET.
+// Also accept POST with header x-cron-secret for manual operator triggers.
+const slackCronHandler = async (req, res) => {
+  const headerSecret =
+    req.headers['x-cron-secret'] ||
+    (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '')
+  if (!process.env.CRON_SECRET || headerSecret !== process.env.CRON_SECRET) {
+    return res.status(401).json({ error: 'unauthorized' })
+  }
+
+  const { data: rows, error: selectErr } = await supabase
+    .from('slack_notification_queue')
+    .select('*')
+    .eq('status', 'pending')
+    .order('queued_at', { ascending: true })
+    .limit(100)
+
+  if (selectErr) {
+    console.error('[slack:cron] select error:', selectErr)
+    return res.status(500).json({ error: 'select failed' })
+  }
+
+  let sent = 0
+  let failed = 0
+  for (const row of rows || []) {
+    try {
+      await postToSlack(formatPayload(row.payload?.event, row.payload || {}))
+      await supabase
+        .from('slack_notification_queue')
+        .update({ status: 'sent', sent_at: new Date().toISOString() })
+        .eq('id', row.id)
+      sent++
+    } catch (err) {
+      failed++
+      const attempt = (row.attempt_count || 0) + 1
+      await supabase
+        .from('slack_notification_queue')
+        .update({
+          status: 'failed',
+          attempt_count: attempt,
+          last_error: err?.message || String(err),
+        })
+        .eq('id', row.id)
+    }
+  }
+
+  res.json({ processed: rows?.length || 0, sent, failed })
+}
+
+app.get('/api/cron/flush-slack-queue', slackCronHandler)
+app.post('/api/cron/flush-slack-queue', slackCronHandler)
+
+// ============================================
 // ERROR HANDLING
 // ============================================
 
@@ -2470,6 +2528,7 @@ if (!process.env.VERCEL) {
     console.log('  GET  /api/documents/download/:documentId')
     console.log('  GET  /api/documents/list/:donorId')
     console.log('  POST /api/documents/generate-annual-summary')
+    console.log('  POST /api/cron/flush-slack-queue')
   })
 }
 
