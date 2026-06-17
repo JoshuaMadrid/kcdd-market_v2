@@ -68,6 +68,7 @@ export interface PublishedCampaignView {
   supporters_count: number
   created_at: string
   created_by?: string | null
+  first_approved_at: string | null
   last_edit_approved_at: string | null
 
   // ----- Content (overlay from published detail) -----
@@ -132,6 +133,7 @@ export function buildPublishedCampaignView(
     supporters_count: campaign.supporters_count,
     created_at: campaign.created_at,
     created_by: campaign.created_by,
+    first_approved_at: (campaign.first_approved_at as string | null) ?? null,
     last_edit_approved_at: (campaign.last_edit_approved_at as string | null) ?? null,
     organization: campaign.organization,
   }

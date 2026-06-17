@@ -17,6 +17,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { RichTextEditor } from '@/components/ui/rich-text-editor'
 import { Checkbox } from '@/components/ui/checkbox'
 import { sanitizeStoryHtml } from '@/lib/sanitizeStoryHtml'
+import { formatRelativeTime } from '@/lib/utils'
 import {
   Accordion,
   AccordionContent,
@@ -868,6 +869,29 @@ export function CampaignPage() {
           {/* Date and Tags */}
           <div className="mb-4 flex flex-wrap items-center gap-2">
             <span className="text-sm text-[#737373]">{formatDate(campaign.created_at)}</span>
+
+            {/*
+              W4-A: "Updated" badge — visible when this campaign has received
+              an admin-approved edit at least 1 minute after first approval.
+              The 1-minute threshold rejects backfill artifacts from
+              20260616000003_campaigns_metadata_only.sql L77-83 where both
+              timestamps default to created_at. Reuses existing columns; no
+              new RPC / table / dep.
+            */}
+            {campaign.last_edit_approved_at != null &&
+              campaign.first_approved_at != null &&
+              new Date(campaign.last_edit_approved_at).getTime() -
+                new Date(campaign.first_approved_at).getTime() >
+                60_000 && (
+                <Badge
+                  variant="secondary"
+                  title={new Date(campaign.last_edit_approved_at).toLocaleString()}
+                  aria-label={`Updated ${new Date(campaign.last_edit_approved_at).toISOString()}`}
+                  className="rounded-full bg-[#eaeaea] px-2 py-0.5 font-normal text-[#737373]"
+                >
+                  Updated {formatRelativeTime(campaign.last_edit_approved_at)}
+                </Badge>
+              )}
 
             {isEditing ? (
               <>
