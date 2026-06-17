@@ -18,7 +18,7 @@ Post-launch design review (screenshots in `_docs/temp/`) surfaced four themes of
 - Campaign creation → admin approval queue → publish
 - Edits **before first approval**: NO re-approval needed
 - Edits **after first approval**: trigger re-approval
-- Audit: revision history, "what changed" indication on public page, `last_updated_at` timestamp, email notifications to admin
+- Audit: revision history, "what changed" indication on public page, `last_updated_at` timestamp, Slack notifications to admin channel (email dropped 2026-06-17 — volunteer project, free-only)
 
 ### Theme 2 — Homepage CTA clarity
 
@@ -104,7 +104,7 @@ Service-role-only (PH-3 `stripe_disputes` pattern). Indexes on:
 
 Before Phase A starts, confirm with the human stakeholder:
 
-1. **D4 override** — email-vs-in-app preference. Architect leaned Resend; in-app-only is defensible v0 given low volume (~10 emails/week initially).
+1. **D4 RESOLVED 2026-06-17** — admin notifications pivot to Slack Incoming Webhook (free tier, batching via `dedupe_key` + 5-min cron flush). CBO/donor stay in-app only via existing NotificationBell. Email dropped (volunteer project, free-only constraint). Details in `_docs/00.post-launch-feedback.tasks.md` "Phase A6 — Slack 알림" section.
 2. **Rejection workflow** — what happens after admin rejects an edit? Default proposal: `approval_status` reverts to `approved`, `review_note` surfaced to CBO.
 3. **Public page during pending state** — show OLD approved revision while new edit awaits review? Architect assumes yes (via `published_revision_id`). Confirm.
 

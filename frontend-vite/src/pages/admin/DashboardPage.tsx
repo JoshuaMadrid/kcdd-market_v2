@@ -2637,7 +2637,11 @@ function SettingsContent({ userId }: { userId?: string }) {
       </Card>
 
       <Card className="p-6">
-        <h3 className="mb-4 font-semibold">Email Notifications</h3>
+        <h3 className="mb-4 font-semibold">Admin Notifications</h3>
+        <p className="mb-3 text-xs text-[#737373]">
+          Toggles control which events trigger admin alerts. Delivery channel is in-app
+          NotificationBell + Slack webhook (Slack configured at deployment).
+        </p>
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <span>New user registrations</span>

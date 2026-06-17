@@ -1323,15 +1323,6 @@ function SettingsContent({ onOpenModal }: { onOpenModal: () => void }) {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="font-medium">Email Notifications</p>
-                <p className="text-sm text-[#737373]">Receive updates about your donations</p>
-              </div>
-              <Button variant="outline" size="sm">
-                Configure
-              </Button>
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
                 <p className="font-medium">Privacy Settings</p>
                 <p className="text-sm text-[#737373]">Control your data and visibility</p>
               </div>
