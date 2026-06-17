@@ -1,4 +1,0 @@
-allowBuilds:
-  supabase: true
-onlyBuiltDependencies:
-  - supabase
