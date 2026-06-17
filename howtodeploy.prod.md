@@ -168,6 +168,102 @@ https://your-api.example.com/api/payments/webhook
 
 ---
 
+## Step 5 — Slack notifications (admin alerts)
+
+When organizations submit profile edits, edit already-submitted edits, or
+soft-delete their org, the backend enqueues an admin alert into the
+`slack_notification_queue` table. A Vercel cron flushes the queue every
+5 minutes and POSTs each pending row to a Slack Incoming Webhook.
+
+CBO and donor notifications are unchanged — they continue to fan out
+through the in-app `NotificationBell`. Slack is **additive** for admins
+only.
+
+### Step 5.1 — Issue a Slack Incoming Webhook
+
+1. Open your Slack workspace → **Apps** → search for **"Incoming Webhooks"**
+2. Click **Add to Slack** → choose the channel that will receive admin
+   alerts (e.g. `#kcdd-admin`)
+3. Copy the generated webhook URL. The format is
+   `https://hooks.slack.com/services/<team-id>/<bot-id>/<token>` — a long
+   opaque path under `hooks.slack.com`. Treat this URL as a **secret**:
+   anyone who has it can post to the channel.
+
+### Step 5.2 — Add env vars in Vercel
+
+Vercel project → **Settings → Environment Variables**:
+
+| Key                 | Value                                       | Notes                                                                |
+| ------------------- | ------------------------------------------- | -------------------------------------------------------------------- |
+| `SLACK_WEBHOOK_URL` | URL from Step 5.1                           | Secret. Set on Production env (and Preview if you want preview alerts). |
+| `CRON_SECRET`       | output of `openssl rand -hex 32`            | Authenticates the cron request. Must match what Vercel sends.        |
+| `APP_URL`           | e.g. `https://kcdd-market.vercel.app`       | Prefix used in Slack message links back to admin pages.              |
+
+> If `SLACK_WEBHOOK_URL` is **missing** on a given environment (common
+> on Preview deploys without the secret), the cron still runs but logs
+> `[slack:dev]` for each row and marks them `status='sent'` — i.e. the
+> queue drains silently. Set the var before relying on prod alerts.
+>
+> If `CRON_SECRET` is **missing**, the cron route returns `401` and the
+> queue never drains. Set this before the first prod deploy.
+>
+> If `APP_URL` is **missing**, Slack messages still send but the link
+> prefix is empty. Slack will render the path-only link, which usually
+> still navigates if the workspace has link unfurling for your domain
+> configured — but it is much friendlier to set this.
+
+### Step 5.3 — Register the cron
+
+The backend's `backend/api/vercel.json` already contains the cron entry
+(this is the Vercel project that owns the `/api/cron/*` route):
+
+```json
+{
+  "crons": [
+    {
+      "path": "/api/cron/flush-slack-queue",
+      "schedule": "*/5 * * * *"
+    }
+  ]
+}
+```
+
+On the next deploy, Vercel reads this file and registers the cron
+automatically. Verify in **Vercel dashboard → Project → Cron Jobs**
+(also visible under the Functions tab on some dashboard versions).
+The cron uses `GET` with `Authorization: Bearer $CRON_SECRET`.
+
+> **Hobby tier note**: a 5-minute schedule is supported on Hobby; tighter
+> intervals may require Pro. Do not change `*/5 * * * *` without checking
+> the current Vercel pricing page. See `docs/VERCEL_DEPLOYMENT.md` for
+> per-tier details.
+
+### Step 5.4 — Smoke test
+
+Manually trigger the cron after the first deploy:
+
+```bash
+curl -X POST https://<your-prod-url>/api/cron/flush-slack-queue \
+  -H "x-cron-secret: $CRON_SECRET"
+```
+
+Expected response:
+
+```json
+{ "processed": 0, "sent": 0, "failed": 0 }
+```
+
+(Numbers > 0 if there are pending rows in the queue.) The same route
+also accepts `GET` with `Authorization: Bearer $CRON_SECRET` — that
+is the form Vercel uses when firing the cron.
+
+To test end-to-end: as a CBO owner in prod, submit a profile edit. A
+row appears in `slack_notification_queue` with `status='pending'`.
+Within 5 minutes, the cron fires and Slack receives the message; the
+row flips to `status='sent'`.
+
+---
+
 ## How Env Switching Works (Reference)
 
 ### Vite frontend — uses mode
