@@ -19,7 +19,7 @@ import { clerkAuth } from './middleware/clerkAuth.js'
 import usersRouter from './routes/users.js'
 import { buildPaymentMetadata, appendLifecycle } from './helpers/paymentMetadata.js'
 import { upsertDispute } from './helpers/disputes.js'
-import { postToSlack, formatPayload } from './helpers/slack.js'
+import { postToSlack, formatPayload, enqueueSlackAlert } from './helpers/slack.js'
 import {
   STATES as CAMPAIGN_STATES,
   getCampaignState,
@@ -1229,6 +1229,30 @@ app.post('/api/campaigns/:id/submit-edit', clerkAuth, async (req, res) => {
       console.error('Error fanning out submit-edit notifications:', notifyErr)
     }
 
+    // 8. Enqueue Slack alert for admins (A6-S2). Initial vs edit is derived from
+    //    detailStatus (already authoritative). Slack failure must NOT break the
+    //    submit-edit flow — wrap in try/catch and swallow.
+    try {
+      const isInitial = detailStatus === 'pending_initial_approval'
+      const event = isInitial ? 'campaign_submitted' : 'campaign_edit_submitted'
+      const dedupeKey = isInitial
+        ? `campaign_submitted:${campaignId}`
+        : `campaign_edit_submitted:${campaignId}:${callerUserId}`
+      await enqueueSlackAlert({
+        event,
+        dedupeKey,
+        payload: {
+          campaign_id: campaignId,
+          campaign_title: campaignTitle,
+          actor_user_id: callerUserId,
+          link_url: `${process.env.APP_URL || ''}/admin/pending-edits`,
+          occurred_at: new Date().toISOString(),
+        },
+      })
+    } catch (slackErr) {
+      console.error('[slack] enqueue submit-edit failed:', slackErr)
+    }
+
     // Derived next state after a successful submit:
     //   submit_initial → pending_initial_approval
     //   submit_edit    → pending_edit_approval
@@ -1587,6 +1611,27 @@ app.post('/api/campaigns/:id/soft-delete', clerkAuth, async (req, res) => {
       .eq('id', campaignId)
       .is('deleted_at', null)
     if (updateErr) throw updateErr
+
+    // 5. Enqueue Slack alert ONLY for owner-initiated soft-delete (A6-S2).
+    //    Admin self-actions are intentionally excluded per D-A6-4 lock.
+    //    Slack failure must NOT break the soft-delete flow.
+    if (isOwner) {
+      try {
+        await enqueueSlackAlert({
+          event: 'campaign_soft_deleted_by_owner',
+          dedupeKey: `campaign_soft_deleted:${campaignId}`,
+          payload: {
+            campaign_id: campaignId,
+            campaign_title: null,
+            actor_user_id: callerUserId,
+            link_url: `${process.env.APP_URL || ''}/campaign/${campaignId}`,
+            occurred_at: nowIso,
+          },
+        })
+      } catch (slackErr) {
+        console.error('[slack] enqueue soft-delete failed:', slackErr)
+      }
+    }
 
     return res.json({ deleted_at: nowIso })
   } catch (err) {
