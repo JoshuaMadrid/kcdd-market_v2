@@ -180,7 +180,7 @@ _docs/                                 # Project documentation (gitignored — l
 └── archive/                           # Old planning docs, feat/taek merge artifacts
 ```
 
-The root also has `howtoexecute.local.md` (local dev guide) and `howtodeploy.prod.md` (production deployment), which are the canonical user-facing setup docs — these are tracked in git, unlike `_docs/`.
+The `docs/` folder holds tracked user-facing docs: `docs/howtoexecute.local.md` (local dev guide), `docs/howtodeploy.prod.md` (production deployment), `docs/CHANGELOG.feat-post-launch-feedback.md`, `docs/feat-post-launch-feedback.md` (branch entry point), `docs/JOSHUA_ONBOARDING.md`, plus reference material (Vercel, GitHub Actions, etc.). `_docs/` remains gitignored for local PM scratch.
 
 ### Authentication Flow
 

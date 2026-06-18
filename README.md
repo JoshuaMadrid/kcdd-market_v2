@@ -29,8 +29,8 @@ cd frontend-vite && pnpm dev
 
 | File | Purpose |
 |---|---|
-| **[howtoexecute.local.md](./howtoexecute.local.md)** | Complete local dev setup, troubleshooting, debugging |
-| **[howtodeploy.prod.md](./howtodeploy.prod.md)** | Production deployment (Vercel + Supabase Cloud + Stripe) |
+| **[howtoexecute.local.md](./docs/howtoexecute.local.md)** | Complete local dev setup, troubleshooting, debugging |
+| **[howtodeploy.prod.md](./docs/howtodeploy.prod.md)** | Production deployment (Vercel + Supabase Cloud + Stripe) |
 | **[CLAUDE.md](./CLAUDE.md)** | Project conventions, architecture, env vars, file structure |
 | `_docs/architecture.md` | Architecture decisions (local-only — `_docs/` is gitignored) |
 | `_docs/stripe-webhook.md` | Webhook flow + idempotency + reconciliation strategy |
@@ -63,7 +63,7 @@ cp frontend-vite/.env.example frontend-vite/.env.local
 cp backend/api/.env.example backend/api/.env
 ```
 
-Production-required additions (see `howtodeploy.prod.md`):
+Production-required additions (see `docs/howtodeploy.prod.md`):
 - `IP_HASH_SALT` — `openssl rand -hex 32` (PH-2 payment metadata IP hashing)
 - `GIT_SHA` — `VERCEL_GIT_COMMIT_SHA` on Vercel (backend version tracking)
 
@@ -86,8 +86,13 @@ kcdd-market2/
 │       ├── seed.sql      # Mock orgs/donors/campaigns + tax-documents bucket
 │       └── config.toml   # Supabase CLI config (Clerk TPA registered)
 ├── _docs/                # Project documentation (gitignored — local only)
-├── howtoexecute.local.md # Local dev guide
-├── howtodeploy.prod.md   # Production deployment guide
+├── docs/                 # Tracked documentation (howto, changelog, onboarding)
+│   ├── howtoexecute.local.md
+│   ├── howtodeploy.prod.md
+│   ├── CHANGELOG.feat-post-launch-feedback.md
+│   ├── feat-post-launch-feedback.md
+│   ├── JOSHUA_ONBOARDING.md
+│   └── …                 # plus reference: GITHUB_ACTIONS_GUIDE / MAZE_TESTING / TAX_DOCUMENTS / USER_TYPES / VERCEL_DEPLOYMENT
 ├── CLAUDE.md             # AI-collaboration project conventions
 └── README.md             # This file
 
@@ -141,7 +146,7 @@ Inherits everything from `feat/payment-hardening` (PH-1/2/3 idempotency + metada
 - **PII**: Never store card data, raw IP, session tokens, or PAN — Stripe Elements handles all card I/O client-side
 - **RLS**: Every public table has explicit policies; service-role-only tables document the intent in their migration (e.g. `stripe_events`, `stripe_disputes`)
 - **Admin audit log**: `admin_activity_log` enforces self-attribution — admin rows are INSERT-able only when `clerk_user_id() = admin_id`. SELECT is restricted to `user_type = 'admin'`. Wide-open dev policies from `20240310000000_platform_settings.sql` were replaced in `20260618000000_admin_activity_log_soft_delete_writes.sql`
-- **Slack admin alerts**: queue-based via `slack_notification_queue` (PK + `dedupe_key UNIQUE WHERE status='pending'`). Webhook URL never logged. Dev fallback (`[slack:dev]` console line) keeps local flows testable without a real workspace. Local recipe: `howtoexecute.local.md` → Testing Slack admin alerts locally. Prod setup: `howtodeploy.prod.md` Step 5
+- **Slack admin alerts**: queue-based via `slack_notification_queue` (PK + `dedupe_key UNIQUE WHERE status='pending'`). Webhook URL never logged. Dev fallback (`[slack:dev]` console line) keeps local flows testable without a real workspace. Local recipe: `docs/howtoexecute.local.md` → Testing Slack admin alerts locally. Prod setup: `docs/howtodeploy.prod.md` Step 5
 
 ---
 
