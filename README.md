@@ -66,6 +66,9 @@ cp backend/api/.env.example backend/api/.env
 Production-required additions (see `docs/howtodeploy.prod.md`):
 - `IP_HASH_SALT` — `openssl rand -hex 32` (PH-2 payment metadata IP hashing)
 - `GIT_SHA` — `VERCEL_GIT_COMMIT_SHA` on Vercel (backend version tracking)
+- `CRON_SECRET` — `openssl rand -hex 32` (A6 Slack cron auth; `/api/cron/flush-slack-queue` returns 401 without it)
+- `SLACK_WEBHOOK_URL` — Slack Incoming Webhook (optional; unset = dev `[slack:dev]` console fallback, queue still drains)
+- `APP_URL` — link prefix in Slack alert bodies (e.g. `https://kcdd-market.vercel.app`)
 
 ---
 
@@ -78,19 +81,20 @@ kcdd-market2/
 │   ├── api/              # Express server (port 4000)
 │   │   ├── server.js
 │   │   ├── middleware/clerkAuth.js
-│   │   ├── helpers/      # paymentMetadata.js, disputes.js (PH-1~3)
+│   │   ├── helpers/      # paymentMetadata.js, disputes.js (PH-1~3), slack.js (A6-S1)
 │   │   ├── routes/       # users.js
-│   │   └── services/pdfGenerator.js
+│   │   ├── services/pdfGenerator.js
+│   │   └── vercel.json   # crons: /api/cron/flush-slack-queue every 5 min (A6-S3)
 │   └── supabase/
 │       ├── migrations/   # SQL migrations (run in order)
 │       ├── seed.sql      # Mock orgs/donors/campaigns + tax-documents bucket
 │       └── config.toml   # Supabase CLI config (Clerk TPA registered)
 ├── _docs/                # Project documentation (gitignored — local only)
-├── docs/                 # Tracked documentation (howto, changelog, onboarding)
+├── docs/                 # Tracked documentation (howto, changelog, branch plan, references)
 │   ├── howtoexecute.local.md
 │   ├── howtodeploy.prod.md
 │   ├── CHANGELOG.feat-post-launch-feedback.md
-│   ├── feat-post-launch-feedback.md
+│   ├── feat-post-launch-feedback.md   # branch entry point — Theme 1-4 definitions + D1-D5
 │   └── …                 # plus reference: GITHUB_ACTIONS_GUIDE / MAZE_TESTING / TAX_DOCUMENTS / USER_TYPES / VERCEL_DEPLOYMENT
 ├── CLAUDE.md             # AI-collaboration project conventions
 └── README.md             # This file
@@ -122,14 +126,16 @@ See [CLAUDE.md](./CLAUDE.md) "Adding a new DB table — required workflow" for t
 
 ## Branch State
 
-Current branch: **`feat/post-launch-feedback`** — post-launch UX + ops hardening. Ships four themes:
+Current branch: **`feat/post-launch-feedback`** — post-launch UX + ops hardening. PR #6 has the full description; per-commit task/what/why is in `docs/CHANGELOG.feat-post-launch-feedback.md`.
 
-- **Theme 1 — Campaign approval lifecycle**: `campaign_details` versioned JSONB store, derived states (PENDING_INITIAL / PENDING_EDIT / ACTIVE / SOFT_DELETED), admin approval queue, owner soft-delete + restore
-- **Theme 4 — Wave 5 CBO productivity**: `organizations.default_campaign_template` JSONB so new-campaign form prefills creator/contact/cause-areas/FAQs from a per-org default
-- **Phase A6 — Slack admin alerts**: `slack_notification_queue` table + `enqueueSlackAlert` helper + `/api/cron/flush-slack-queue` route. Dev mode (no `SLACK_WEBHOOK_URL`) logs `[slack:dev]` and still flips rows to `sent`. Prod runs on Vercel cron every 5 min
-- **W4-B — Admin audit log hardening**: `admin_activity_log` RLS tightened to admin-only SELECT + self-attribution INSERT (`clerk_user_id() = admin_id`)
+- **Theme 1 — Campaign approval lifecycle** (Waves 1-3 + W4-A/B): `campaign_details` versioned JSONB store, derived states (PENDING_INITIAL / PENDING_EDIT / ACTIVE / SOFT_DELETED), admin approval queue + diff viewer, owner soft-delete + restore, public "Updated {time}" badge (W4-A), `/admin/audit-log` page + `admin_activity_log` RLS tightening (W4-B)
+- **Theme 2 — Homepage CTA clarity** (W4-C/D): navbar Sign in/Sign up split, hero "Browse requests & donate" + "For organizations" split CTA
+- **Theme 3 — Campaign detail UX** (W4-E/F/G/H): above-the-fold org identity chip, Campaign Lead click affordance, owner-only outline empty-state CTA, card Donate button
+- **Theme 4 — Wave 5 CBO productivity** (W5-A1/B1/B2): CBO Duplicate campaign action, `organizations.default_campaign_template` JSONB + `/cbo/campaign-defaults` page, new-campaign form prefill
+- **Phase A6 — Slack admin alerts** (S1/S2/S3): `slack_notification_queue` (partial UNIQUE on `dedupe_key WHERE status='pending'` as the batching primitive) + `enqueueSlackAlert` helper + `/api/cron/flush-slack-queue` route + Vercel cron config. Dev mode (no `SLACK_WEBHOOK_URL`) logs `[slack:dev]` and still flips rows to `sent`. Email feature scrubbed
+- **Hotfix series H1-H7**: security, schema drift, concurrency, auth UX, PR #6 security review, pre-merge cleanup, CI workspace fix
 
-Inherits everything from `feat/payment-hardening` (PH-1/2/3 idempotency + metadata + disputes) and `feat/pnpm-jwt-integration` (pnpm + Clerk JWT bridge + campaigns-only mock seed). Per-theme detail lives under `_docs/` (local-only). Phase 8 / 8.5 / 9 / 10 features (in-kind pledges, match alerts, tax cron, public impact page) remain in the backlog per `_docs/x_tasks.md`.
+Inherits everything from `feat/payment-hardening` (PH-1/2/3 idempotency + metadata + disputes) and `feat/pnpm-jwt-integration` (pnpm + Clerk JWT bridge + campaigns-only mock seed). Phase 8 / 8.5 / 9 / 10 features (in-kind pledges, match alerts, tax cron, public impact page) remain backlog — see "What does NOT ship on this branch" in `docs/CHANGELOG.feat-post-launch-feedback.md`.
 
 ---
 
