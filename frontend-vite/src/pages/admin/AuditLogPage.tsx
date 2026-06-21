@@ -24,7 +24,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { fetchAdminActivity, type AdminActivity } from '@/lib/supabase'
+import { fetchAdminActivity, fetchUserProfilesByIds, type AdminActivity } from '@/lib/supabase'
 
 const PAGE_SIZE = 50
 
@@ -78,7 +78,7 @@ function actionBadgeClass(action: string): string {
   return 'bg-gray-100 text-gray-800'
 }
 
-export function AuditLogPage() {
+export function AuditLogPage({ embedded = false }: { embedded?: boolean } = {}) {
   const [items, setItems] = useState<AdminActivity[]>([])
   const [actionFilter, setActionFilter] = useState<string>('')
   const [entityFilter, setEntityFilter] = useState<string>('')
@@ -86,6 +86,20 @@ export function AuditLogPage() {
   const [loadingMore, setLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // W7-12: admin_id -> profile map, accumulated across pages.
+  const [adminProfiles, setAdminProfiles] = useState<
+    Record<string, { email: string | null; name: string | null }>
+  >({})
+
+  // W7-12: fetch profiles for any admin_ids not yet in the map and merge in.
+  const mergeAdminProfiles = useCallback(async (loaded: AdminActivity[]) => {
+    const missing = [...new Set(loaded.map((r) => r.admin_id))].filter(
+      (id) => !(id in adminProfiles)
+    )
+    if (missing.length === 0) return
+    const fetched = await fetchUserProfilesByIds(missing)
+    setAdminProfiles((prev) => ({ ...prev, ...fetched }))
+  }, [adminProfiles])
 
   const loadInitial = useCallback(async () => {
     setLoading(true)
@@ -98,12 +112,13 @@ export function AuditLogPage() {
       })
       setItems(rows)
       setHasMore(rows.length === PAGE_SIZE)
+      await mergeAdminProfiles(rows)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load audit log')
     } finally {
       setLoading(false)
     }
-  }, [actionFilter, entityFilter])
+  }, [actionFilter, entityFilter, mergeAdminProfiles])
 
   useEffect(() => {
     loadInitial()
@@ -122,6 +137,7 @@ export function AuditLogPage() {
       })
       setItems((prev) => [...prev, ...next])
       setHasMore(next.length === PAGE_SIZE)
+      await mergeAdminProfiles(next)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load more entries')
     } finally {
@@ -141,7 +157,7 @@ export function AuditLogPage() {
   }, [items])
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 p-6">
+    <div className={embedded ? 'space-y-6' : 'mx-auto max-w-6xl space-y-6 p-6'}>
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Admin Audit Log</h1>
@@ -258,8 +274,10 @@ export function AuditLogPage() {
                   >
                     {truncateId(row.entity_id)}
                   </TableCell>
-                  <TableCell className="font-mono text-xs text-[#737373]" title={row.admin_id}>
-                    {truncateId(row.admin_id)}
+                  <TableCell className="text-xs text-[#737373]" title={row.admin_id}>
+                    {adminProfiles[row.admin_id]?.email ??
+                      adminProfiles[row.admin_id]?.name ??
+                      truncateId(row.admin_id)}
                   </TableCell>
                   <TableCell>
                     <code

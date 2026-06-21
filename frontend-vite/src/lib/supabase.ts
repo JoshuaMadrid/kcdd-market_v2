@@ -2460,6 +2460,33 @@ export const fetchAdminActivity = async (
   return data || []
 }
 
+// W7-12: resolve admin_id (TEXT, no FK) -> email/name for the audit log.
+// admin_activity_log.admin_id has no FK to user_profiles, so a PostgREST
+// embed won't resolve. Caller collects unique ids per page and accumulates
+// the returned id->profile map across pages.
+export const fetchUserProfilesByIds = async (
+  ids: string[]
+): Promise<Record<string, { email: string | null; name: string | null }>> => {
+  if (ids.length === 0) return {}
+
+  const { data, error } = await (supabase.from('user_profiles') as any)
+    .select('id,email,name')
+    .in('id', ids)
+
+  if (error) {
+    console.error('Error fetching user profiles by ids:', error)
+    return {}
+  }
+
+  return ((data || []) as { id: string; email: string | null; name: string | null }[]).reduce(
+    (acc, row) => {
+      acc[row.id] = { email: row.email ?? null, name: row.name ?? null }
+      return acc
+    },
+    {} as Record<string, { email: string | null; name: string | null }>
+  )
+}
+
 // ============================================
 // ORGANIZATION DOCUMENTS
 // ============================================

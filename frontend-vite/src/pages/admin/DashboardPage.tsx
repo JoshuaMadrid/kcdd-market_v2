@@ -89,6 +89,8 @@ import {
 } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useImpersonation } from '@/contexts/ImpersonationContext'
+import { PendingEditsPage } from '@/pages/admin/PendingEditsPage'
+import { AuditLogPage } from '@/pages/admin/AuditLogPage'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -202,6 +204,8 @@ type SidebarSection =
   | 'organizations'
   | 'requests'
   | 'reports'
+  | 'pending'
+  | 'audit'
   | 'analytics'
   | 'settings'
   | 'support'
@@ -3463,6 +3467,10 @@ export function AdminDashboard() {
       //   return 'Requests'
       case 'reports':
         return 'Campaign Reports'
+      case 'pending':
+        return 'Pending Campaigns'
+      case 'audit':
+        return 'Admin Audit Log'
       case 'analytics':
         return 'Analytics'
       case 'settings':
@@ -3582,6 +3590,10 @@ export function AdminDashboard() {
             userId={user?.id}
           />
         )
+      case 'pending':
+        return <PendingEditsPage embedded />
+      case 'audit':
+        return <AuditLogPage embedded />
       case 'analytics':
         return (
           <AnalyticsContent
@@ -3702,16 +3714,24 @@ export function AdminDashboard() {
           </button>
 
           <button
-            onClick={() => navigate('/admin/pending-edits')}
-            className={`flex w-full items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-[#0a0a0a] transition-colors hover:bg-gray-100`}
+            onClick={() => setActiveSection('pending')}
+            className={`flex w-full items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 transition-colors ${
+              activeSection === 'pending'
+                ? 'bg-[#ea580c] text-white'
+                : 'text-[#0a0a0a] hover:bg-gray-100'
+            }`}
           >
             <ClipboardList className="h-4 w-4 flex-shrink-0" />
-            {sidebarOpen && <span className="text-sm">Pending Reviews</span>}
+            {sidebarOpen && <span className="text-sm">Pending Campaigns</span>}
           </button>
 
           <button
-            onClick={() => navigate('/admin/audit-log')}
-            className={`flex w-full items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-[#0a0a0a] transition-colors hover:bg-gray-100`}
+            onClick={() => setActiveSection('audit')}
+            className={`flex w-full items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 transition-colors ${
+              activeSection === 'audit'
+                ? 'bg-[#ea580c] text-white'
+                : 'text-[#0a0a0a] hover:bg-gray-100'
+            }`}
           >
             <Activity className="h-4 w-4 flex-shrink-0" />
             {sidebarOpen && <span className="text-sm">Audit Log</span>}

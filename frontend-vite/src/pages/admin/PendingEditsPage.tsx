@@ -13,6 +13,14 @@ import { Loader2, RefreshCw, Inbox, Trash2, RotateCcw } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -88,7 +96,7 @@ function isTabKey(v: string | null): v is TabKey {
   return v === 'initial' || v === 'edits'
 }
 
-export function PendingEditsPage() {
+export function PendingEditsPage({ embedded = false }: { embedded?: boolean } = {}) {
   const { getToken } = useAuth()
   const { user } = useUser()
   const { toast } = useToast()
@@ -294,10 +302,10 @@ export function PendingEditsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 p-6">
+    <div className={embedded ? 'space-y-6' : 'mx-auto max-w-5xl space-y-6 p-6'}>
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">Pending Campaign Reviews</h1>
+          <h1 className="text-2xl font-semibold">Pending Campaigns</h1>
           <p className="text-sm text-[#737373]">
             {rows.length} pending detail{rows.length === 1 ? '' : 's'} awaiting action.
           </p>
@@ -329,67 +337,98 @@ export function PendingEditsPage() {
         </TabsList>
       </Tabs>
 
-      {loading ? (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-6 w-6 animate-spin text-[#ea580c]" />
-        </div>
-      ) : visibleRows.length === 0 ? (
-        <Card className="flex flex-col items-center justify-center gap-2 py-12 text-center">
-          <Inbox className="h-10 w-10 text-gray-300" />
-          <p className="text-sm text-[#737373]">
-            {activeTab === 'initial' ? 'No new campaigns awaiting review.' : 'No pending edits.'}
-          </p>
-        </Card>
-      ) : (
-        <div className="space-y-3">
-          {visibleRows.map((row) => (
-            <Card key={row.detail_id} className="p-4">
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0 flex-1 space-y-1">
-                  <div className="flex items-center gap-2">
-                    <h3 className="truncate font-medium text-[#0a0a0a]">{row.campaign_title}</h3>
+      <Card className="overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Campaign</TableHead>
+              <TableHead>Organization</TableHead>
+              <TableHead className="w-[90px]">Type</TableHead>
+              <TableHead className="w-[80px]">Version</TableHead>
+              <TableHead className="w-[140px]">Submitted</TableHead>
+              <TableHead className="w-[260px] text-right">Action</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={6}>
+                  <div className="flex items-center justify-center py-16">
+                    <Loader2 className="h-6 w-6 animate-spin text-[#ea580c]" />
+                  </div>
+                </TableCell>
+              </TableRow>
+            ) : visibleRows.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6}>
+                  <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
+                    <Inbox className="h-10 w-10 text-gray-300" />
+                    <p className="text-sm text-[#737373]">
+                      {activeTab === 'initial'
+                        ? 'No new campaigns awaiting review.'
+                        : 'No pending edits.'}
+                    </p>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ) : (
+              visibleRows.map((row) => (
+                <TableRow key={row.detail_id}>
+                  <TableCell>
+                    <p className="font-medium text-[#0a0a0a]">{row.campaign_title}</p>
+                    {row.change_summary && (
+                      <p className="text-xs text-[#737373]">
+                        {truncate(row.change_summary, 100)}
+                      </p>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-sm text-[#404040]">
+                    {row.organization_name ?? 'Unknown organization'}
+                  </TableCell>
+                  <TableCell>
                     <Badge
                       className={
-                        row.is_initial ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
+                        row.is_initial
+                          ? 'bg-blue-100 text-blue-700'
+                          : 'bg-amber-100 text-amber-700'
                       }
                     >
-                      v{row.version}
+                      {row.is_initial ? 'New' : 'Edit'}
                     </Badge>
-                  </div>
-                  <p className="text-xs text-[#737373]">
-                    {row.organization_name ?? 'Unknown organization'} · submitted{' '}
+                  </TableCell>
+                  <TableCell className="text-sm text-[#404040]">v{row.version}</TableCell>
+                  <TableCell className="whitespace-nowrap text-xs text-[#737373]">
                     {formatRelativeTime(row.submitted_at)}
-                  </p>
-                  {row.change_summary && (
-                    <p className="text-sm text-[#404040]">{truncate(row.change_summary, 100)}</p>
-                  )}
-                </div>
-                <div className="flex flex-shrink-0 items-center gap-2">
-                  <Button variant="outline" size="sm" onClick={() => openPreview(row)}>
-                    Preview
-                  </Button>
-                  <Button
-                    size="sm"
-                    className="bg-[#16a34a] hover:bg-[#15803d]"
-                    onClick={() => handleApprove(row)}
-                    disabled={actionPending}
-                  >
-                    Approve
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="border-red-200 text-red-700 hover:bg-red-50"
-                    onClick={() => openReject(row)}
-                  >
-                    Reject
-                  </Button>
-                </div>
-              </div>
-            </Card>
-          ))}
-        </div>
-      )}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-shrink-0 items-center justify-end gap-2">
+                      <Button variant="outline" size="sm" onClick={() => openPreview(row)}>
+                        Preview
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="bg-[#16a34a] hover:bg-[#15803d]"
+                        onClick={() => handleApprove(row)}
+                        disabled={actionPending}
+                      >
+                        Approve
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="border-red-200 text-red-700 hover:bg-red-50"
+                        onClick={() => openReject(row)}
+                      >
+                        Reject
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </Card>
 
       {/* Preview modal */}
       <Dialog open={!!previewRow} onOpenChange={(open) => !open && closePreview()}>
