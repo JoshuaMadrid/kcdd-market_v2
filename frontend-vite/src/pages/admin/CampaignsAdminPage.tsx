@@ -172,7 +172,7 @@ export function CampaignsAdminPage({ embedded = false }: { embedded?: boolean } 
       await api.post(`/api/campaigns/${row.campaign_id}/soft-delete`, {}, getToken)
       // W4-B: audit log — admin soft-deleted a campaign.
       if (user?.id) {
-        await logAdminActivity(user.id, 'campaign_deleted', 'campaign', row.campaign_id, {
+        await logAdminActivity(user.id, 'campaign_soft_deleted', 'campaign', row.campaign_id, {
           deleted_by_clerk_id: user.id,
         })
       }

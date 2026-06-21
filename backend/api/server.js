@@ -11,6 +11,7 @@
 
 import express from 'express'
 import cors from 'cors'
+import crypto from 'node:crypto'
 import dotenv from 'dotenv'
 import Stripe from 'stripe'
 import { createClient } from '@supabase/supabase-js'
@@ -2926,7 +2927,16 @@ app.get('/api/documents/list/:donorId', clerkAuth, async (req, res) => {
 const slackCronHandler = async (req, res) => {
   const headerSecret =
     req.headers['x-cron-secret'] || (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '')
-  if (!process.env.CRON_SECRET || headerSecret !== process.env.CRON_SECRET) {
+  // Constant-time comparison: this endpoint is publicly reachable, so a plain
+  // `!==` would leak the secret one byte at a time via response timing.
+  const expectedSecret = process.env.CRON_SECRET || ''
+  const provided = Buffer.from(String(headerSecret))
+  const expected = Buffer.from(expectedSecret)
+  if (
+    !expectedSecret ||
+    provided.length !== expected.length ||
+    !crypto.timingSafeEqual(provided, expected)
+  ) {
     return res.status(401).json({ error: 'unauthorized' })
   }
 
@@ -2955,10 +2965,15 @@ const slackCronHandler = async (req, res) => {
     } catch (err) {
       failed++
       const attempt = (row.attempt_count || 0) + 1
+      // Keep the row 'pending' so the next cron tick retries it; only flip to
+      // the terminal 'failed' state once MAX_SLACK_ATTEMPTS is exhausted.
+      // Otherwise a transient Slack outage would silently drop the alert,
+      // since the select above only ever picks up status='pending' rows.
+      const MAX_SLACK_ATTEMPTS = 5
       await supabase
         .from('slack_notification_queue')
         .update({
-          status: 'failed',
+          status: attempt >= MAX_SLACK_ATTEMPTS ? 'failed' : 'pending',
           attempt_count: attempt,
           last_error: err?.message || String(err),
         })
