@@ -341,6 +341,11 @@ CRON_SECRET=                     # REQUIRED — `openssl rand -hex 32`. Without 
 SLACK_WEBHOOK_URL=               # OPTIONAL — unset = dev mode (console.log
                                  # `[slack:dev]`, queue still marks `sent`)
 APP_URL=http://localhost:3000    # OPTIONAL — link prefix in Slack messages
+
+# Dev role bootstrap (dev only). CSV of `email:role` (admin|cbo|donor).
+# Inert when NODE_ENV=production. On /api/users/sync the backend fetches the
+# email via the Clerk API and force-sets these roles for the listed accounts.
+DEV_ROLE_OVERRIDES="taek.lim.us@gmail.com:admin,txl25880@ucmo.edu:donor,mysites.victor@gmail.com:cbo"
 ```
 
 `STRIPE_BYPASS_CONNECT=true` lets the `/api/payments/create-intent` route create test-mode PaymentIntents against the platform account instead of requiring each organization to have a connected Stripe account (`stripe_account_id` + `stripe_charges_enabled`). Without it, every donation 400s with `code: STRIPE_NOT_CONNECTED` until the org completes Connect onboarding. Never set in production.

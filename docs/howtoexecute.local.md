@@ -88,7 +88,7 @@ VITE_ENABLE_ANALYTICS=false
 ### Backend `backend/api/.env`
 
 ```env
-SUPABASE_URL=http://localhost:54321            # fixed local value
+SUPABASE_URL=http://127.0.0.1:54321            # fixed local value — use 127.0.0.1, NOT localhost (see note)
 SUPABASE_SECRET_KEY=sb_secret_...             # fill in Step 5
 CLERK_SECRET_KEY=sk_test_...                   # from Step 2
 STRIPE_SECRET_KEY=sk_test_...                  # fill in Step 6 (optional)
@@ -96,7 +96,12 @@ STRIPE_WEBHOOK_SECRET=whsec_...                # fill in Step 6 (optional)
 PORT=4000
 ALLOWED_ORIGINS=http://localhost:3000
 NODE_ENV=development
+DEV_ROLE_OVERRIDES=email:role,email:role        # optional — dev-only role bootstrap (see Step 9)
 ```
+
+> **Use `127.0.0.1`, not `localhost`, for the backend `SUPABASE_URL`.** On macOS, `localhost` resolves to IPv6 `::1` first, but the local Supabase/Kong gateway (and Colima's ssh port-forward) binds IPv4 only. A Node backend pointed at `http://localhost:54321` can therefore throw `TypeError: fetch failed ... ECONNREFUSED` (an `AggregateError`) even though `curl localhost:54321` works — curl falls back to IPv4, while some Node setups do not. The frontend value can stay `localhost` because the browser handles the fallback. See Common Issues for the symptom.
+
+> `DEV_ROLE_OVERRIDES` is optional and dev-only — leave it out if you don't need automatic role assignment. It is fully inert when `NODE_ENV=production`. See [Step 9 → Dev role bootstrap](#dev-role-bootstrap-coworker-testing) for the format and the current shared assignments.
 
 ---
 
@@ -300,6 +305,38 @@ cd frontend-vite && pnpm dev
 
 The seed creates 3 orgs, 3 donor profiles, 1 admin, 8 campaigns spanning every approval state, and (post-2026-06-17) one org with a `default_campaign_template` so the prefill flow is testable. Sign in flows go through Clerk — fresh signups produce real Clerk user IDs (e.g. `user_2abc...`), separate from the UUID-shaped seed users.
 
+> **Seed accounts cannot be logged into.** The mock rows (`admin@kcdd.local`, `donor1@example.com`, etc.) exist only in the database — they have **no Clerk credentials**, so there is no password to sign in with. To exercise a role you sign in with your own Clerk account and assign the role (see the Dev role bootstrap subsection below, or the Studio role-swap trick in each scenario).
+
+### Dev role bootstrap (coworker testing)
+
+For a teammate who just wants to sign in and land in the right role **without touching SQL**, the backend supports a dev-only allowlist. On every `POST /api/users/sync` (which runs at sign-in), the backend reads the signed-in user's email from Clerk and — only when `NODE_ENV !== production` — force-sets their `user_type` from the `DEV_ROLE_OVERRIDES` env var. It is completely inert in production.
+
+**Setup (one-time, shared):**
+
+1. In `backend/api/.env`, set the allowlist as a CSV of `email:role` pairs:
+
+   ```env
+   DEV_ROLE_OVERRIDES="taek.lim.us@gmail.com:admin,txl25880@ucmo.edu:donor,mysites.victor@gmail.com:cbo"
+   ```
+
+   Valid roles are `admin`, `cbo`, `donor`. Restart the backend after editing `.env`.
+2. A teammate gets the shared Clerk keys (`VITE_CLERK_PUBLISHABLE_KEY` + `CLERK_SECRET_KEY`) and the same `DEV_ROLE_OVERRIDES`, runs the stack, then signs in at <http://localhost:3000> with one of the allowlisted emails.
+3. The role is applied automatically on sign-in — no manual SQL, no admin action.
+
+**It survives `pnpm db:reset`.** Because the override re-applies on the next sign-in, after a DB wipe you only need to sign in again — the role comes back automatically.
+
+**Verify** in Supabase Studio (<http://127.0.0.1:54323>) → Table editor → `user_profiles` → find your row by `email` and confirm `user_type` matches the allowlist.
+
+**Fallback** (older backend build without this mechanism): an admin can promote a user via `/admin/users`, or run `backend/_scripts/dev-promote-roles.sql` (idempotent, keyed by email) once the user's email is persisted in `user_profiles`.
+
+### Testing each role
+
+Once you have a role (via the bootstrap above or a Studio role-swap):
+
+- **admin** → `/admin/users`, `/admin/audit-log`, `/admin/pending-edits`
+- **cbo** → `/cbo/dashboard`, `/cbo/campaign-defaults`
+- **donor** → `/requests` + the donate flow (needs `STRIPE_BYPASS_CONNECT=true` in `backend/api/.env`, plus Stripe keys from Step 6)
+
 ### 1. Sign up as a donor
 
 1. Open <http://localhost:3000>
@@ -350,6 +387,8 @@ cd backend && pnpm db:reset
 
 Wipes all data and re-applies all migrations + seed data from scratch.
 Mock data (3 organizations, 16 requests, 3 donors, etc.) is also re-seeded.
+
+> Dev role overrides survive a reset — the role re-applies the next time the user signs in (see [Step 9 → Dev role bootstrap](#dev-role-bootstrap-coworker-testing)). A Studio role-swap, however, is wiped and must be redone.
 
 ### Expected output
 
@@ -518,6 +557,11 @@ cd frontend-vite && pnpm dev
 **Lost Supabase keys after `supabase start`**
 → Run `cd backend && pnpm db:status`, then copy `Publishable` → `VITE_SUPABASE_PUBLISHABLE_KEY` and `Secret` → `SUPABASE_SECRET_KEY`
 
+**Backend `TypeError: fetch failed ... ECONNREFUSED` / `AggregateError` on startup or first query**
+
+The backend is reaching Supabase over IPv6. On macOS, `localhost` resolves to `::1` first, but the local Supabase gateway (and Colima's port-forward) binds IPv4 only — so Node's `fetch` connects to nothing. Confusingly, `curl localhost:54321` still works because curl falls back to IPv4.
+→ In `backend/api/.env`, set `SUPABASE_URL=http://127.0.0.1:54321` (not `localhost`), then restart the API. See the note under Step 3.
+
 **Port conflict (3000, 4000, 54321)**
 → Run `lsof -i :<port>` to find the process, then kill it
 
@@ -526,6 +570,9 @@ cd frontend-vite && pnpm dev
 
 **Frontend type errors**
 → Run `cd frontend-vite && pnpm type-check` to locate the error
+
+**Signed in, but landed in the wrong role / no dashboard**
+→ If you expected the dev role bootstrap to assign a role: confirm your email is in `DEV_ROLE_OVERRIDES` (exact match), `NODE_ENV` is not `production`, and you restarted the backend after editing `.env`. The role applies on sign-in via `POST /api/users/sync`; sign out and back in, then check your `user_profiles` row in Studio. See [Step 9 → Dev role bootstrap](#dev-role-bootstrap-coworker-testing). Note: seed accounts (`admin@kcdd.local`, etc.) have no Clerk login and cannot be used.
 
 **Payment error in browser console — `clerk.browser.js ... ie.create` thrown from `CheckoutPage.tsx`**
 
@@ -588,12 +635,14 @@ colima stop
 colima start
 ```
 
-Also check Docker context:
+Also check Docker context — for running the Supabase stack on Colima, the context must be `default` (see the note below and the [Vector container socket error](#vector-container-socket-error-colima-only) section for why):
 
 ```bash
 docker context ls
-docker context use colima
+docker context use default
 ```
+
+> **Use the `default` context, not `colima`, when running `pnpm db:start`.** The `colima` context's socket endpoint points at the host path `~/.colima/default/docker.sock`, which the vector container cannot bind-mount from inside the VM (`operation not supported`). The `default` context endpoint is `/var/run/docker.sock`, which `pnpm db:start` symlinks into the VM's real socket. Only switch back to `colima` (`docker context use colima`) if you have a workflow that requires it.
 
 ### Step 4 — Clean restart
 
@@ -650,13 +699,17 @@ colima start --vm-type vz --mount-type virtiofs --cpu 2 --memory 4 --disk 40
 - `--cpu 2 --memory 4 --disk 40` is enough for the Supabase stack (~10 containers) plus frequent `db:reset`. Bump to `--memory 6` if `db:reset` hits OOM/swap.
 - These values persist — afterwards you only need `colima start`. To make them permanent (no flags), edit `~/.colima/default/colima.yaml`.
 
-Verify the Docker CLI points at Colima:
+### Set the Docker context to `default`
+
+For the Supabase stack to start under Colima, the active Docker context must be `default`, **not `colima`**:
 
 ```bash
 docker context ls
-docker context use colima
-docker ps                     # should print without error
+docker context use default     # required — see the warning below
+docker ps                      # should print without error
 ```
+
+> **Why `default`, not `colima`.** The vector container (`supabase_vector_backend`) bind-mounts the Docker socket, and the mount **source** path is taken from the active context's endpoint. The `colima` context endpoint is the host path `~/.colima/default/docker.sock`, which does not exist inside the Colima VM where dockerd performs the mount — so the start fails with `operation not supported` (see [Vector container socket error](#vector-container-socket-error-colima-only)). The `default` context endpoint is `/var/run/docker.sock`, which `pnpm db:start` symlinks to the VM's real socket, so the mount succeeds. To revert later: `docker context use colima`.
 
 Then continue from [Step 5](#step-5--start-supabase-locally-and-get-keys) — run `pnpm db:start` as normal.
 
@@ -688,13 +741,17 @@ failed to start docker container "supabase_vector_backend": error while creating
 
 **Cause**
 
-Colima places its Docker socket at `~/.colima/default/docker.sock` instead of the standard `/var/run/docker.sock`. The `vector` container tries to mount the standard path, which does not exist on Colima.
+The vector container bind-mounts the Docker socket, and the mount **source** path comes from the active Docker context's endpoint. Two things combine to break this on Colima:
 
-`analytics = false` in `config.toml` **no longer stops the vector container** in Supabase CLI v2.98.2+. The symlink is the only reliable fix.
+1. **Wrong context.** If the active context is `colima`, its endpoint is the host path `~/.colima/default/docker.sock`. That path does not exist inside the Colima VM where dockerd performs the mount → `operation not supported`. **Fix: `docker context use default`** so the endpoint is `/var/run/docker.sock`.
+2. **Missing symlink.** Even with the `default` context, Colima does not create `/var/run/docker.sock` by default. `pnpm db:start` creates it via `sudo ln -sf` pointing at the VM's real socket.
 
-**Fix** — `pnpm db:start` handles this automatically:
+`analytics = false` in `config.toml` **no longer stops the vector container** in Supabase CLI v2.98.2+. Using the `default` context plus the symlink is the reliable fix.
+
+**Fix** — set the context to `default` (see [Set the Docker context to `default`](#set-the-docker-context-to-default)), then let `pnpm db:start` handle the symlink automatically:
 
 ```bash
+docker context use default
 cd backend && pnpm db:start
 ```
 
