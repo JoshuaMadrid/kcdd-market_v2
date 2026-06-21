@@ -101,8 +101,8 @@ export function DonorImpact() {
           </SidebarItem>
           <SidebarItem
             icon={<Heart className="h-4 w-4 text-gray-700" />}
-            active={isActive('/requests')}
-            onClick={() => navigate('/requests')}
+            active={isActive('/campaigns')}
+            onClick={() => navigate('/campaigns')}
           >
             {sidebarOpen && 'Browse Campaigns'}
           </SidebarItem>

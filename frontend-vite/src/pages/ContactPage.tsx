@@ -189,7 +189,7 @@ export function ContactPage() {
                   About Us
                 </a>
                 <a
-                  href="/requests"
+                  href="/campaigns"
                   className="block text-muted-foreground hover:text-[hsl(var(--brand-primary))]"
                 >
                   Browse Requests

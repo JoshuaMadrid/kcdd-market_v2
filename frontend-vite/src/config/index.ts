@@ -103,7 +103,7 @@ export const routes = {
   about: '/about',
   faq: '/faq',
   contact: '/contact',
-  requests: '/requests',
+  requests: '/campaigns',
 
   // Authentication
   signIn: '/sign-in',

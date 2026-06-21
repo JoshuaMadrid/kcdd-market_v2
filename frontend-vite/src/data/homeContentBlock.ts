@@ -11,7 +11,7 @@ export const homeContentBlock: ContentBlockData = {
     'KC DIME ships the gear and reports back at 30 and 90 days',
   ],
   buttons: [
-    { label: 'Browse Requests', href: '/requests', variant: 'primary' },
+    { label: 'Browse Campaigns', href: '/campaigns', variant: 'primary' },
     { label: 'Learn More', href: '/about', variant: 'secondary' },
   ],
   // Real Unsplash photo: father and son learning together on a laptop.

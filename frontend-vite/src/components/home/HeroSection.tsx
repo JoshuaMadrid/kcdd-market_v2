@@ -7,6 +7,7 @@
 
 import { Link } from 'react-router-dom'
 import { routes } from '@/config'
+import { SignInButton } from '@clerk/clerk-react'
 import { Button } from '@/components/ui/button'
 
 export function HeroSection() {
@@ -95,14 +96,14 @@ export function HeroSection() {
                   Browse campaigns &amp; donate
                 </Button>
               </Link>
-              <Link to={`${routes.about}#for-organizations`} className="block w-full sm:w-auto">
+              <SignInButton mode="modal">
                 <Button
                   size="lg"
                   className="h-10 w-full rounded-full border-2 border-[hsl(var(--brand-primary))] bg-transparent px-6 text-[hsl(var(--brand-primary))] transition-all duration-200 hover:bg-[hsl(var(--brand-primary))] hover:text-white focus-visible:ring-2 focus-visible:ring-[hsl(var(--brand-primary))] focus-visible:ring-offset-2 active:scale-95 sm:w-auto"
                 >
-                  For organizations
+                  Get support for your org
                 </Button>
-              </Link>
+              </SignInButton>
             </nav>
           </div>
 

@@ -6,7 +6,7 @@
  * - Clerk Protected Routes: https://clerk.com/docs/components/protect
  */
 
-import { Routes, Route } from 'react-router-dom'
+import { Routes, Route, Navigate } from 'react-router-dom'
 import { SignIn, SignUp, SignedIn, SignedOut, RedirectToSignIn } from '@clerk/clerk-react'
 import { routes } from '@/config'
 
@@ -107,6 +107,7 @@ export function AppRoutes() {
         <Route path={routes.home} element={<HomePage />} />
         <Route path={routes.about} element={<AboutPage />} />
         <Route path={routes.requests} element={<RequestsPage />} />
+        <Route path="/requests" element={<Navigate to="/campaigns" replace />} />
         <Route path={routes.faq} element={<FaqPage />} />
         <Route path={routes.contact} element={<ContactPage />} />
       </Route>

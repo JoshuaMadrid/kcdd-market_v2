@@ -5,7 +5,7 @@
  */
 
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { getActiveCampaigns, supabase } from '@/lib/supabase'
 import {
   Card,
@@ -49,12 +49,22 @@ interface CauseArea {
   name: string
 }
 
+interface OrgChip {
+  id: string
+  name: string
+  logo_url: string | null
+}
+
 export function RequestsPage() {
+  const [searchParams] = useSearchParams()
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
   const [causeAreas, setCauseAreas] = useState<CauseArea[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedTags, setSelectedTags] = useState<string[]>([])
+  const [selectedOrgId, setSelectedOrgId] = useState<string | null>(
+    searchParams.get('organization')
+  )
   const [showTagFilter, setShowTagFilter] = useState(false)
   const [page, setPage] = useState(1)
 
@@ -92,7 +102,21 @@ export function RequestsPage() {
   // land on an empty page after narrowing results.
   useEffect(() => {
     setPage(1)
-  }, [searchQuery, selectedTags])
+  }, [searchQuery, selectedTags, selectedOrgId])
+
+  // Deduped, name-sorted list of organizations derived from loaded campaigns.
+  // No extra fetch — getActiveCampaigns already embeds the organization.
+  const organizations: OrgChip[] = Array.from(
+    campaigns
+      .reduce((map, campaign) => {
+        const org = campaign.organization
+        if (org?.id && !map.has(org.id)) {
+          map.set(org.id, { id: org.id, name: org.name, logo_url: org.logo_url })
+        }
+        return map
+      }, new Map<string, OrgChip>())
+      .values()
+  ).sort((a, b) => a.name.localeCompare(b.name))
 
   const getCauseAreaNames = (causeAreaIds: string[]) => {
     return causeAreas
@@ -115,7 +139,7 @@ export function RequestsPage() {
     setSelectedTags([])
   }
 
-  // Filter campaigns by search query AND selected tags
+  // Filter campaigns by search query AND selected tags AND selected org
   const filteredCampaigns = campaigns.filter((campaign) => {
     // Search filter
     const matchesSearch =
@@ -128,7 +152,10 @@ export function RequestsPage() {
       selectedTags.length === 0 ||
       selectedTags.every((tagId) => campaign.cause_area_ids?.includes(tagId))
 
-    return matchesSearch && matchesTags
+    // Org filter
+    const matchesOrg = !selectedOrgId || campaign.organization?.id === selectedOrgId
+
+    return matchesSearch && matchesTags && matchesOrg
   })
 
   if (loading) {
@@ -174,6 +201,45 @@ export function RequestsPage() {
             )}
           </Button>
         </div>
+
+        {/* Organization Chips */}
+        {organizations.length > 1 && (
+          <div className="mb-4 flex flex-wrap gap-2">
+            <button
+              onClick={() => setSelectedOrgId(null)}
+              className={`rounded-full px-3 py-1.5 text-sm font-medium transition-all ${
+                selectedOrgId === null
+                  ? 'bg-[#1b5858] text-white'
+                  : 'bg-[#f5f5f5] text-[#737373] hover:bg-[#e5e5e5]'
+              }`}
+            >
+              All
+            </button>
+            {organizations.map((org) => {
+              const isSelected = selectedOrgId === org.id
+              return (
+                <button
+                  key={org.id}
+                  onClick={() => setSelectedOrgId(isSelected ? null : org.id)}
+                  className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition-all ${
+                    isSelected
+                      ? 'bg-[#1b5858] text-white'
+                      : 'bg-[#f5f5f5] text-[#737373] hover:bg-[#e5e5e5]'
+                  }`}
+                >
+                  {org.logo_url && (
+                    <img
+                      src={org.logo_url}
+                      alt={org.name}
+                      className="h-4 w-4 rounded-full object-cover"
+                    />
+                  )}
+                  {org.name}
+                </button>
+              )
+            })}
+          </div>
+        )}
 
         {/* Tag Filter Panel */}
         {showTagFilter && (

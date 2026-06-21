@@ -569,7 +569,7 @@ function BrowseRequestsContent({
             <RefreshCw className={`mr-1 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
-          <Button variant="outline" size="sm" onClick={() => navigate('/requests')}>
+          <Button variant="outline" size="sm" onClick={() => navigate('/campaigns')}>
             <ExternalLink className="mr-1 h-4 w-4" />
             Full Page
           </Button>
@@ -989,7 +989,7 @@ function BrowseRequestsContent({
           <span>
             Showing {filteredRequests.length} of {requests.length} requests
           </span>
-          <Button variant="outline" size="sm" onClick={() => navigate('/requests')}>
+          <Button variant="outline" size="sm" onClick={() => navigate('/campaigns')}>
             View All Requests
           </Button>
         </div>

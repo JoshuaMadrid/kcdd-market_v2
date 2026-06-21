@@ -113,7 +113,7 @@ export function AboutPage() {
                   Get instant tax receipts for every donation
                 </li>
               </ul>
-              <Link to="/requests">
+              <Link to="/campaigns">
                 <Button className="bg-[hsl(var(--brand-primary))] hover:bg-[hsl(var(--brand-primary)/0.9)]">
                   Browse Requests
                 </Button>

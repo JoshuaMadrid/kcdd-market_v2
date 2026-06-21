@@ -14,7 +14,7 @@ export const homeFeatureCards: FeatureCardsSectionData = {
       description:
         'Laptops for students, hotspots for re-entry clients, tablets for seniors, monitors for remote workers — see what Kansas City needs right now.',
       linkText: 'View All Requests',
-      linkHref: '/requests',
+      linkHref: '/campaigns',
     },
     {
       title: 'Fund a Device',
