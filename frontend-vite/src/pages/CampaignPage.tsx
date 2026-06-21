@@ -1371,6 +1371,44 @@ export function CampaignPage() {
                       </p>
                     )}
                   </div>
+
+                  {/* Organization — surfaced here so visitors don't have to
+                      switch to the About Us tab to see who runs the campaign. */}
+                  {campaign.organization && (
+                    <div className="border-t border-gray-200 pt-4">
+                      <h3 className="mb-2 text-sm font-medium text-[#737373]">Organization</h3>
+                      <Link
+                        to={`/organizations/${campaign.organization.slug || campaign.organization.id || campaign.organization_id}`}
+                        className="group flex items-center gap-3"
+                      >
+                        {campaign.organization.logo_url ? (
+                          <img
+                            src={campaign.organization.logo_url}
+                            alt={campaign.organization.name}
+                            className="h-10 w-10 flex-shrink-0 rounded-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-neutral-100 text-sm font-semibold text-[#737373]">
+                            {campaign.organization.name?.charAt(0) || '?'}
+                          </div>
+                        )}
+                        <span className="text-sm font-medium text-[#0a0a0a] group-hover:text-[#ea580c] group-hover:underline">
+                          {campaign.organization.name}
+                        </span>
+                      </Link>
+                      {campaign.organization.mission && (
+                        <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-[#404040]">
+                          {campaign.organization.mission}
+                        </p>
+                      )}
+                      <Link
+                        to={`/organizations/${campaign.organization.slug || campaign.organization.id || campaign.organization_id}`}
+                        className="mt-2 inline-flex items-center text-sm font-medium text-[#ea580c] hover:underline"
+                      >
+                        View organization profile →
+                      </Link>
+                    </div>
+                  )}
                 </div>
 
                 {/* Main Content */}
