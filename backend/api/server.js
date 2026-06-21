@@ -1850,7 +1850,7 @@ app.get('/api/admin/pending-edits', clerkAuth, async (req, res) => {
  * page (one .in(...) each) to avoid N+1.
  *
  * Returns { rows, nextCursor, totals } — see buildDonationRow for row shape.
- * `totals` carries succeededThisMonth + monthlyTrends so the upcoming admin
+ * `totals` carries succeededToday + succeededThisMonth + monthlyTrends so the admin
  * Overview (Pass 2) can reuse this endpoint without a second query.
  *
  * Refund is intentionally OUT OF SCOPE here — this is a read-only ledger
@@ -2106,6 +2106,7 @@ function normalizeDisputeReason(raw) {
 /**
  * Compute succeeded totals over the whole ledger:
  *  - succeededCount / succeededAmount (lifetime)
+ *  - succeededToday { amount, count } (current UTC day)
  *  - succeededThisMonth { amount, count } (current calendar month)
  *  - monthlyTrends [{ month, year, count, amount }] (last ~6 months)
  * Amounts in CENTS.
@@ -2122,8 +2123,13 @@ async function computeDonationTotals(client) {
 
   const now = new Date()
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+  const dayStart = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+  )
   let thisMonthAmount = 0
   let thisMonthCount = 0
+  let todayAmount = 0
+  let todayCount = 0
 
   // last 6 calendar months (including current) keyed YYYY-MM.
   const buckets = new Map()
@@ -2139,6 +2145,10 @@ async function computeDonationTotals(client) {
       thisMonthAmount += r.amount_total || 0
       thisMonthCount += 1
     }
+    if (created >= dayStart) {
+      todayAmount += r.amount_total || 0
+      todayCount += 1
+    }
     const key = `${created.getUTCFullYear()}-${String(created.getUTCMonth() + 1).padStart(2, '0')}`
     const bucket = buckets.get(key)
     if (bucket) {
@@ -2151,6 +2161,7 @@ async function computeDonationTotals(client) {
     succeededCount: succeeded.length,
     succeededAmount,
     currency: 'usd',
+    succeededToday: { amount: todayAmount, count: todayCount },
     succeededThisMonth: { amount: thisMonthAmount, count: thisMonthCount },
     monthlyTrends: [...buckets.values()],
   }

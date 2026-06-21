@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useUser, useAuth } from '@clerk/clerk-react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -78,6 +78,7 @@ import {
   type SupportFAQ,
 } from '@/lib/supabase'
 import { api } from '@/lib/api'
+import { formatCurrency } from '@/lib/utils'
 import { Textarea } from '@/components/ui/textarea'
 import {
   Flag,
@@ -123,6 +124,9 @@ interface DashboardStats {
   verifiedUsers: number
   totalRaised: number
   thisMonthDonations: number
+  donationsToday: number
+  donationsTodayCount: number
+  donationsMonthCount: number
   totalCampaigns: number
   liveCampaigns: number
   pendingApprovals: number
@@ -218,6 +222,9 @@ const EMPTY_STATS: DashboardStats = {
   verifiedUsers: 0,
   totalRaised: 0,
   thisMonthDonations: 0,
+  donationsToday: 0,
+  donationsTodayCount: 0,
+  donationsMonthCount: 0,
   totalCampaigns: 0,
   liveCampaigns: 0,
   pendingApprovals: 0,
@@ -233,6 +240,7 @@ function StatCard({
   changeType = 'neutral',
   icon: Icon,
   loading = false,
+  onClick,
 }: {
   title: string
   value: string | number
@@ -240,9 +248,30 @@ function StatCard({
   changeType?: 'positive' | 'negative' | 'neutral'
   icon: React.ElementType
   loading?: boolean
+  onClick?: () => void
 }) {
+  const interactive = typeof onClick === 'function'
   return (
-    <Card className="p-5">
+    <Card
+      role={interactive ? 'button' : undefined}
+      tabIndex={interactive ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={
+        interactive
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                onClick?.()
+              }
+            }
+          : undefined
+      }
+      className={
+        interactive
+          ? 'cursor-pointer p-5 transition-colors hover:border-[#ea580c] hover:bg-[#ea580c]/5'
+          : 'p-5'
+      }
+    >
       <div className="flex items-start justify-between">
         <div className="space-y-2">
           <p className="text-sm text-[#737373]">{title}</p>
@@ -350,6 +379,7 @@ function OverviewContent({
   recentActivity,
   onRefresh,
   onNavigate,
+  onPendingClick,
   onExport,
   userGrowthData,
   donationTrendsData,
@@ -359,6 +389,7 @@ function OverviewContent({
   recentActivity: ActivityItem[]
   onRefresh: () => void
   onNavigate: (section: SidebarSection) => void
+  onPendingClick: () => void
   onExport: () => void
   userGrowthData: MonthlyDataPoint[]
   donationTrendsData: MonthlyDataPoint[]
@@ -390,8 +421,24 @@ function OverviewContent({
         <StatCard title="Donors" value={stats.totalDonors} icon={Heart} loading={loading} />
       </div>
 
-      {/* Campaign Stats */}
+      {/* Donation totals — today + this month */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatCard
+          title="Donations Today"
+          value={formatCurrency(stats.donationsToday)}
+          change={`${stats.donationsTodayCount} today`}
+          changeType="neutral"
+          icon={DollarSign}
+          loading={loading}
+        />
+        <StatCard
+          title="Donations This Month"
+          value={formatCurrency(stats.thisMonthDonations)}
+          change={`${stats.donationsMonthCount} this month`}
+          changeType="neutral"
+          icon={DollarSign}
+          loading={loading}
+        />
         <StatCard
           title="Total Campaigns"
           value={stats.totalCampaigns}
@@ -404,11 +451,18 @@ function OverviewContent({
           icon={CheckCircle2}
           loading={loading}
         />
+      </div>
+
+      {/* Campaign Stats */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard
           title="Pending Approvals"
           value={stats.pendingApprovals}
+          change="campaigns awaiting review"
+          changeType="neutral"
           icon={Flag}
           loading={loading}
+          onClick={onPendingClick}
         />
         <StatCard
           title="Total Supporters"
@@ -2681,6 +2735,7 @@ export function AdminDashboard() {
   const { user, isLoaded } = useUser()
   const { getToken } = useAuth()
   const navigate = useNavigate()
+  const [, setSearchParams] = useSearchParams()
   const { startImpersonating } = useImpersonation()
 
   // State
@@ -2741,13 +2796,17 @@ export function AdminDashboard() {
       const donationTotals = await api
         .get<{
           totals?: {
+            succeededToday?: { amount: number; count: number }
             succeededThisMonth?: { amount: number; count: number }
           }
         }>('/api/admin/donations', getToken)
         .catch((err) => {
           console.error('Error loading donation totals:', err)
           return { totals: undefined } as {
-            totals?: { succeededThisMonth?: { amount: number; count: number } }
+            totals?: {
+              succeededToday?: { amount: number; count: number }
+              succeededThisMonth?: { amount: number; count: number }
+            }
           }
         })
 
@@ -2784,8 +2843,11 @@ export function AdminDashboard() {
       // Calculate stats
       const usersArray = usersData || []
 
-      // succeededThisMonth.amount is in CENTS → dollars.
+      // succeeded{Today,ThisMonth}.amount is in CENTS → dollars.
       const thisMonthDonations = (donationTotals.totals?.succeededThisMonth?.amount ?? 0) / 100
+      const donationsToday = (donationTotals.totals?.succeededToday?.amount ?? 0) / 100
+      const donationsTodayCount = donationTotals.totals?.succeededToday?.count ?? 0
+      const donationsMonthCount = donationTotals.totals?.succeededThisMonth?.count ?? 0
 
       setStats({
         totalUsers: usersArray.length,
@@ -2794,6 +2856,9 @@ export function AdminDashboard() {
         verifiedUsers: usersArray.filter((u: any) => u.verification_status !== 'unverified').length,
         totalRaised,
         thisMonthDonations,
+        donationsToday,
+        donationsTodayCount,
+        donationsMonthCount,
         totalCampaigns: campaignRows.length,
         liveCampaigns: campaignRows.filter((r) => r.status === 'live').length,
         pendingApprovals: campaignRows.filter(
@@ -3125,6 +3190,12 @@ export function AdminDashboard() {
             donationTrendsData={donationTrendsData}
             onRefresh={fetchData}
             onNavigate={setActiveSection}
+            onPendingClick={() => {
+              // Land on the Campaigns section pre-filtered to pending-new
+              // campaigns awaiting review (CampaignsAdminPage reads ?tab=).
+              setSearchParams({ tab: 'pending_new' }, { replace: true })
+              setActiveSection('pending')
+            }}
             onExport={() => {
               // Export all data as separate CSV files
               if (users.length > 0) {
