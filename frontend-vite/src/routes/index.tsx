@@ -20,7 +20,8 @@ import { AboutPage } from '@/pages/AboutPage'
 import { FaqPage } from '@/pages/FaqPage'
 import { ContactPage } from '@/pages/ContactPage'
 import { RequestsPage } from '@/pages/RequestsPage'
-import { RequestDetailPage } from '@/pages/RequestDetailPage'
+// W7-10 Phase 1: requests surfaces unrouted (campaigns-only). Reversible — uncomment.
+// import { RequestDetailPage } from '@/pages/RequestDetailPage'
 import { DonorDashboard } from '@/pages/donor/DashboardPage'
 import { DonorProfile } from '@/pages/donor/ProfilePage'
 import { DonorImpact } from '@/pages/donor/ImpactPage'
@@ -28,8 +29,8 @@ import { DonorDocuments } from '@/pages/donor/DocumentsPage'
 import { DonorSupport } from '@/pages/donor/SupportPage'
 import { CBODashboard } from '@/pages/cbo/DashboardPage'
 import { CBOSetup } from '@/pages/cbo/SetupPage'
-import { CBORequests } from '@/pages/cbo/RequestsPage'
-import { NewRequestPage } from '@/pages/cbo/NewRequestPage'
+// import { CBORequests } from '@/pages/cbo/RequestsPage'
+// import { NewRequestPage } from '@/pages/cbo/NewRequestPage'
 import { CBOProfile } from '@/pages/cbo/ProfilePage'
 import { CBOProfileEdit } from '@/pages/cbo/ProfileEditPage'
 import { CampaignDefaultsPage } from '@/pages/cbo/CampaignDefaultsPage'
@@ -188,7 +189,8 @@ export function AppRoutes() {
             </ProtectedRoute>
           }
         />
-        <Route
+        {/* W7-10 Phase 1: /cbo/requests + /cbo/requests/new unrouted (campaigns-only). Reversible — uncomment. */}
+        {/* <Route
           path={routes.cbo.requests}
           element={
             <ProtectedRoute>
@@ -203,7 +205,7 @@ export function AppRoutes() {
               <NewRequestPage />
             </ProtectedRoute>
           }
-        />
+        /> */}
         <Route
           path={routes.cbo.profile}
           element={
@@ -233,7 +235,8 @@ export function AppRoutes() {
       {/* Organization routes (public) */}
       <Route element={<MainLayout />}>
         <Route path="/organizations/:id" element={<OrganizationProfilePage />} />
-        <Route path="/request/:id" element={<RequestDetailPage />} />
+        {/* W7-10 Phase 1: /request/:id unrouted. Reversible — uncomment. */}
+        {/* <Route path="/request/:id" element={<RequestDetailPage />} /> */}
       </Route>
 
       {/* Payment routes */}

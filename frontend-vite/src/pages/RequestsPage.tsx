@@ -60,19 +60,29 @@ export function RequestsPage() {
 
   useEffect(() => {
     const loadData = async () => {
-      try {
-        const [campaignsData, causeAreasData] = await Promise.all([
-          getActiveCampaigns(200),
-          supabase.from('cause_areas').select('id, name').order('name'),
-        ])
+      // Load campaigns and cause areas independently so a failure in one
+      // (e.g. an embed/RLS error on cause_areas) does not silently wipe out
+      // the campaigns grid — the primary content of this page.
+      const [campaignsResult, causeAreasResult] = await Promise.allSettled([
+        getActiveCampaigns(200),
+        supabase.from('cause_areas').select('id, name').order('name'),
+      ])
 
-        setCampaigns(campaignsData || [])
-        setCauseAreas(causeAreasData.data || [])
-      } catch (error) {
-        console.error('Error loading data:', error)
-      } finally {
-        setLoading(false)
+      if (campaignsResult.status === 'fulfilled') {
+        setCampaigns((campaignsResult.value as Campaign[]) || [])
+      } else {
+        console.error('Error loading campaigns:', campaignsResult.reason)
       }
+
+      if (causeAreasResult.status === 'fulfilled') {
+        const { data, error } = causeAreasResult.value
+        if (error) console.error('Error loading cause areas:', error)
+        setCauseAreas((data as CauseArea[]) || [])
+      } else {
+        console.error('Error loading cause areas:', causeAreasResult.reason)
+      }
+
+      setLoading(false)
     }
 
     loadData()
@@ -135,11 +145,10 @@ export function RequestsPage() {
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-4xl font-bold tracking-tight text-[#0a0a0a]">
-            Browse Campaigns & Requests
+            Browse Campaigns
           </h1>
           <p className="mt-2 text-lg text-[#737373]">
-            Fund a multi-device campaign, or pick a single open request — both go to verified Kansas
-            Citians.
+            Fund a multi-device campaign — every campaign goes to verified Kansas Citians.
           </p>
         </div>
 

@@ -69,7 +69,7 @@ export function Navbar() {
                   : 'font-normal text-black hover:text-[hsl(var(--brand-primary))]'
               }`}
             >
-              Browse Requests
+              Browse Campaigns
             </Link>
             <Link
               to={routes.about}

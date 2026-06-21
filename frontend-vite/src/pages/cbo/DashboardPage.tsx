@@ -10,14 +10,15 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+// W7-10 Phase 1: requests table removed (campaigns-only). Reversible — uncomment.
+// import {
+//   Table,
+//   TableBody,
+//   TableCell,
+//   TableHead,
+//   TableHeader,
+//   TableRow,
+// } from '@/components/ui/table'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,13 +32,13 @@ import { Textarea } from '@/components/ui/textarea'
 import { OnboardingModal } from '@/components/OnboardingModal'
 import { CampaignForm } from '@/components/CampaignForm'
 import {
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
+  // ChevronDown, // W7-10 Phase 1: requests table removed (reversible)
+  // ChevronLeft, // W7-10 Phase 1: requests table removed (reversible)
+  // ChevronRight, // W7-10 Phase 1: requests table removed (reversible)
+  // ChevronsLeft, // W7-10 Phase 1: requests table removed (reversible)
+  // ChevronsRight, // W7-10 Phase 1: requests table removed (reversible)
   CheckCircle2,
-  Columns2,
+  // Columns2, // W7-10 Phase 1: requests table removed (reversible)
   Loader,
   PanelLeft,
   Plus,
@@ -212,6 +213,11 @@ function UrgencyBadge({ urgency }: { urgency: string }) {
   )
 }
 
+// W7-10 Phase 1: StatusBadge + UrgencyBadge only fed the removed requests table.
+// Kept defined for reversibility; referenced here so noUnusedLocals stays green.
+void StatusBadge
+void UrgencyBadge
+
 // ============ CONTENT COMPONENTS ============
 
 // Dashboard Content (Main view)
@@ -237,10 +243,20 @@ function DashboardContent({
   onCreateRequest: () => void
 }) {
   const statsCards = getStatsCards(stats)
-  const filteredRequests = requests.filter((r) => {
-    if (activeTab === 'all') return true
-    return r.status === activeTab
-  })
+  // W7-10 Phase 1: requests-management table hidden (campaigns-only). Reversible.
+  // const filteredRequests = requests.filter((r) => {
+  //   if (activeTab === 'all') return true
+  //   return r.status === activeTab
+  // })
+  // Keep these props referenced so noUnusedParameters stays green while the
+  // table JSX below is commented out. One-line delete to fully restore.
+  void requests
+  void selectedRows
+  void toggleRowSelection
+  void toggleAllRows
+  void activeTab
+  void setActiveTab
+  void onCreateRequest
 
   return (
     <>
@@ -271,178 +287,10 @@ function DashboardContent({
         ))}
       </div>
 
-      {/* Table Section */}
-      <div className="space-y-6">
-        {/* Filters */}
-        <div className="flex items-center justify-between">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-auto">
-            <TabsList>
-              <TabsTrigger value="all">All</TabsTrigger>
-              <TabsTrigger value="open">Open</TabsTrigger>
-              <TabsTrigger value="claimed">In Progress</TabsTrigger>
-              <TabsTrigger value="fulfilled">Fulfilled</TabsTrigger>
-            </TabsList>
-          </Tabs>
-
-          <div className="flex items-center gap-2">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm">
-                  <Columns2 className="h-4 w-4" />
-                  <span>Customize Columns</span>
-                  <ChevronDown className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem>Description</DropdownMenuItem>
-                <DropdownMenuItem>Cause Area</DropdownMenuItem>
-                <DropdownMenuItem>Urgency</DropdownMenuItem>
-                <DropdownMenuItem>Status</DropdownMenuItem>
-                <DropdownMenuItem>Amount</DropdownMenuItem>
-                <DropdownMenuItem>Date</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            <Button size="sm" className="bg-[#1b5858] hover:bg-[#164444]" onClick={onCreateRequest}>
-              <Plus className="h-4 w-4" />
-              <span>New Campaign</span>
-            </Button>
-          </div>
-        </div>
-
-        {/* Table */}
-        <div className="overflow-hidden rounded-lg border border-[#e5e5e5]">
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  <TableHead className="w-12">
-                    <div className="flex items-center justify-center">
-                      <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 16 16">
-                        <circle cx="6" cy="4" r="1" fill="currentColor" />
-                        <circle cx="10" cy="4" r="1" fill="currentColor" />
-                        <circle cx="6" cy="8" r="1" fill="currentColor" />
-                        <circle cx="10" cy="8" r="1" fill="currentColor" />
-                        <circle cx="6" cy="12" r="1" fill="currentColor" />
-                        <circle cx="10" cy="12" r="1" fill="currentColor" />
-                      </svg>
-                    </div>
-                  </TableHead>
-                  <TableHead className="w-12">
-                    <Checkbox
-                      checked={
-                        selectedRows.size === filteredRequests.length && filteredRequests.length > 0
-                      }
-                      onCheckedChange={toggleAllRows}
-                    />
-                  </TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead>Cause Area</TableHead>
-                  <TableHead>Urgency</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead className="w-12"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredRequests.map((request) => (
-                  <TableRow key={request.id}>
-                    <TableCell>
-                      <div className="flex items-center justify-center">
-                        <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 16 16">
-                          <circle cx="6" cy="4" r="1" fill="currentColor" />
-                          <circle cx="10" cy="4" r="1" fill="currentColor" />
-                          <circle cx="6" cy="8" r="1" fill="currentColor" />
-                          <circle cx="10" cy="8" r="1" fill="currentColor" />
-                          <circle cx="6" cy="12" r="1" fill="currentColor" />
-                          <circle cx="10" cy="12" r="1" fill="currentColor" />
-                        </svg>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Checkbox
-                        checked={selectedRows.has(request.id)}
-                        onCheckedChange={() => toggleRowSelection(request.id)}
-                      />
-                    </TableCell>
-                    <TableCell className="max-w-[200px] truncate">{request.description}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{request.cause_area_name}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <UrgencyBadge urgency={request.urgency} />
-                    </TableCell>
-                    <TableCell>
-                      <StatusBadge status={request.status} />
-                    </TableCell>
-                    <TableCell>${request.amount.toLocaleString()}</TableCell>
-                    <TableCell>{new Date(request.created_at).toLocaleDateString()}</TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem>Edit</DropdownMenuItem>
-                          <DropdownMenuItem>View Details</DropdownMenuItem>
-                          <DropdownMenuItem className="text-red-600">Delete</DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </div>
-
-        {/* Pagination */}
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-gray-600">
-            {selectedRows.size} of {filteredRequests.length} row(s) selected.
-          </span>
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2">
-              <span>Rows per page</span>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="h-8">
-                    10
-                    <ChevronDown className="ml-1 h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem>10</DropdownMenuItem>
-                  <DropdownMenuItem>20</DropdownMenuItem>
-                  <DropdownMenuItem>50</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-            <span>Page 1 of 1</span>
-            <div className="flex items-center gap-1">
-              <Button variant="outline" size="sm" className="h-8 w-8 p-0" disabled>
-                <ChevronsLeft className="h-4 w-4" />
-              </Button>
-              <Button variant="outline" size="sm" className="h-8 w-8 p-0" disabled>
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Button variant="outline" size="sm" className="h-8 w-8 p-0" disabled>
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-              <Button variant="outline" size="sm" className="h-8 w-8 p-0" disabled>
-                <ChevronsRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
+      {/* W7-10 Phase 1: requests-management Table Section removed (campaigns-only).
+          Reversible — restore the table JSX from git history (commit removing it)
+          and uncomment filteredRequests + drop the `void` lines above. Stats Cards
+          above stay. Campaign creation lives in the Campaigns sidebar section. */}
     </>
   )
 }

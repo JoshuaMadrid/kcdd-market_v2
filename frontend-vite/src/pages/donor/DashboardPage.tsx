@@ -1572,7 +1572,7 @@ export function DonorDashboard() {
       case 'campaign':
         return 'My Donations'
       case 'browse':
-        return 'Browse Requests'
+        return 'Browse Campaigns'
       case 'updates':
         return 'Updates & Proof'
       case 'transfers':
@@ -1675,7 +1675,10 @@ export function DonorDashboard() {
               {sidebarOpen && <span className="text-sm">My Donations</span>}
             </button>
 
-            <button
+            {/* W7-10 Phase 1: Browse Requests sidebar nav removed (campaigns-only).
+                Reversible — uncomment to restore. The 'browse' render branch +
+                BrowseRequestsContent remain defined but unreachable. */}
+            {/* <button
               onClick={() => setActiveSection('browse')}
               className={`flex w-full items-center gap-2 whitespace-nowrap rounded-lg px-2 py-2 transition-colors ${
                 activeSection === 'browse'
@@ -1684,8 +1687,8 @@ export function DonorDashboard() {
               }`}
             >
               <Heart className="h-4 w-4 flex-shrink-0" />
-              {sidebarOpen && <span className="text-sm">Browse Requests</span>}
-            </button>
+              {sidebarOpen && <span className="text-sm">Browse Campaigns</span>}
+            </button> */}
 
             <button
               onClick={() => setActiveSection('updates')}

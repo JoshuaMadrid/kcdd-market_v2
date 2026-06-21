@@ -487,14 +487,15 @@ function OverviewContent({
               <Building2 className="h-5 w-5" />
               <span className="text-sm">Verify Orgs</span>
             </Button>
-            <Button
+            {/* W7-10 Phase 1: Review Requests quick-action removed (campaigns-only). Reversible — uncomment. */}
+            {/* <Button
               variant="outline"
               className="h-auto flex-col gap-2 py-4 hover:border-[#ea580c] hover:text-[#ea580c]"
               onClick={() => onNavigate('requests')}
             >
               <FileText className="h-5 w-5" />
               <span className="text-sm">Review Requests</span>
-            </Button>
+            </Button> */}
             <Button
               variant="outline"
               className="h-auto flex-col gap-2 py-4 hover:border-[#ea580c] hover:text-[#ea580c]"
@@ -1786,6 +1787,10 @@ function RequestsContent({
   )
 }
 
+// W7-10 Phase 1: RequestsContent kept for reversibility; its only render branch
+// was removed (campaigns-only). Referenced here so noUnusedLocals stays green.
+void RequestsContent
+
 // Analytics Content
 // Simple Bar Chart Component (no external library)
 function SimpleBarChart({
@@ -3053,7 +3058,7 @@ export function AdminDashboard() {
     setLoading(true)
     try {
       // Fetch users
-      const { data: usersData } = await supabase
+      const { data: usersData, error: usersError } = await supabase
         .from('user_profiles')
         .select(
           `
@@ -3064,19 +3069,29 @@ export function AdminDashboard() {
         )
         .order('created_at', { ascending: false })
 
-      // Fetch organizations
-      const { data: orgsData } = await supabase
+      if (usersError) {
+        console.error('Error loading users:', usersError)
+      }
+
+      // Fetch organizations.
+      // NOTE: do NOT embed user_profiles(verification_status, org_tier) here —
+      // those columns do not exist on user_profiles in this schema, so the
+      // embed returns a PostgREST 42703 error (not data). Because the error
+      // was previously ignored, orgsData fell back to undefined and the
+      // Organizations tab rendered empty. The render path already tolerates a
+      // missing user_profile via `org.user_profile?.verification_status ||
+      // 'unverified'`, so we simply drop the broken embed and surface errors.
+      const { data: orgsData, error: orgsError } = await supabase
         .from('organizations')
-        .select(
-          `
-          *,
-          user_profile:user_profiles(verification_status, org_tier)
-        `
-        )
+        .select('*')
         .order('created_at', { ascending: false })
 
+      if (orgsError) {
+        console.error('Error loading organizations:', orgsError)
+      }
+
       // Fetch requests
-      const { data: requestsData } = await supabase
+      const { data: requestsData, error: requestsError } = await supabase
         .from('requests')
         .select(
           `
@@ -3086,6 +3101,10 @@ export function AdminDashboard() {
         `
         )
         .order('created_at', { ascending: false })
+
+      if (requestsError) {
+        console.error('Error loading requests:', requestsError)
+      }
 
       // Fetch campaign reports
       const reportsData = await fetchCampaignReports()
@@ -3280,7 +3299,8 @@ export function AdminDashboard() {
         await supabase.from('organization_updates').delete().eq('organization_id', org.id)
         await supabase.from('organization_team_members').delete().eq('organization_id', org.id)
         await supabase.from('organization_documents').delete().eq('organization_id', org.id)
-        await supabase.from('campaign_reports').delete().eq('organization_id', org.id)
+        // campaign_reports has no organization_id; it cascades from campaigns(id)
+        // ON DELETE CASCADE when the org's campaigns are deleted below.
 
         // Delete campaigns and their children
         const { data: campaigns } = await supabase
@@ -3425,6 +3445,9 @@ export function AdminDashboard() {
       console.error('Error updating request status:', err)
     }
   }
+  // W7-10 Phase 1: kept for reversibility; only fed the removed requests render
+  // branch. Referenced here so noUnusedLocals stays green.
+  void handleUpdateRequestStatus
 
   // Get header title
   const getHeaderTitle = () => {
@@ -3435,8 +3458,9 @@ export function AdminDashboard() {
         return 'User Management'
       case 'organizations':
         return 'Organizations'
-      case 'requests':
-        return 'Requests'
+      // W7-10 Phase 1: requests section-title case removed (campaigns-only). Reversible.
+      // case 'requests':
+      //   return 'Requests'
       case 'reports':
         return 'Campaign Reports'
       case 'analytics':
@@ -3537,15 +3561,18 @@ export function AdminDashboard() {
             }}
           />
         )
-      case 'requests':
-        return (
-          <RequestsContent
-            requests={requests}
-            loading={loading}
-            onRefresh={fetchData}
-            onUpdateStatus={handleUpdateRequestStatus}
-          />
-        )
+      // W7-10 Phase 1: requests render branch removed (campaigns-only). Reversible —
+      // uncomment + drop the void refs below. RequestsContent body + the
+      // from('requests') stats fetch are intentionally kept.
+      // case 'requests':
+      //   return (
+      //     <RequestsContent
+      //       requests={requests}
+      //       loading={loading}
+      //       onRefresh={fetchData}
+      //       onUpdateStatus={handleUpdateRequestStatus}
+      //     />
+      //   )
       case 'reports':
         return (
           <ReportsContent
@@ -3640,7 +3667,8 @@ export function AdminDashboard() {
             {sidebarOpen && <span className="text-sm">Organizations</span>}
           </button>
 
-          <button
+          {/* W7-10 Phase 1: Requests sidebar nav removed (campaigns-only). Reversible — uncomment. */}
+          {/* <button
             onClick={() => setActiveSection('requests')}
             className={`flex w-full items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 transition-colors ${
               activeSection === 'requests'
@@ -3650,7 +3678,7 @@ export function AdminDashboard() {
           >
             <FileText className="h-4 w-4 flex-shrink-0" />
             {sidebarOpen && <span className="text-sm">Requests</span>}
-          </button>
+          </button> */}
 
           <button
             onClick={() => setActiveSection('reports')}

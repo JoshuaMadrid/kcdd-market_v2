@@ -125,7 +125,7 @@ export function DonorSupport() {
             active={isActive('/requests')}
             onClick={() => navigate('/requests')}
           >
-            {sidebarOpen && 'Browse Requests'}
+            {sidebarOpen && 'Browse Campaigns'}
           </SidebarItem>
           <SidebarItem
             icon={<BarChart3 className="h-4 w-4 text-gray-700" />}
