@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useUser } from '@clerk/clerk-react'
+import { useUser, useAuth } from '@clerk/clerk-react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -53,7 +53,6 @@ import {
   X,
   RefreshCw,
   Loader2,
-  BarChart3,
   Activity,
   Filter,
   Download,
@@ -73,11 +72,13 @@ import {
   fetchUserGrowthData,
   fetchDonationTrendsData,
   fetchSupportFAQs,
+  fetchAdminActivity,
   logAdminActivity,
   type CampaignReport,
   type MonthlyDataPoint,
   type SupportFAQ,
 } from '@/lib/supabase'
+import { api } from '@/lib/api'
 import { Textarea } from '@/components/ui/textarea'
 import {
   Flag,
@@ -121,12 +122,12 @@ interface DashboardStats {
   totalDonors: number
   totalOrgs: number
   verifiedUsers: number
-  totalRequests: number
-  openRequests: number
-  claimedRequests: number
-  fulfilledRequests: number
-  totalDonations: number
+  totalRaised: number
   thisMonthDonations: number
+  totalCampaigns: number
+  liveCampaigns: number
+  pendingApprovals: number
+  totalSupporters: number
 }
 
 interface UserProfile {
@@ -172,30 +173,29 @@ interface Organization {
   }
 }
 
-interface Request {
-  id: string
-  organization_id: string
-  description: string
-  amount: number
-  status: 'open' | 'claimed' | 'fulfilled' | 'denied'
-  urgency: 'low' | 'medium' | 'high'
-  created_at: string
-  claimed_at: string | null
-  fulfilled_at: string | null
-  organization?: {
-    name: string
-  }
-  cause_area?: {
-    name: string
-  }
-}
-
 interface ActivityItem {
   id: string
-  type: 'user_joined' | 'request_created' | 'donation_made' | 'org_verified'
+  type: 'user_joined' | 'campaign_action' | 'donation_made' | 'org_verified'
   description: string
   timestamp: string
   user?: string
+}
+
+// Humanize an admin_activity_log row into a short activity label.
+function humanizeAction(action: string, entityType: string | null): string {
+  const map: Record<string, string> = {
+    campaign_approved: 'Campaign approved',
+    campaign_rejected: 'Campaign rejected',
+    campaign_restored: 'Campaign restored',
+    user_verified: 'User verified',
+    user_unverified: 'User set to unverified',
+    user_deleted: 'User deleted',
+    settings_updated: 'Settings updated',
+  }
+  if (map[action]) return map[action]
+  const verb = action.replace(/_/g, ' ')
+  const noun = entityType ? `${entityType} ` : ''
+  return `${noun}${verb}`.trim().replace(/^\w/, (c) => c.toUpperCase())
 }
 
 // Sidebar sections
@@ -203,12 +203,10 @@ type SidebarSection =
   | 'overview'
   | 'users'
   | 'organizations'
-  | 'requests'
   | 'reports'
   | 'pending'
   | 'audit'
   | 'donations'
-  | 'analytics'
   | 'settings'
   | 'support'
 
@@ -219,12 +217,12 @@ const EMPTY_STATS: DashboardStats = {
   totalDonors: 0,
   totalOrgs: 0,
   verifiedUsers: 0,
-  totalRequests: 0,
-  openRequests: 0,
-  claimedRequests: 0,
-  fulfilledRequests: 0,
-  totalDonations: 0,
+  totalRaised: 0,
   thisMonthDonations: 0,
+  totalCampaigns: 0,
+  liveCampaigns: 0,
+  pendingApprovals: 0,
+  totalSupporters: 0,
 }
 
 // ============ HELPER COMPONENTS ============
@@ -278,27 +276,6 @@ function StatCard({
       </div>
     </Card>
   )
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const config: Record<string, { bg: string; text: string; label: string }> = {
-    open: { bg: 'bg-blue-100', text: 'text-blue-700', label: 'Open' },
-    claimed: { bg: 'bg-amber-100', text: 'text-amber-700', label: 'Claimed' },
-    fulfilled: { bg: 'bg-green-100', text: 'text-green-700', label: 'Fulfilled' },
-    denied: { bg: 'bg-red-100', text: 'text-red-700', label: 'Denied' },
-  }
-  const c = config[status] || { bg: 'bg-gray-100', text: 'text-gray-700', label: status }
-  return <Badge className={`${c.bg} ${c.text} border-0`}>{c.label}</Badge>
-}
-
-function UrgencyBadge({ urgency }: { urgency: string }) {
-  const config: Record<string, { bg: string; text: string }> = {
-    high: { bg: 'bg-red-100', text: 'text-red-700' },
-    medium: { bg: 'bg-amber-100', text: 'text-amber-700' },
-    low: { bg: 'bg-green-100', text: 'text-green-700' },
-  }
-  const c = config[urgency] || { bg: 'bg-gray-100', text: 'text-gray-700' }
-  return <Badge className={`${c.bg} ${c.text} border-0 capitalize`}>{urgency}</Badge>
 }
 
 // Renders an org logo with graceful fallback when Clearbit returns 404
@@ -375,6 +352,8 @@ function OverviewContent({
   onRefresh,
   onNavigate,
   onExport,
+  userGrowthData,
+  donationTrendsData,
 }: {
   stats: DashboardStats
   loading: boolean
@@ -382,11 +361,26 @@ function OverviewContent({
   onRefresh: () => void
   onNavigate: (section: SidebarSection) => void
   onExport: () => void
+  userGrowthData: MonthlyDataPoint[]
+  donationTrendsData: MonthlyDataPoint[]
 }) {
+  const userGrowthChartData = userGrowthData.map((d) => ({ label: d.month, value: d.count }))
+  const donationTrendsChartData = donationTrendsData.map((d) => ({
+    label: d.month,
+    value: d.amount || 0,
+  }))
   return (
     <div className="space-y-6">
-      {/* Stats Grid */}
+      {/* Stats Grid — fundraising + users */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatCard
+          title="Total Raised"
+          value={`$${stats.totalRaised.toLocaleString()}`}
+          change={`$${stats.thisMonthDonations.toLocaleString()} this month`}
+          changeType="positive"
+          icon={DollarSign}
+          loading={loading}
+        />
         <StatCard title="Total Users" value={stats.totalUsers} icon={Users} loading={loading} />
         <StatCard
           title="Organizations"
@@ -394,45 +388,70 @@ function OverviewContent({
           icon={Building2}
           loading={loading}
         />
-        <StatCard
-          title="Open Requests"
-          value={stats.openRequests}
-          change={`${stats.claimedRequests} in progress`}
-          changeType="neutral"
-          icon={FileText}
-          loading={loading}
-        />
-        <StatCard
-          title="Total Donations"
-          value={`$${stats.totalDonations.toLocaleString()}`}
-          change={`$${stats.thisMonthDonations.toLocaleString()} this month`}
-          changeType="positive"
-          icon={DollarSign}
-          loading={loading}
-        />
+        <StatCard title="Donors" value={stats.totalDonors} icon={Heart} loading={loading} />
       </div>
 
-      {/* Secondary Stats */}
+      {/* Campaign Stats */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard title="Donors" value={stats.totalDonors} icon={Heart} loading={loading} />
         <StatCard
-          title="Verified Users"
-          value={stats.verifiedUsers}
-          icon={Shield}
+          title="Total Campaigns"
+          value={stats.totalCampaigns}
+          icon={ClipboardList}
           loading={loading}
         />
         <StatCard
-          title="Fulfilled Requests"
-          value={stats.fulfilledRequests}
+          title="Live Campaigns"
+          value={stats.liveCampaigns}
           icon={CheckCircle2}
           loading={loading}
         />
         <StatCard
-          title="Total Requests"
-          value={stats.totalRequests}
-          icon={FileText}
+          title="Pending Approvals"
+          value={stats.pendingApprovals}
+          icon={Flag}
           loading={loading}
         />
+        <StatCard
+          title="Total Supporters"
+          value={stats.totalSupporters}
+          icon={Heart}
+          loading={loading}
+        />
+      </div>
+
+      {/* Charts row */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <Card className="p-6">
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="font-semibold">User Growth</h3>
+            <Badge variant="outline" className="text-xs">
+              Last 6 months
+            </Badge>
+          </div>
+          {userGrowthChartData.length > 0 ? (
+            <SimpleBarChart data={userGrowthChartData} color="#ea580c" />
+          ) : (
+            <div className="flex h-32 items-center justify-center text-sm text-[#737373]">
+              No user data available yet
+            </div>
+          )}
+        </Card>
+
+        <Card className="p-6">
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="font-semibold">Donation Trends ($)</h3>
+            <Badge variant="outline" className="text-xs">
+              Last 6 months
+            </Badge>
+          </div>
+          {donationTrendsChartData.some((d) => d.value > 0) ? (
+            <SimpleBarChart data={donationTrendsChartData} color="#10b981" />
+          ) : (
+            <div className="flex h-32 items-center justify-center text-sm text-[#737373]">
+              No donation data available yet
+            </div>
+          )}
+        </Card>
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -455,8 +474,8 @@ function OverviewContent({
                 <div key={item.id} className="flex items-start gap-3 rounded-lg bg-gray-50 p-3">
                   <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#ea580c]/10">
                     {item.type === 'user_joined' && <Users className="h-4 w-4 text-[#ea580c]" />}
-                    {item.type === 'request_created' && (
-                      <FileText className="h-4 w-4 text-[#ea580c]" />
+                    {item.type === 'campaign_action' && (
+                      <ClipboardList className="h-4 w-4 text-[#ea580c]" />
                     )}
                     {item.type === 'donation_made' && <Heart className="h-4 w-4 text-[#ea580c]" />}
                     {item.type === 'org_verified' && <Shield className="h-4 w-4 text-[#ea580c]" />}
@@ -493,15 +512,6 @@ function OverviewContent({
               <Building2 className="h-5 w-5" />
               <span className="text-sm">Verify Orgs</span>
             </Button>
-            {/* W7-10 Phase 1: Review Requests quick-action removed (campaigns-only). Reversible — uncomment. */}
-            {/* <Button
-              variant="outline"
-              className="h-auto flex-col gap-2 py-4 hover:border-[#ea580c] hover:text-[#ea580c]"
-              onClick={() => onNavigate('requests')}
-            >
-              <FileText className="h-5 w-5" />
-              <span className="text-sm">Review Requests</span>
-            </Button> */}
             <Button
               variant="outline"
               className="h-auto flex-col gap-2 py-4 hover:border-[#ea580c] hover:text-[#ea580c]"
@@ -1633,170 +1643,6 @@ function OrganizationsContent({
   )
 }
 
-// Requests Content
-function RequestsContent({
-  requests,
-  loading,
-  onRefresh,
-  onUpdateStatus,
-}: {
-  requests: Request[]
-  loading: boolean
-  onRefresh: () => void
-  onUpdateStatus: (requestId: string, status: string) => void
-}) {
-  const [activeTab, setActiveTab] = useState('all')
-  const [searchQuery, setSearchQuery] = useState('')
-
-  const filteredRequests = requests.filter((request) => {
-    const matchesTab = activeTab === 'all' || request.status === activeTab
-    const matchesSearch =
-      !searchQuery ||
-      request.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      request.organization?.name?.toLowerCase().includes(searchQuery.toLowerCase())
-
-    return matchesTab && matchesSearch
-  })
-
-  const statusCounts = {
-    all: requests.length,
-    open: requests.filter((r) => r.status === 'open').length,
-    claimed: requests.filter((r) => r.status === 'claimed').length,
-    fulfilled: requests.filter((r) => r.status === 'fulfilled').length,
-    denied: requests.filter((r) => r.status === 'denied').length,
-  }
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-semibold">Requests Management</h2>
-          <p className="text-sm text-[#737373]">{requests.length} total requests</p>
-        </div>
-        <Button variant="outline" size="sm" onClick={onRefresh}>
-          <RefreshCw className="mr-1 h-4 w-4" />
-          Refresh
-        </Button>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex items-center justify-between">
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList>
-            <TabsTrigger value="all">All ({statusCounts.all})</TabsTrigger>
-            <TabsTrigger value="open">Open ({statusCounts.open})</TabsTrigger>
-            <TabsTrigger value="claimed">Claimed ({statusCounts.claimed})</TabsTrigger>
-            <TabsTrigger value="fulfilled">Fulfilled ({statusCounts.fulfilled})</TabsTrigger>
-            <TabsTrigger value="denied">Denied ({statusCounts.denied})</TabsTrigger>
-          </TabsList>
-        </Tabs>
-
-        <div className="relative w-64">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-          <Input
-            placeholder="Search requests..."
-            className="pl-9"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
-      </div>
-
-      {/* Table */}
-      <Card className="overflow-hidden">
-        {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-          </div>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Organization</TableHead>
-                <TableHead>Description</TableHead>
-                <TableHead>Cause Area</TableHead>
-                <TableHead>Amount</TableHead>
-                <TableHead>Urgency</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead className="w-12"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredRequests.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="py-8 text-center text-[#737373]">
-                    No requests found
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filteredRequests.map((request) => (
-                  <TableRow key={request.id}>
-                    <TableCell>
-                      <span className="font-medium">{request.organization?.name || 'Unknown'}</span>
-                    </TableCell>
-                    <TableCell className="max-w-[200px]">
-                      <span className="block truncate">{request.description}</span>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{request.cause_area?.name || 'General'}</Badge>
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      ${Number(request.amount).toLocaleString()}
-                    </TableCell>
-                    <TableCell>
-                      <UrgencyBadge urgency={request.urgency} />
-                    </TableCell>
-                    <TableCell>
-                      <StatusBadge status={request.status} />
-                    </TableCell>
-                    <TableCell className="text-[#737373]">
-                      {new Date(request.created_at).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem>
-                            <Eye className="mr-2 h-4 w-4" />
-                            View Details
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuLabel>Change Status</DropdownMenuLabel>
-                          <DropdownMenuItem onClick={() => onUpdateStatus(request.id, 'open')}>
-                            Mark as Open
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => onUpdateStatus(request.id, 'fulfilled')}>
-                            Mark as Fulfilled
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => onUpdateStatus(request.id, 'denied')}
-                            className="text-red-600"
-                          >
-                            Deny Request
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        )}
-      </Card>
-    </div>
-  )
-}
-
-// W7-10 Phase 1: RequestsContent kept for reversibility; its only render branch
-// was removed (campaigns-only). Referenced here so noUnusedLocals stays green.
-void RequestsContent
-
 // Analytics Content
 // Simple Bar Chart Component (no external library)
 function SimpleBarChart({
@@ -1827,228 +1673,6 @@ function SimpleBarChart({
           </div>
         </div>
       ))}
-    </div>
-  )
-}
-
-// Donut Chart Component (CSS-based)
-function SimpleDonutChart({
-  data,
-  total,
-}: {
-  data: { label: string; value: number; color: string }[]
-  total: number
-}) {
-  let cumulativePercent = 0
-
-  const getConicGradient = () => {
-    if (total === 0) return 'conic-gradient(#e5e5e5 0% 100%)'
-
-    const segments = data
-      .map((item) => {
-        const percent = (item.value / total) * 100
-        const start = cumulativePercent
-        cumulativePercent += percent
-        return `${item.color} ${start}% ${cumulativePercent}%`
-      })
-      .join(', ')
-
-    return `conic-gradient(${segments})`
-  }
-
-  return (
-    <div className="flex items-center gap-6">
-      <div className="relative h-32 w-32 rounded-full" style={{ background: getConicGradient() }}>
-        <div className="absolute inset-4 flex items-center justify-center rounded-full bg-white">
-          <div className="text-center">
-            <p className="text-xl font-bold">{total}</p>
-            <p className="text-xs text-[#737373]">Total</p>
-          </div>
-        </div>
-      </div>
-      <div className="space-y-2">
-        {data.map((item, index) => (
-          <div key={index} className="flex items-center gap-2">
-            <div className="h-3 w-3 rounded-full" style={{ backgroundColor: item.color }} />
-            <span className="text-sm text-[#737373]">{item.label}</span>
-            <span className="ml-auto text-sm font-medium">{item.value}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function AnalyticsContent({
-  stats,
-  loading,
-  userGrowthData,
-  donationTrendsData,
-}: {
-  stats: DashboardStats
-  loading: boolean
-  userGrowthData: MonthlyDataPoint[]
-  donationTrendsData: MonthlyDataPoint[]
-}) {
-  // User type distribution data (using brand colors)
-  const userTypeData = [
-    { label: 'Donors', value: stats.totalDonors, color: '#ea580c' }, // Brand orange
-    { label: 'Organizations', value: stats.totalOrgs, color: '#1b5858' }, // Brand teal
-    {
-      label: 'Admins',
-      value: Math.max(stats.totalUsers - stats.totalDonors - stats.totalOrgs, 0),
-      color: '#dbf938',
-    }, // Brand lime
-  ]
-
-  // Request status distribution for donut chart (using brand colors)
-  const requestStatusData = [
-    { label: 'Open', value: stats.openRequests, color: '#1b5858' }, // Brand teal
-    { label: 'Claimed', value: stats.claimedRequests, color: '#ea580c' }, // Brand orange
-    { label: 'Fulfilled', value: stats.fulfilledRequests, color: '#c4e5c1' }, // Brand light green
-  ]
-
-  // Transform data for charts (real data from database)
-  const userGrowthChartData = userGrowthData.map((d) => ({
-    label: d.month,
-    value: d.count,
-  }))
-
-  const donationTrendsChartData = donationTrendsData.map((d) => ({
-    label: d.month,
-    value: d.amount || 0,
-  }))
-
-  if (loading) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-[#ea580c]" />
-      </div>
-    )
-  }
-
-  return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-xl font-semibold">Analytics</h2>
-        <p className="text-sm text-[#737373]">Platform performance and insights</p>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard title="Total Users" value={stats.totalUsers} icon={Users} loading={loading} />
-        <StatCard
-          title="Total Donations"
-          value={`$${stats.totalDonations.toLocaleString()}`}
-          icon={DollarSign}
-          loading={loading}
-        />
-        <StatCard
-          title="Requests Fulfilled"
-          value={stats.fulfilledRequests}
-          icon={CheckCircle2}
-          loading={loading}
-        />
-        <StatCard
-          title="Organizations"
-          value={stats.totalOrgs}
-          icon={Building2}
-          loading={loading}
-        />
-      </div>
-
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* User Growth */}
-        <Card className="p-6">
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="font-semibold">User Growth</h3>
-            <Badge variant="outline" className="text-xs">
-              Last 6 months (Real Data)
-            </Badge>
-          </div>
-          {userGrowthChartData.length > 0 ? (
-            <SimpleBarChart data={userGrowthChartData} color="#ea580c" />
-          ) : (
-            <div className="flex h-32 items-center justify-center text-sm text-[#737373]">
-              No user data available yet
-            </div>
-          )}
-        </Card>
-
-        {/* Donation Trends */}
-        <Card className="p-6">
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="font-semibold">Donation Trends ($)</h3>
-            <Badge variant="outline" className="text-xs">
-              Last 6 months (Real Data)
-            </Badge>
-          </div>
-          {donationTrendsChartData.some((d) => d.value > 0) ? (
-            <SimpleBarChart data={donationTrendsChartData} color="#10b981" />
-          ) : (
-            <div className="flex h-32 items-center justify-center text-sm text-[#737373]">
-              No donation data available yet
-            </div>
-          )}
-        </Card>
-      </div>
-
-      {/* User & Request Distribution - Combined Card */}
-      <Card className="p-6">
-        <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
-          <div>
-            <h3 className="mb-4 font-semibold">User Distribution</h3>
-            <SimpleDonutChart data={userTypeData} total={stats.totalUsers} />
-          </div>
-          <div>
-            <h3 className="mb-4 font-semibold">Request Status</h3>
-            <SimpleDonutChart data={requestStatusData} total={stats.totalRequests} />
-          </div>
-        </div>
-      </Card>
-
-      {/* Detailed Stats */}
-      <Card className="p-6">
-        <h3 className="mb-4 font-semibold">Platform Metrics</h3>
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-          <div className="rounded-lg bg-gray-50 p-4">
-            <p className="mb-1 text-sm text-[#737373]">Verification Rate</p>
-            <p className="text-2xl font-bold">
-              {stats.totalUsers > 0
-                ? Math.round((stats.verifiedUsers / stats.totalUsers) * 100)
-                : 0}
-              %
-            </p>
-            <p className="text-xs text-[#737373]">{stats.verifiedUsers} verified</p>
-          </div>
-          <div className="rounded-lg bg-gray-50 p-4">
-            <p className="mb-1 text-sm text-[#737373]">Fulfillment Rate</p>
-            <p className="text-2xl font-bold">
-              {stats.totalRequests > 0
-                ? Math.round((stats.fulfilledRequests / stats.totalRequests) * 100)
-                : 0}
-              %
-            </p>
-            <p className="text-xs text-[#737373]">{stats.fulfilledRequests} fulfilled</p>
-          </div>
-          <div className="rounded-lg bg-gray-50 p-4">
-            <p className="mb-1 text-sm text-[#737373]">Avg. Donation</p>
-            <p className="text-2xl font-bold">
-              $
-              {stats.fulfilledRequests > 0
-                ? Math.round(stats.totalDonations / stats.fulfilledRequests).toLocaleString()
-                : 0}
-            </p>
-            <p className="text-xs text-[#737373]">per request</p>
-          </div>
-          <div className="rounded-lg bg-gray-50 p-4">
-            <p className="mb-1 text-sm text-[#737373]">This Month</p>
-            <p className="text-2xl font-bold text-[#ea580c]">
-              ${stats.thisMonthDonations.toLocaleString()}
-            </p>
-            <p className="text-xs text-[#737373]">in donations</p>
-          </div>
-        </div>
-      </Card>
     </div>
   )
 }
@@ -3041,6 +2665,7 @@ Use the Help Center for FAQs or email admin@kcdd.org for support.
 
 export function AdminDashboard() {
   const { user, isLoaded } = useUser()
+  const { getToken } = useAuth()
   const navigate = useNavigate()
   const { startImpersonating } = useImpersonation()
 
@@ -3052,7 +2677,6 @@ export function AdminDashboard() {
   const [stats, setStats] = useState<DashboardStats>(EMPTY_STATS)
   const [users, setUsers] = useState<UserProfile[]>([])
   const [organizations, setOrganizations] = useState<Organization[]>([])
-  const [requests, setRequests] = useState<Request[]>([])
   const [reports, setReports] = useState<CampaignReport[]>([])
   const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -3096,64 +2720,79 @@ export function AdminDashboard() {
         console.error('Error loading organizations:', orgsError)
       }
 
-      // Fetch requests
-      const { data: requestsData, error: requestsError } = await supabase
-        .from('requests')
-        .select(
-          `
-          *,
-          organization:organizations(name),
-          cause_area:cause_areas(name)
-        `
-        )
-        .order('created_at', { ascending: false })
-
-      if (requestsError) {
-        console.error('Error loading requests:', requestsError)
-      }
-
       // Fetch campaign reports
       const reportsData = await fetchCampaignReports()
 
-      // Calculate stats
-      const usersArray = usersData || []
-      const requestsArray = requestsData || []
+      // Fetch admin donation + campaign stats from the backend API.
+      const donationTotals = await api
+        .get<{
+          totals?: {
+            succeededThisMonth?: { amount: number; count: number }
+          }
+        }>('/api/admin/donations', getToken)
+        .catch((err) => {
+          console.error('Error loading donation totals:', err)
+          return { totals: undefined } as {
+            totals?: { succeededThisMonth?: { amount: number; count: number } }
+          }
+        })
 
-      // Calculate donations (fulfilled requests)
-      const fulfilledRequests = requestsArray.filter((r: any) => r.status === 'fulfilled')
-      const totalDonations = fulfilledRequests.reduce(
-        (sum: number, r: any) => sum + Number(r.amount || 0),
+      const campaignList = await api
+        .get<{
+          rows?: {
+            status: string
+            supporters_count: number
+            amount_raised: number
+          }[]
+        }>('/api/admin/campaigns', getToken)
+        .catch((err) => {
+          console.error('Error loading campaigns:', err)
+          return { rows: [] } as {
+            rows?: { status: string; supporters_count: number; amount_raised: number }[]
+          }
+        })
+
+      const campaignRows = campaignList.rows ?? []
+
+      // Lifetime raised — SUM(campaigns.amount_raised). RLS exposes only live
+      // campaigns to the admin JWT; acceptable for a lifetime-raised headline.
+      const { data: raisedRows, error: raisedError } = await supabase
+        .from('campaigns')
+        .select('amount_raised')
+      if (raisedError) {
+        console.error('Error loading campaign totals:', raisedError)
+      }
+      const totalRaised = (raisedRows || []).reduce(
+        (sum: number, c: any) => sum + Number(c.amount_raised || 0),
         0
       )
 
-      // This month donations
-      const now = new Date()
-      const thisMonthDonations = fulfilledRequests
-        .filter((r: any) => {
-          const date = new Date(r.fulfilled_at || r.created_at)
-          return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear()
-        })
-        .reduce((sum: number, r: any) => sum + Number(r.amount || 0), 0)
+      // Calculate stats
+      const usersArray = usersData || []
+
+      // succeededThisMonth.amount is in CENTS → dollars.
+      const thisMonthDonations = (donationTotals.totals?.succeededThisMonth?.amount ?? 0) / 100
 
       setStats({
         totalUsers: usersArray.length,
         totalDonors: usersArray.filter((u: any) => u.user_type === 'donor').length,
         totalOrgs: usersArray.filter((u: any) => u.user_type === 'cbo').length,
         verifiedUsers: usersArray.filter((u: any) => u.verification_status !== 'unverified').length,
-        totalRequests: requestsArray.length,
-        openRequests: requestsArray.filter((r: any) => r.status === 'open').length,
-        claimedRequests: requestsArray.filter((r: any) => r.status === 'claimed').length,
-        fulfilledRequests: fulfilledRequests.length,
-        totalDonations,
+        totalRaised,
         thisMonthDonations,
+        totalCampaigns: campaignRows.length,
+        liveCampaigns: campaignRows.filter((r) => r.status === 'live').length,
+        pendingApprovals: campaignRows.filter(
+          (r) => r.status === 'pending_new' || r.status === 'pending_edit'
+        ).length,
+        totalSupporters: campaignRows.reduce((sum, r) => sum + Number(r.supporters_count || 0), 0),
       })
 
       setUsers(usersData || [])
       setOrganizations(orgsData || [])
-      setRequests(requestsData || [])
       setReports(reportsData || [])
 
-      // Transform real user/request data into activity feed format
+      // Transform user-join + admin-action data into the activity feed.
       const activity: ActivityItem[] = []
       usersArray.slice(0, 3).forEach((u: any, i: number) => {
         activity.push({
@@ -3163,24 +2802,27 @@ export function AdminDashboard() {
           timestamp: u.created_at,
         })
       })
-      requestsArray.slice(0, 2).forEach((r: any, i: number) => {
+
+      const adminActions = await fetchAdminActivity({ limit: 10 })
+      adminActions.forEach((a) => {
         activity.push({
-          id: `request-${i}`,
-          type: 'request_created',
-          description: `${r.organization?.name || 'Organization'} created a new request`,
-          timestamp: r.created_at,
+          id: `admin-${a.id}`,
+          type: 'campaign_action',
+          description: humanizeAction(a.action, a.entity_type),
+          timestamp: a.created_at,
         })
       })
+
       setRecentActivity(
         activity
           .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
           .slice(0, 5)
       )
 
-      // Fetch chart data for analytics
+      // Fetch chart data for the Overview charts.
       const [growthData, trendsData] = await Promise.all([
         fetchUserGrowthData(),
-        fetchDonationTrendsData(),
+        fetchDonationTrendsData(getToken),
       ])
       setUserGrowthData(growthData)
       setDonationTrendsData(trendsData)
@@ -3189,7 +2831,7 @@ export function AdminDashboard() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [getToken])
 
   useEffect(() => {
     if (isLoaded) {
@@ -3430,31 +3072,6 @@ export function AdminDashboard() {
     }
   }
 
-  // Update request status
-  const handleUpdateRequestStatus = async (requestId: string, newStatus: string) => {
-    try {
-      const updates: any = {
-        status: newStatus,
-        updated_at: new Date().toISOString(),
-      }
-      if (newStatus === 'fulfilled') {
-        updates.fulfilled_at = new Date().toISOString()
-      }
-
-      const { error } = await supabase.from('requests').update(updates).eq('id', requestId)
-
-      if (error) throw error
-      setRequests(
-        requests.map((r) => (r.id === requestId ? { ...r, status: newStatus as any } : r))
-      )
-    } catch (err) {
-      console.error('Error updating request status:', err)
-    }
-  }
-  // W7-10 Phase 1: kept for reversibility; only fed the removed requests render
-  // branch. Referenced here so noUnusedLocals stays green.
-  void handleUpdateRequestStatus
-
   // Get header title
   const getHeaderTitle = () => {
     switch (activeSection) {
@@ -3464,9 +3081,6 @@ export function AdminDashboard() {
         return 'User Management'
       case 'organizations':
         return 'Organizations'
-      // W7-10 Phase 1: requests section-title case removed (campaigns-only). Reversible.
-      // case 'requests':
-      //   return 'Requests'
       case 'reports':
         return 'Campaign Reports'
       case 'pending':
@@ -3475,8 +3089,6 @@ export function AdminDashboard() {
         return 'Admin Audit Log'
       case 'donations':
         return 'Donations'
-      case 'analytics':
-        return 'Analytics'
       case 'settings':
         return 'Settings'
       case 'support':
@@ -3495,6 +3107,8 @@ export function AdminDashboard() {
             stats={stats}
             loading={loading}
             recentActivity={recentActivity}
+            userGrowthData={userGrowthData}
+            donationTrendsData={donationTrendsData}
             onRefresh={fetchData}
             onNavigate={setActiveSection}
             onExport={() => {
@@ -3529,21 +3143,6 @@ export function AdminDashboard() {
                   'organizations_export'
                 )
               }
-              if (requests.length > 0) {
-                exportToCSV(
-                  requests.map((r) => ({
-                    id: r.id,
-                    organization: r.organization?.name || '',
-                    description: r.description,
-                    amount: r.amount,
-                    status: r.status,
-                    urgency: r.urgency,
-                    cause_area: r.cause_area?.name || '',
-                    created_at: r.created_at,
-                  })),
-                  'requests_export'
-                )
-              }
             }}
           />
         )
@@ -3573,18 +3172,6 @@ export function AdminDashboard() {
             }}
           />
         )
-      // W7-10 Phase 1: requests render branch removed (campaigns-only). Reversible —
-      // uncomment + drop the void refs below. RequestsContent body + the
-      // from('requests') stats fetch are intentionally kept.
-      // case 'requests':
-      //   return (
-      //     <RequestsContent
-      //       requests={requests}
-      //       loading={loading}
-      //       onRefresh={fetchData}
-      //       onUpdateStatus={handleUpdateRequestStatus}
-      //     />
-      //   )
       case 'reports':
         return (
           <ReportsContent
@@ -3600,15 +3187,6 @@ export function AdminDashboard() {
         return <AuditLogPage embedded />
       case 'donations':
         return <DonationsPage embedded />
-      case 'analytics':
-        return (
-          <AnalyticsContent
-            stats={stats}
-            loading={loading}
-            userGrowthData={userGrowthData}
-            donationTrendsData={donationTrendsData}
-          />
-        )
       case 'settings':
         return <SettingsContent />
       case 'support':
@@ -3685,18 +3263,17 @@ export function AdminDashboard() {
             {sidebarOpen && <span className="text-sm">Organizations</span>}
           </button>
 
-          {/* W7-10 Phase 1: Requests sidebar nav removed (campaigns-only). Reversible — uncomment. */}
-          {/* <button
-            onClick={() => setActiveSection('requests')}
+          <button
+            onClick={() => setActiveSection('pending')}
             className={`flex w-full items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 transition-colors ${
-              activeSection === 'requests'
+              activeSection === 'pending'
                 ? 'bg-[#ea580c] text-white'
                 : 'text-[#0a0a0a] hover:bg-gray-100'
             }`}
           >
-            <FileText className="h-4 w-4 flex-shrink-0" />
-            {sidebarOpen && <span className="text-sm">Requests</span>}
-          </button> */}
+            <ClipboardList className="h-4 w-4 flex-shrink-0" />
+            {sidebarOpen && <span className="text-sm">Campaigns</span>}
+          </button>
 
           <button
             onClick={() => setActiveSection('reports')}
@@ -3720,30 +3297,6 @@ export function AdminDashboard() {
           </button>
 
           <button
-            onClick={() => setActiveSection('pending')}
-            className={`flex w-full items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 transition-colors ${
-              activeSection === 'pending'
-                ? 'bg-[#ea580c] text-white'
-                : 'text-[#0a0a0a] hover:bg-gray-100'
-            }`}
-          >
-            <ClipboardList className="h-4 w-4 flex-shrink-0" />
-            {sidebarOpen && <span className="text-sm">Campaigns</span>}
-          </button>
-
-          <button
-            onClick={() => setActiveSection('audit')}
-            className={`flex w-full items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 transition-colors ${
-              activeSection === 'audit'
-                ? 'bg-[#ea580c] text-white'
-                : 'text-[#0a0a0a] hover:bg-gray-100'
-            }`}
-          >
-            <Activity className="h-4 w-4 flex-shrink-0" />
-            {sidebarOpen && <span className="text-sm">Audit Log</span>}
-          </button>
-
-          <button
             onClick={() => setActiveSection('donations')}
             className={`flex w-full items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 transition-colors ${
               activeSection === 'donations'
@@ -3756,15 +3309,15 @@ export function AdminDashboard() {
           </button>
 
           <button
-            onClick={() => setActiveSection('analytics')}
+            onClick={() => setActiveSection('audit')}
             className={`flex w-full items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 transition-colors ${
-              activeSection === 'analytics'
+              activeSection === 'audit'
                 ? 'bg-[#ea580c] text-white'
                 : 'text-[#0a0a0a] hover:bg-gray-100'
             }`}
           >
-            <BarChart3 className="h-4 w-4 flex-shrink-0" />
-            {sidebarOpen && <span className="text-sm">Analytics</span>}
+            <Activity className="h-4 w-4 flex-shrink-0" />
+            {sidebarOpen && <span className="text-sm">Audit Log</span>}
           </button>
         </nav>
 

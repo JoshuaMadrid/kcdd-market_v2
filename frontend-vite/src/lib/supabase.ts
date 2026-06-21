@@ -2335,43 +2335,16 @@ export const fetchUserGrowthData = async (months: number = 6): Promise<MonthlyDa
   })
 }
 
-// Fetch donation trends data (fulfilled requests per month with amounts)
-export const fetchDonationTrendsData = async (months: number = 6): Promise<MonthlyDataPoint[]> => {
-  const { data, error } = await (supabase.from('requests') as any)
-    .select('fulfilled_at, amount, status')
-    .eq('status', 'fulfilled')
-    .not('fulfilled_at', 'is', null)
-    .order('fulfilled_at', { ascending: true })
+// Token getter shape matching Clerk's useAuth().getToken (mirrors api.ts).
+type DonationTrendsTokenGetter = (options?: { template?: string }) => Promise<string | null>
 
-  if (error) {
-    console.error('Error fetching donation trends:', error)
-    return []
-  }
-
-  // Group by month
-  const monthData: Record<string, { count: number; amount: number }> = {}
-  const now = new Date()
-
-  // Initialize last N months with 0
-  for (let i = months - 1; i >= 0; i--) {
-    const date = new Date(now.getFullYear(), now.getMonth() - i, 1)
-    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
-    monthData[key] = { count: 0, amount: 0 }
-  }
-
-  // Sum donations per month
-  for (const request of data || []) {
-    if (request.fulfilled_at) {
-      const date = new Date(request.fulfilled_at)
-      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
-      if (key in monthData) {
-        monthData[key].count++
-        monthData[key].amount += Number(request.amount || 0)
-      }
-    }
-  }
-
-  // Convert to array format
+// Donation trends — re-sourced from GET /api/admin/donations (the requests
+// table is dead). Returns the backend's last-6-month succeeded buckets mapped
+// to MonthlyDataPoint (month name + dollars). Signature/return type preserved
+// so the AnalyticsContent→Overview chart consumer is unchanged.
+export const fetchDonationTrendsData = async (
+  getToken: DonationTrendsTokenGetter
+): Promise<MonthlyDataPoint[]> => {
   const monthNames = [
     'Jan',
     'Feb',
@@ -2386,15 +2359,24 @@ export const fetchDonationTrendsData = async (months: number = 6): Promise<Month
     'Nov',
     'Dec',
   ]
-  return Object.entries(monthData).map(([key, data]) => {
-    const [year, month] = key.split('-').map(Number)
-    return {
-      month: monthNames[month - 1],
-      year,
-      count: data.count,
-      amount: data.amount,
-    }
-  })
+  try {
+    const data = await api.get<{
+      totals?: {
+        monthlyTrends?: { month: number; year: number; count: number; amount: number }[]
+      }
+    }>('/api/admin/donations', getToken)
+    const trends = data.totals?.monthlyTrends ?? []
+    return trends.map((t) => ({
+      // backend month is 1-12; amount is in cents → dollars for the chart.
+      month: monthNames[t.month - 1] ?? String(t.month),
+      year: t.year,
+      count: t.count,
+      amount: t.amount / 100,
+    }))
+  } catch (err) {
+    console.error('Error fetching donation trends:', err)
+    return []
+  }
 }
 
 // ============================================
