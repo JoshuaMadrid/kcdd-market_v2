@@ -89,7 +89,7 @@ import {
 } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useImpersonation } from '@/contexts/ImpersonationContext'
-import { PendingEditsPage } from '@/pages/admin/PendingEditsPage'
+import { CampaignsAdminPage } from '@/pages/admin/CampaignsAdminPage'
 import { AuditLogPage } from '@/pages/admin/AuditLogPage'
 import {
   AlertDialog,
@@ -3468,7 +3468,7 @@ export function AdminDashboard() {
       case 'reports':
         return 'Campaign Reports'
       case 'pending':
-        return 'Pending Campaigns'
+        return 'Campaigns'
       case 'audit':
         return 'Admin Audit Log'
       case 'analytics':
@@ -3591,7 +3591,7 @@ export function AdminDashboard() {
           />
         )
       case 'pending':
-        return <PendingEditsPage embedded />
+        return <CampaignsAdminPage embedded />
       case 'audit':
         return <AuditLogPage embedded />
       case 'analytics':
@@ -3722,7 +3722,7 @@ export function AdminDashboard() {
             }`}
           >
             <ClipboardList className="h-4 w-4 flex-shrink-0" />
-            {sidebarOpen && <span className="text-sm">Pending Campaigns</span>}
+            {sidebarOpen && <span className="text-sm">Campaigns</span>}
           </button>
 
           <button

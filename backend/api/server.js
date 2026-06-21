@@ -1839,6 +1839,111 @@ app.get('/api/admin/pending-edits', clerkAuth, async (req, res) => {
 })
 
 /**
+ * List ALL campaigns for the admin Campaign Management view.
+ * GET /api/admin/campaigns?status=&limit=
+ *
+ * Auth: Clerk JWT — caller must be user_profiles.user_type='admin'.
+ *
+ * Service-role client (bypasses RLS) → reads every status including
+ * soft-deleted campaigns. Derives a single management status per campaign
+ * from its campaign_details version history.
+ *
+ * Returns: { rows: CampaignAdminRow[] } sorted by submitted_at DESC.
+ */
+app.get('/api/admin/campaigns', clerkAuth, async (req, res) => {
+  try {
+    const callerUserId = req.auth.userId
+
+    // 1. Admin auth.
+    const { data: profile, error: profileErr } = await supabase
+      .from('user_profiles')
+      .select('user_type')
+      .eq('id', callerUserId)
+      .single()
+    if (profileErr || !profile || profile.user_type !== 'admin') {
+      return res.status(403).json({ error: 'Forbidden: admin only' })
+    }
+
+    // 2. Pull every campaign (no deleted_at filter — admin sees deleted) with
+    //    its org + the full campaign_details version history.
+    const { data: campaigns, error: campErr } = await supabase
+      .from('campaigns')
+      .select(
+        '*, organizations(id, name), ' +
+          'campaign_details(id, version, status, content, change_summary, changed_by, created_at)'
+      )
+    if (campErr) throw campErr
+
+    // 3. Derive management status + projection per campaign.
+    const rows = []
+    for (const c of campaigns ?? []) {
+      const details = [...(c.campaign_details ?? [])].sort((a, b) => b.version - a.version)
+      const latest = details[0] ?? null
+      const latestApproved = details.find((d) => d.status === 'approved') ?? null
+
+      let status
+      if (c.deleted_at != null) {
+        status = 'deleted'
+      } else if (latest?.status === 'pending_initial_approval') {
+        status = 'pending_new'
+      } else if (latest?.status === 'pending_edit_approval') {
+        status = 'pending_edit'
+      } else if (latestApproved && latest?.status === 'approved') {
+        status = 'live'
+      } else if (latest?.status === 'rejected' && !latestApproved) {
+        status = 'rejected'
+      } else {
+        status = 'draft'
+      }
+
+      const isPublic = !!latestApproved && c.deleted_at == null
+
+      const titleOf = (d) =>
+        d?.content && typeof d.content.title === 'string' ? d.content.title : null
+      const title = titleOf(latestApproved) ?? titleOf(latest) ?? null
+
+      const org = c.organizations || {}
+      rows.push({
+        campaign_id: c.id,
+        campaign_title: title,
+        campaign_slug: c.slug,
+        organization_id: c.organization_id ?? org.id ?? null,
+        organization_name: org.name ?? null,
+        status,
+        is_public: isPublic,
+        detail_id: latest?.id ?? null,
+        version: latest?.version ?? null,
+        detail_status: latest?.status ?? null,
+        change_summary: latest?.change_summary ?? null,
+        submitted_by: latest?.changed_by ?? null,
+        submitted_at: latest?.created_at ?? c.created_at ?? null,
+        amount_raised: c.amount_raised ?? 0,
+        supporters_count: c.supporters_count ?? 0,
+        deleted_at: c.deleted_at ?? null,
+        deleted_by: c.deleted_by ?? null,
+      })
+    }
+
+    // 4. Optional status filter + sort by submitted_at DESC + limit.
+    const statusFilter = typeof req.query.status === 'string' ? req.query.status : null
+    const filtered = statusFilter ? rows.filter((r) => r.status === statusFilter) : rows
+    filtered.sort((a, b) => {
+      const ta = a.submitted_at ? new Date(a.submitted_at).getTime() : 0
+      const tb = b.submitted_at ? new Date(b.submitted_at).getTime() : 0
+      return tb - ta
+    })
+    const limit = Number.parseInt(req.query.limit, 10)
+    const capped =
+      Number.isFinite(limit) && limit > 0 ? filtered.slice(0, limit) : filtered.slice(0, 100)
+
+    return res.json({ rows: capped })
+  } catch (err) {
+    console.error('Error in GET /api/admin/campaigns:', err)
+    return res.status(500).json({ error: err.message })
+  }
+})
+
+/**
  * Fetch a single detail's content for admin preview.
  * GET /api/campaigns/:campaignId/details/:detailId/preview
  *
