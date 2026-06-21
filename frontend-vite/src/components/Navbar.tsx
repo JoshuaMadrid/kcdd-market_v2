@@ -25,6 +25,16 @@ export function Navbar() {
 
   const isActive = (path: string) => location.pathname === path
 
+  // On dashboard routes, show the dashboard name in the brand spot;
+  // on public routes keep the "KC DIME" brand. The link target stays home.
+  const brandTitle = (() => {
+    const path = location.pathname
+    if (path.startsWith('/admin')) return 'Admin Dashboard'
+    if (path.startsWith('/cbo/')) return 'Organization Dashboard'
+    if (path.startsWith('/donor/')) return 'Donor Dashboard'
+    return 'KC DIME'
+  })()
+
   // Determine which dashboards the user has access to
   const getDashboardOptions = () => {
     if (userType === 'admin') {
@@ -90,7 +100,7 @@ export function Navbar() {
             className="whitespace-nowrap text-[30px] font-black text-[hsl(var(--brand-primary))]"
             style={{ fontFamily: 'Inter, sans-serif' }}
           >
-            KC DIME
+            {brandTitle}
           </h1>
         </Link>
 

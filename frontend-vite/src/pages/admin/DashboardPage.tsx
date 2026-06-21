@@ -213,6 +213,21 @@ type SidebarSection =
   | 'settings'
   | 'support'
 
+const SIDEBAR_SECTIONS: readonly SidebarSection[] = [
+  'overview',
+  'users',
+  'organizations',
+  'reports',
+  'pending',
+  'audit',
+  'donations',
+  'settings',
+  'support',
+]
+
+const isSidebarSection = (value: string | null): value is SidebarSection =>
+  value !== null && (SIDEBAR_SECTIONS as readonly string[]).includes(value)
+
 // ============ EMPTY STATES ============
 
 const EMPTY_STATS: DashboardStats = {
@@ -2735,12 +2750,27 @@ export function AdminDashboard() {
   const { user, isLoaded } = useUser()
   const { getToken } = useAuth()
   const navigate = useNavigate()
-  const [, setSearchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { startImpersonating } = useImpersonation()
 
   // State
   const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [activeSection, setActiveSection] = useState<SidebarSection>('overview')
+  const [activeSection, setActiveSection] = useState<SidebarSection>(() => {
+    const param = searchParams.get('section')
+    return isSidebarSection(param) ? param : 'overview'
+  })
+
+  // Sidebar tab <-> ?section= URL sync (preserves other params such as ?tab=).
+  const selectSection = (section: SidebarSection) => {
+    setActiveSection(section)
+    setSearchParams(
+      (prev) => {
+        prev.set('section', section)
+        return prev
+      },
+      { replace: true }
+    )
+  }
 
   // Data state
   const [stats, setStats] = useState<DashboardStats>(EMPTY_STATS)
@@ -3189,12 +3219,20 @@ export function AdminDashboard() {
             userGrowthData={userGrowthData}
             donationTrendsData={donationTrendsData}
             onRefresh={fetchData}
-            onNavigate={setActiveSection}
+            onNavigate={selectSection}
             onPendingClick={() => {
               // Land on the Campaigns section pre-filtered to pending-new
               // campaigns awaiting review (CampaignsAdminPage reads ?tab=).
-              setSearchParams({ tab: 'pending_new' }, { replace: true })
+              // Set both ?section= and ?tab= without wiping each other.
               setActiveSection('pending')
+              setSearchParams(
+                (prev) => {
+                  prev.set('section', 'pending')
+                  prev.set('tab', 'pending_new')
+                  return prev
+                },
+                { replace: true }
+              )
             }}
             onExport={() => {
               // Export all data as separate CSV files
@@ -3313,7 +3351,7 @@ export function AdminDashboard() {
         {/* Main Navigation */}
         <nav className="flex-1 space-y-1 overflow-hidden p-2">
           <button
-            onClick={() => setActiveSection('overview')}
+            onClick={() => selectSection('overview')}
             className={`flex w-full items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 transition-colors ${
               activeSection === 'overview'
                 ? 'bg-[#ea580c] text-white'
@@ -3325,7 +3363,7 @@ export function AdminDashboard() {
           </button>
 
           <button
-            onClick={() => setActiveSection('users')}
+            onClick={() => selectSection('users')}
             className={`flex w-full items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 transition-colors ${
               activeSection === 'users'
                 ? 'bg-[#ea580c] text-white'
@@ -3337,7 +3375,7 @@ export function AdminDashboard() {
           </button>
 
           <button
-            onClick={() => setActiveSection('organizations')}
+            onClick={() => selectSection('organizations')}
             className={`flex w-full items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 transition-colors ${
               activeSection === 'organizations'
                 ? 'bg-[#ea580c] text-white'
@@ -3349,7 +3387,7 @@ export function AdminDashboard() {
           </button>
 
           <button
-            onClick={() => setActiveSection('pending')}
+            onClick={() => selectSection('pending')}
             className={`flex w-full items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 transition-colors ${
               activeSection === 'pending'
                 ? 'bg-[#ea580c] text-white'
@@ -3361,7 +3399,7 @@ export function AdminDashboard() {
           </button>
 
           <button
-            onClick={() => setActiveSection('reports')}
+            onClick={() => selectSection('reports')}
             className={`flex w-full items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 transition-colors ${
               activeSection === 'reports'
                 ? 'bg-[#ea580c] text-white'
@@ -3382,7 +3420,7 @@ export function AdminDashboard() {
           </button>
 
           <button
-            onClick={() => setActiveSection('donations')}
+            onClick={() => selectSection('donations')}
             className={`flex w-full items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 transition-colors ${
               activeSection === 'donations'
                 ? 'bg-[#ea580c] text-white'
@@ -3394,7 +3432,7 @@ export function AdminDashboard() {
           </button>
 
           <button
-            onClick={() => setActiveSection('audit')}
+            onClick={() => selectSection('audit')}
             className={`flex w-full items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 transition-colors ${
               activeSection === 'audit'
                 ? 'bg-[#ea580c] text-white'
@@ -3409,7 +3447,7 @@ export function AdminDashboard() {
         {/* Footer Navigation */}
         <div className="space-y-1 overflow-hidden border-t border-gray-200 p-2 pt-2">
           <button
-            onClick={() => setActiveSection('settings')}
+            onClick={() => selectSection('settings')}
             className={`flex w-full items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 transition-colors ${
               activeSection === 'settings'
                 ? 'bg-[#ea580c] text-white'
@@ -3421,7 +3459,7 @@ export function AdminDashboard() {
           </button>
 
           <button
-            onClick={() => setActiveSection('support')}
+            onClick={() => selectSection('support')}
             className={`flex w-full items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 transition-colors ${
               activeSection === 'support'
                 ? 'bg-[#ea580c] text-white'

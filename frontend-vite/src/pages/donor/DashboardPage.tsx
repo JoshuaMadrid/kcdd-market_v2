@@ -79,7 +79,7 @@ import {
   type DonationRecord,
   type DonorDocument,
 } from '@/lib/supabase'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useToast } from '@/components/ui/use-toast'
 import { SUPPORT_EMAIL, SUPPORT_PHONE, SUPPORT_HOURS } from '@/constants/contact'
 import { IconByName } from '@/components/ui/icon-picker'
@@ -103,6 +103,21 @@ type SidebarSection =
   | 'settings'
   | 'support'
   | 'search'
+
+const SIDEBAR_SECTIONS: readonly SidebarSection[] = [
+  'campaign',
+  'browse',
+  'updates',
+  'transfers',
+  'verification',
+  'documents',
+  'settings',
+  'support',
+  'search',
+]
+
+const isSidebarSection = (value: string | null): value is SidebarSection =>
+  value !== null && (SIDEBAR_SECTIONS as readonly string[]).includes(value)
 
 // Stats data config
 const getStatsCards = (stats: DonorDashboardStats) => [
@@ -1465,8 +1480,24 @@ export function DonorDashboard() {
   const { toast } = useToast()
 
   // State
+  const [searchParams, setSearchParams] = useSearchParams()
   const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [activeSection, setActiveSection] = useState<SidebarSection>('campaign')
+  const [activeSection, setActiveSection] = useState<SidebarSection>(() => {
+    const param = searchParams.get('section')
+    return isSidebarSection(param) ? param : 'campaign'
+  })
+
+  // Sidebar tab <-> ?section= URL sync (preserves other params).
+  const selectSection = (section: SidebarSection) => {
+    setActiveSection(section)
+    setSearchParams(
+      (prev) => {
+        prev.set('section', section)
+        return prev
+      },
+      { replace: true }
+    )
+  }
   const [activeTab, setActiveTab] = useState('all')
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set())
   const [showOnboardingModal, setShowOnboardingModal] = useState(false)
@@ -1664,7 +1695,7 @@ export function DonorDashboard() {
           {/* Main Navigation */}
           <nav className="space-y-1 p-2">
             <button
-              onClick={() => setActiveSection('campaign')}
+              onClick={() => selectSection('campaign')}
               className={`flex w-full items-center gap-2 whitespace-nowrap rounded-lg px-2 py-2 transition-colors ${
                 activeSection === 'campaign'
                   ? 'bg-[#1b5858] text-white'
@@ -1679,7 +1710,7 @@ export function DonorDashboard() {
                 Reversible — uncomment to restore. The 'browse' render branch +
                 BrowseRequestsContent remain defined but unreachable. */}
             {/* <button
-              onClick={() => setActiveSection('browse')}
+              onClick={() => selectSection('browse')}
               className={`flex w-full items-center gap-2 whitespace-nowrap rounded-lg px-2 py-2 transition-colors ${
                 activeSection === 'browse'
                   ? 'bg-[#1b5858] text-white'
@@ -1691,7 +1722,7 @@ export function DonorDashboard() {
             </button> */}
 
             <button
-              onClick={() => setActiveSection('updates')}
+              onClick={() => selectSection('updates')}
               className={`flex w-full items-center gap-2 whitespace-nowrap rounded-lg px-2 py-2 transition-colors ${
                 activeSection === 'updates'
                   ? 'bg-[#1b5858] text-white'
@@ -1703,7 +1734,7 @@ export function DonorDashboard() {
             </button>
 
             <button
-              onClick={() => setActiveSection('transfers')}
+              onClick={() => selectSection('transfers')}
               className={`flex w-full items-center gap-2 whitespace-nowrap rounded-lg px-2 py-2 transition-colors ${
                 activeSection === 'transfers'
                   ? 'bg-[#1b5858] text-white'
@@ -1723,7 +1754,7 @@ export function DonorDashboard() {
               </h3>
             )}
             <button
-              onClick={() => setActiveSection('documents')}
+              onClick={() => selectSection('documents')}
               className={`flex w-full items-center gap-2 whitespace-nowrap rounded-lg px-2 py-2 transition-colors ${
                 activeSection === 'documents'
                   ? 'bg-[#1b5858] text-white'
@@ -1739,7 +1770,7 @@ export function DonorDashboard() {
         {/* Footer Navigation */}
         <div className="space-y-1 overflow-hidden border-t border-gray-200 p-2 pt-2">
           <button
-            onClick={() => setActiveSection('settings')}
+            onClick={() => selectSection('settings')}
             className={`flex w-full items-center gap-2 whitespace-nowrap rounded-lg px-2 py-2 transition-colors ${
               activeSection === 'settings'
                 ? 'bg-[#1b5858] text-white'
@@ -1751,7 +1782,7 @@ export function DonorDashboard() {
           </button>
 
           <button
-            onClick={() => setActiveSection('support')}
+            onClick={() => selectSection('support')}
             className={`flex w-full items-center gap-2 whitespace-nowrap rounded-lg px-2 py-2 transition-colors ${
               activeSection === 'support'
                 ? 'bg-[#1b5858] text-white'
@@ -1763,7 +1794,7 @@ export function DonorDashboard() {
           </button>
 
           <button
-            onClick={() => setActiveSection('search')}
+            onClick={() => selectSection('search')}
             className={`flex w-full items-center gap-2 whitespace-nowrap rounded-lg px-2 py-2 transition-colors ${
               activeSection === 'search'
                 ? 'bg-[#1b5858] text-white'

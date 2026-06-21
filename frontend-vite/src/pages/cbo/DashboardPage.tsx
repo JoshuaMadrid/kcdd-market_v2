@@ -96,7 +96,7 @@ import {
   type OrganizationQuestion,
   type OrganizationDocument,
 } from '@/lib/supabase'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { api } from '@/lib/api'
 import { useToast } from '@/components/ui/use-toast'
 import { StripeConnectCard } from '@/components/StripeConnectButton'
@@ -137,6 +137,22 @@ type SidebarSection =
   | 'settings'
   | 'support'
   | 'search'
+
+const SIDEBAR_SECTIONS: readonly SidebarSection[] = [
+  'dashboard',
+  'profile',
+  'campaigns',
+  'create-campaign',
+  'questions',
+  'analytics',
+  'documents',
+  'settings',
+  'support',
+  'search',
+]
+
+const isSidebarSection = (value: string | null): value is SidebarSection =>
+  value !== null && (SIDEBAR_SECTIONS as readonly string[]).includes(value)
 
 // Stats data config
 const getStatsCards = (stats: CBODashboardStats) => [
@@ -2818,8 +2834,24 @@ export function CBODashboard() {
   const { user, isLoaded } = useUser()
 
   // State
+  const [searchParams, setSearchParams] = useSearchParams()
   const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [activeSection, setActiveSection] = useState<SidebarSection>('dashboard')
+  const [activeSection, setActiveSection] = useState<SidebarSection>(() => {
+    const param = searchParams.get('section')
+    return isSidebarSection(param) ? param : 'dashboard'
+  })
+
+  // Sidebar tab <-> ?section= URL sync (preserves other params).
+  const selectSection = (section: SidebarSection) => {
+    setActiveSection(section)
+    setSearchParams(
+      (prev) => {
+        prev.set('section', section)
+        return prev
+      },
+      { replace: true }
+    )
+  }
   const [activeTab, setActiveTab] = useState('all')
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set())
   const [showOnboardingModal, setShowOnboardingModal] = useState(false)
@@ -2903,7 +2935,7 @@ export function CBODashboard() {
   }
 
   const handleCreateCampaign = () => {
-    setActiveSection('create-campaign')
+    selectSection('create-campaign')
   }
 
   const fetchQuestions = useCallback(async () => {
@@ -2977,9 +3009,9 @@ export function CBODashboard() {
         return (
           <CampaignForm
             organizationId={organization?.id}
-            onCancel={() => setActiveSection('campaigns')}
+            onCancel={() => selectSection('campaigns')}
             onComplete={() => {
-              setActiveSection('campaigns')
+              selectSection('campaigns')
               fetchData()
             }}
           />
@@ -3065,7 +3097,7 @@ export function CBODashboard() {
           {/* Main Navigation */}
           <nav className="space-y-1 p-2">
             <button
-              onClick={() => setActiveSection('dashboard')}
+              onClick={() => selectSection('dashboard')}
               className={`flex w-full items-center gap-2 whitespace-nowrap rounded-lg px-2 py-2 transition-colors ${
                 activeSection === 'dashboard'
                   ? 'bg-[#1b5858] text-white'
@@ -3077,7 +3109,7 @@ export function CBODashboard() {
             </button>
 
             <button
-              onClick={() => setActiveSection('profile')}
+              onClick={() => selectSection('profile')}
               className={`flex w-full items-center gap-2 whitespace-nowrap rounded-lg px-2 py-2 transition-colors ${
                 activeSection === 'profile'
                   ? 'bg-[#1b5858] text-white'
@@ -3089,7 +3121,7 @@ export function CBODashboard() {
             </button>
 
             <button
-              onClick={() => setActiveSection('campaigns')}
+              onClick={() => selectSection('campaigns')}
               className={`flex w-full items-center gap-2 whitespace-nowrap rounded-lg px-2 py-2 transition-colors ${
                 activeSection === 'campaigns'
                   ? 'bg-[#1b5858] text-white'
@@ -3123,7 +3155,7 @@ export function CBODashboard() {
                 ))}
                 {campaigns.length > 5 && (
                   <button
-                    onClick={() => setActiveSection('campaigns')}
+                    onClick={() => selectSection('campaigns')}
                     className="block px-2 py-1.5 text-xs text-[#1b5858] hover:underline"
                   >
                     View all ({campaigns.length})
@@ -3133,7 +3165,7 @@ export function CBODashboard() {
             )}
 
             <button
-              onClick={() => setActiveSection('questions')}
+              onClick={() => selectSection('questions')}
               className={`flex w-full items-center gap-2 whitespace-nowrap rounded-lg px-2 py-2 transition-colors ${
                 activeSection === 'questions'
                   ? 'bg-[#1b5858] text-white'
@@ -3154,7 +3186,7 @@ export function CBODashboard() {
             </button>
 
             <button
-              onClick={() => setActiveSection('analytics')}
+              onClick={() => selectSection('analytics')}
               className={`flex w-full items-center gap-2 whitespace-nowrap rounded-lg px-2 py-2 transition-colors ${
                 activeSection === 'analytics'
                   ? 'bg-[#1b5858] text-white'
@@ -3166,7 +3198,7 @@ export function CBODashboard() {
             </button>
 
             <button
-              onClick={() => setActiveSection('documents')}
+              onClick={() => selectSection('documents')}
               className={`flex w-full items-center gap-2 whitespace-nowrap rounded-lg px-2 py-2 transition-colors ${
                 activeSection === 'documents'
                   ? 'bg-[#1b5858] text-white'
@@ -3200,7 +3232,7 @@ export function CBODashboard() {
         {/* Footer Navigation */}
         <div className="space-y-1 overflow-hidden border-t border-gray-200 p-2 pt-2">
           <button
-            onClick={() => setActiveSection('settings')}
+            onClick={() => selectSection('settings')}
             className={`flex w-full items-center gap-2 whitespace-nowrap rounded-lg px-2 py-2 transition-colors ${
               activeSection === 'settings'
                 ? 'bg-[#1b5858] text-white'
@@ -3221,7 +3253,7 @@ export function CBODashboard() {
           </Link>
 
           <button
-            onClick={() => setActiveSection('support')}
+            onClick={() => selectSection('support')}
             className={`flex w-full items-center gap-2 whitespace-nowrap rounded-lg px-2 py-2 transition-colors ${
               activeSection === 'support'
                 ? 'bg-[#1b5858] text-white'
@@ -3233,7 +3265,7 @@ export function CBODashboard() {
           </button>
 
           <button
-            onClick={() => setActiveSection('search')}
+            onClick={() => selectSection('search')}
             className={`flex w-full items-center gap-2 whitespace-nowrap rounded-lg px-2 py-2 transition-colors ${
               activeSection === 'search'
                 ? 'bg-[#1b5858] text-white'
