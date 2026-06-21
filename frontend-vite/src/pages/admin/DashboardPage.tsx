@@ -701,31 +701,6 @@ function UsersContent({
         </div>
       </div>
 
-      {/* User-type tabs — filter the table by user_type. 'all' shows everyone. */}
-      <Tabs
-        value={filterType ?? 'all'}
-        onValueChange={(v) => setFilterType(v === 'all' ? null : v)}
-      >
-        <TabsList>
-          <TabsTrigger value="all" className="gap-2">
-            All
-            <Badge className="bg-gray-100 px-1.5 text-xs text-[#0a0a0a]">{typeCounts.all}</Badge>
-          </TabsTrigger>
-          <TabsTrigger value="donor" className="gap-2">
-            Donors
-            <Badge className="bg-gray-100 px-1.5 text-xs text-[#0a0a0a]">{typeCounts.donor}</Badge>
-          </TabsTrigger>
-          <TabsTrigger value="cbo" className="gap-2">
-            CBOs
-            <Badge className="bg-gray-100 px-1.5 text-xs text-[#0a0a0a]">{typeCounts.cbo}</Badge>
-          </TabsTrigger>
-          <TabsTrigger value="admin" className="gap-2">
-            Admins
-            <Badge className="bg-gray-100 px-1.5 text-xs text-[#0a0a0a]">{typeCounts.admin}</Badge>
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
-
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative min-w-[200px] max-w-sm flex-1">
@@ -775,6 +750,31 @@ function UsersContent({
           </Button>
         )}
       </div>
+
+      {/* User-type tabs — filter the table by user_type. 'all' shows everyone. */}
+      <Tabs
+        value={filterType ?? 'all'}
+        onValueChange={(v) => setFilterType(v === 'all' ? null : v)}
+      >
+        <TabsList>
+          <TabsTrigger value="all" className="gap-2">
+            All
+            <Badge className="bg-gray-100 px-1.5 text-xs text-[#0a0a0a]">{typeCounts.all}</Badge>
+          </TabsTrigger>
+          <TabsTrigger value="donor" className="gap-2">
+            Donors
+            <Badge className="bg-gray-100 px-1.5 text-xs text-[#0a0a0a]">{typeCounts.donor}</Badge>
+          </TabsTrigger>
+          <TabsTrigger value="cbo" className="gap-2">
+            CBOs
+            <Badge className="bg-gray-100 px-1.5 text-xs text-[#0a0a0a]">{typeCounts.cbo}</Badge>
+          </TabsTrigger>
+          <TabsTrigger value="admin" className="gap-2">
+            Admins
+            <Badge className="bg-gray-100 px-1.5 text-xs text-[#0a0a0a]">{typeCounts.admin}</Badge>
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
 
       {/* Table */}
       <Card className="overflow-hidden">
