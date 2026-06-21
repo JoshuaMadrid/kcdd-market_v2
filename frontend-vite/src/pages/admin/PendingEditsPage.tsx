@@ -90,10 +90,10 @@ type DeletedListResponse = {
   total: number
 }
 
-type TabKey = 'initial' | 'edits'
+type TabKey = 'all' | 'initial' | 'edits'
 
 function isTabKey(v: string | null): v is TabKey {
-  return v === 'initial' || v === 'edits'
+  return v === 'all' || v === 'initial' || v === 'edits'
 }
 
 export function PendingEditsPage({ embedded = false }: { embedded?: boolean } = {}) {
@@ -102,7 +102,7 @@ export function PendingEditsPage({ embedded = false }: { embedded?: boolean } = 
   const { toast } = useToast()
   const [searchParams, setSearchParams] = useSearchParams()
   const tabParam = searchParams.get('tab')
-  const activeTab: TabKey = isTabKey(tabParam) ? tabParam : 'edits'
+  const activeTab: TabKey = isTabKey(tabParam) ? tabParam : 'all'
 
   const [rows, setRows] = useState<PendingRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -191,7 +191,8 @@ export function PendingEditsPage({ embedded = false }: { embedded?: boolean } = 
 
   const initialRows = useMemo(() => rows.filter((r) => r.is_initial), [rows])
   const editsRows = useMemo(() => rows.filter((r) => !r.is_initial), [rows])
-  const visibleRows = activeTab === 'initial' ? initialRows : editsRows
+  const visibleRows =
+    activeTab === 'all' ? rows : activeTab === 'initial' ? initialRows : editsRows
 
   const openPreview = async (row: PendingRow) => {
     setPreviewRow(row)
@@ -324,6 +325,10 @@ export function PendingEditsPage({ embedded = false }: { embedded?: boolean } = 
 
       <Tabs value={activeTab} onValueChange={(v) => isTabKey(v) && setTab(v)}>
         <TabsList>
+          <TabsTrigger value="all" className="gap-2">
+            All
+            <Badge className="bg-gray-100 px-1.5 text-xs text-[#0a0a0a]">{rows.length}</Badge>
+          </TabsTrigger>
           <TabsTrigger value="edits" className="gap-2">
             Pending edits
             <Badge className="bg-gray-100 px-1.5 text-xs text-[#0a0a0a]">{editsRows.length}</Badge>
@@ -346,7 +351,7 @@ export function PendingEditsPage({ embedded = false }: { embedded?: boolean } = 
               <TableHead className="w-[90px]">Type</TableHead>
               <TableHead className="w-[80px]">Version</TableHead>
               <TableHead className="w-[140px]">Submitted</TableHead>
-              <TableHead className="w-[260px] text-right">Action</TableHead>
+              <TableHead className="w-[120px] text-right">Action</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -366,7 +371,9 @@ export function PendingEditsPage({ embedded = false }: { embedded?: boolean } = 
                     <p className="text-sm text-[#737373]">
                       {activeTab === 'initial'
                         ? 'No new campaigns awaiting review.'
-                        : 'No pending edits.'}
+                        : activeTab === 'edits'
+                          ? 'No pending edits.'
+                          : 'No pending campaigns awaiting review.'}
                     </p>
                   </div>
                 </TableCell>
@@ -398,28 +405,15 @@ export function PendingEditsPage({ embedded = false }: { embedded?: boolean } = 
                   </TableCell>
                   <TableCell className="text-sm text-[#404040]">v{row.version}</TableCell>
                   <TableCell className="whitespace-nowrap text-xs text-[#737373]">
-                    {formatRelativeTime(row.submitted_at)}
+                    <div className="text-[#0a0a0a]">
+                      {new Date(row.submitted_at).toLocaleDateString()}
+                    </div>
+                    <div>{formatRelativeTime(row.submitted_at)}</div>
                   </TableCell>
                   <TableCell>
-                    <div className="flex flex-shrink-0 items-center justify-end gap-2">
+                    <div className="flex flex-shrink-0 items-center justify-end">
                       <Button variant="outline" size="sm" onClick={() => openPreview(row)}>
                         Preview
-                      </Button>
-                      <Button
-                        size="sm"
-                        className="bg-[#16a34a] hover:bg-[#15803d]"
-                        onClick={() => handleApprove(row)}
-                        disabled={actionPending}
-                      >
-                        Approve
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="border-red-200 text-red-700 hover:bg-red-50"
-                        onClick={() => openReject(row)}
-                      >
-                        Reject
                       </Button>
                     </div>
                   </TableCell>
