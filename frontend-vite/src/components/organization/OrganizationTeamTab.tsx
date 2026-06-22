@@ -279,7 +279,7 @@ export function OrganizationTeamTab({
                     className="inline-flex items-center gap-2 text-sm text-[#1b5858] transition-colors hover:text-[#ea580c]"
                   >
                     <Mail className="h-4 w-4" />
-                    Contact
+                    {member.email}
                   </a>
                 )}
               </div>

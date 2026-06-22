@@ -32,6 +32,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { VERIFICATION_STATUS } from '@/constants/userTypes'
 import { RichTextEditor } from '@/components/ui/rich-text-editor'
 import {
   OrganizationHero,
@@ -261,7 +262,8 @@ export function OrganizationProfilePage() {
       // RLS should handle this server-side, but the app uses Clerk (not
       // Supabase Auth) so auth.uid() is null and the RLS policy can't
       // identify the owner — this client-side check is defense-in-depth.
-      const isVetted = (org as any).user_profile?.is_vetted === true
+      const isVetted =
+        (org as any).user_profile?.verification_status === VERIFICATION_STATUS.VERIFIED
       const isViewerTheOwner = user && org.user_id === user.id
       if (!isVetted && !isViewerTheOwner) {
         setError('Organization not found')

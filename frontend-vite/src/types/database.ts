@@ -80,7 +80,8 @@ export type Database = {
           id: string
           user_type: 'admin' | 'cbo' | 'donor'
           phone: string | null
-          is_vetted: boolean
+          org_tier: 'individual' | 'small_org' | 'large_org'
+          verification_status: 'unverified' | 'verified'
           vetting_note: string | null
           onboarding_complete: boolean
           wants_updates: boolean
@@ -91,7 +92,8 @@ export type Database = {
           id: string
           user_type?: 'admin' | 'cbo' | 'donor'
           phone?: string | null
-          is_vetted?: boolean
+          org_tier?: 'individual' | 'small_org' | 'large_org'
+          verification_status?: 'unverified' | 'verified'
           vetting_note?: string | null
           onboarding_complete?: boolean
           wants_updates?: boolean
@@ -102,7 +104,8 @@ export type Database = {
           id?: string
           user_type?: 'admin' | 'cbo' | 'donor'
           phone?: string | null
-          is_vetted?: boolean
+          org_tier?: 'individual' | 'small_org' | 'large_org'
+          verification_status?: 'unverified' | 'verified'
           vetting_note?: string | null
           onboarding_complete?: boolean
           wants_updates?: boolean

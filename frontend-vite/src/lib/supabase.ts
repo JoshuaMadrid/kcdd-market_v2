@@ -12,6 +12,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { supabaseConfig } from '@/config'
 import type { Database } from '@/types/database'
+import type { VerificationStatus } from '@/constants/userTypes'
 
 import { api } from '@/lib/api'
 // Clerk-Supabase JWT bridge.
@@ -299,7 +300,7 @@ export const saveOrganizationOnboarding = async (
   }
 
   // Approval gate: new orgs are not vetted by default. Admin must set
-  // user_profiles.is_vetted=true before this org becomes publicly visible.
+  // user_profiles.verification_status='verified' before this org becomes publicly visible.
   if (existing) {
     const { data: orgData, error } = await supabase
       .from('organizations')
@@ -1734,7 +1735,7 @@ export interface OrganizationProfile {
   updated_at: string
   cause_areas?: { id: string; name: string }[]
   populations?: { id: string; name: string }[]
-  user_profile?: { is_vetted: boolean }
+  user_profile?: { verification_status: VerificationStatus }
 }
 
 export interface OrganizationUpdate {
@@ -1778,7 +1779,7 @@ export const fetchOrganizationProfile = async (
   const baseQuery = supabase.from('organizations').select(
     `
       *,
-      user_profile:user_profiles!organizations_user_id_fkey(is_vetted)
+      user_profile:user_profiles!organizations_user_id_fkey(verification_status)
     `
   )
 

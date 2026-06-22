@@ -57,7 +57,6 @@ export function RoleSelectionModal({ isOpen, onClose }: RoleSelectionModalProps)
         {
           id: user.id,
           user_type: userType,
-          is_vetted: false,
           onboarding_complete: false,
           wants_updates: false,
           org_tier: 'individual',
