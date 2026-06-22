@@ -1,6 +1,7 @@
 import express from 'express'
 import { createClient } from '@supabase/supabase-js'
 import dotenv from 'dotenv'
+import { VERIFICATION_STATUS } from '../constants.js'
 
 dotenv.config()
 
@@ -102,10 +103,8 @@ router.post('/sync', async (req, res) => {
       if (overrideRole) {
         // DEV-ONLY: designated dev accounts skip the onboarding banner +
         // verification friction so they land straight in their dashboard.
-        // Keep is_vetted + verification_status in sync (both are read by UI).
         insertFields.onboarding_complete = true
-        insertFields.is_vetted = true
-        insertFields.verification_status = 'verified'
+        insertFields.verification_status = VERIFICATION_STATUS.VERIFIED
       }
       const { error } = await supabase.from('user_profiles').insert(insertFields)
       if (error) throw error
@@ -119,10 +118,8 @@ router.post('/sync', async (req, res) => {
       update.user_type = overrideRole
       // DEV-ONLY: designated dev accounts skip the onboarding banner +
       // verification friction so they land straight in their dashboard.
-      // Keep is_vetted + verification_status in sync (both are read by UI).
       update.onboarding_complete = true
-      update.is_vetted = true
-      update.verification_status = 'verified'
+      update.verification_status = VERIFICATION_STATUS.VERIFIED
     }
 
     const { error } = await supabase.from('user_profiles').update(update).eq('id', clerkUserId)
