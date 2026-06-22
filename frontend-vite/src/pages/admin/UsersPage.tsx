@@ -46,7 +46,6 @@ interface UserProfile {
   user_type: 'donor' | 'cbo' | 'admin'
   org_tier: OrgTier
   verification_status: VerificationStatus
-  is_vetted: boolean
   vetting_note: string | null
   created_at: string
   updated_at: string
@@ -124,7 +123,6 @@ export function AdminUsersPage() {
         .from('user_profiles')
         .update({
           verification_status: newStatus,
-          is_vetted: newStatus !== VERIFICATION_STATUS.UNVERIFIED,
           updated_at: new Date().toISOString(),
         })
         .eq('id', userId)
@@ -151,7 +149,6 @@ export function AdminUsersPage() {
             ? {
                 ...u,
                 verification_status: newStatus,
-                is_vetted: newStatus !== VERIFICATION_STATUS.UNVERIFIED,
               }
             : u
         )

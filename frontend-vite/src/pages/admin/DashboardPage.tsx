@@ -138,7 +138,6 @@ interface UserProfile {
   user_type: 'donor' | 'cbo' | 'admin'
   org_tier: OrgTier
   verification_status: VerificationStatus
-  is_vetted: boolean
   created_at: string
   updated_at: string
   // Captured from Clerk at user_profile upsert time so orphan rows (no
@@ -1062,7 +1061,7 @@ function UsersContent({
                 </div>
                 <div>
                   <p className="font-medium text-[#737373]">Vetted</p>
-                  <p>{selectedUser.is_vetted ? 'Yes' : 'No'}</p>
+                  <p>{VERIFICATION_STATUS_LABELS[selectedUser.verification_status]}</p>
                 </div>
                 <div>
                   <p className="font-medium text-[#737373]">Joined</p>
@@ -2996,7 +2995,6 @@ export function AdminDashboard() {
         user_type: input.user_type,
         org_tier: input.org_tier,
         verification_status: input.verification_status,
-        is_vetted: input.verification_status !== VERIFICATION_STATUS.UNVERIFIED,
         email: input.email || null,
         name: input.name || null,
         created_at: now,
@@ -3159,7 +3157,6 @@ export function AdminDashboard() {
         .from('user_profiles')
         .update({
           verification_status: newStatus,
-          is_vetted: newStatus !== VERIFICATION_STATUS.UNVERIFIED,
           updated_at: new Date().toISOString(),
         })
         .eq('id', userId)
@@ -3171,7 +3168,6 @@ export function AdminDashboard() {
             ? {
                 ...u,
                 verification_status: newStatus,
-                is_vetted: newStatus !== VERIFICATION_STATUS.UNVERIFIED,
               }
             : u
         )
@@ -3243,7 +3239,6 @@ export function AdminDashboard() {
                     user_type: u.user_type,
                     org_tier: u.org_tier,
                     verification_status: u.verification_status,
-                    is_vetted: u.is_vetted,
                     created_at: u.created_at,
                     display_name: u.donor_profile?.display_name || u.organization?.name || '',
                     email: u.donor_profile?.email || u.organization?.email || '',

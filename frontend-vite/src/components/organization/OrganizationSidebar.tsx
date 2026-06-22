@@ -9,6 +9,7 @@ import { Card } from '@/components/ui/card'
 import { Badge as _Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import type { OrganizationProfile } from '@/lib/supabase'
+import { VERIFICATION_STATUS } from '@/constants/userTypes'
 
 interface OrganizationSidebarProps {
   organization: OrganizationProfile
@@ -74,7 +75,7 @@ export function OrganizationSidebar({
 
       <div className="space-y-5 p-6">
         {/* Verified Badge */}
-        {organization.user_profile?.is_vetted && (
+        {organization.user_profile?.verification_status === VERIFICATION_STATUS.VERIFIED && (
           <div className="flex items-center gap-2 rounded-lg bg-[#d1fae5]/50 p-3">
             <BadgeCheck className="h-5 w-5 text-[#059669]" />
             <div>
