@@ -68,7 +68,29 @@ pnpx supabase link --project-ref xyz
 pnpx supabase db push
 ```
 
-`xyz` is the project ref from your Supabase dashboard URL.
+`xyz` is the project ref from your Supabase dashboard URL
+(`https://supabase.com/dashboard/project/<ref>`, or the `<ref>` in
+`https://<ref>.supabase.co`).
+
+#### How `db push` picks its target (login vs link)
+
+These are **two independent things** — `db push` takes no URL/path argument, so
+both must be in place first:
+
+| Step                          | Decides                         | Stored where                                                                 |
+| ----------------------------- | ------------------------------- | ---------------------------------------------------------------------------- |
+| `supabase login`              | **who** (which Supabase account) | `~/.supabase/` access token (or `SUPABASE_ACCESS_TOKEN` env). Machine-wide.   |
+| `supabase link --project-ref` | **which project** (the target)   | `backend/supabase/.temp/` — **gitignored, per-machine**.                      |
+
+`db push` reads the linked ref from `.temp/`, authenticates with the login
+token, then compares local `backend/supabase/migrations/*.sql` against the
+remote `supabase_migrations.schema_migrations` table and applies **only the
+migrations not yet recorded there** (in filename order).
+
+Because `.temp/` is gitignored, the link is **not shared** — every machine (and
+every teammate) must run `login` + `link` once before their first push. CI /
+non-interactive: pass `SUPABASE_ACCESS_TOKEN` instead of `login`, and
+`link -p <db-password>`.
 
 For any new migrations after the initial push:
 
@@ -80,12 +102,18 @@ cd backend && pnpx supabase db push
 
 ### Linked vs unlinked state
 
-After `supabase link`, `db push` targets the cloud. To go back to local-only work:
+After `supabase link`, `db push` targets the cloud. `db push` is **remote-only**
+— it always targets the linked project and has no local mode. To stop targeting
+the cloud:
 
 ```bash
 cd backend && pnpx supabase unlink
-# now `pnpm db:push` applies to your local Supabase again
 ```
+
+After `unlink` there is no linked project, so `db push` simply has no target and
+will error until you `link` again — it does **not** fall back to the local
+stack. To apply migrations to the **local** Docker DB, use `pnpm db:reset`
+(replays all migrations + seed; wipes local data) — never `db push`.
 
 ---
 
